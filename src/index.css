@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-ink-50: #f6f2ea;
+  --color-ink-100: #efe7d7;
+  --color-ink-200: #e2cfb3;
+  --color-ink-300: #d2b383;
+  --color-ink-400: #c39456;
+  --color-ink-500: #b47a33;
+  --color-ink-600: #956027;
+  --color-ink-700: #764820;
+  --color-ink-800: #553318;
+  --color-ink-900: #35200f;
+  --color-melon-50: #fff2ec;
+  --color-melon-100: #ffe3d3;
+  --color-melon-200: #ffc9a6;
+  --color-melon-300: #ffa572;
+  --color-melon-400: #ff7f3f;
+  --color-melon-500: #ff5e1a;
+  --color-melon-600: #e04607;
+  --color-melon-700: #b13508;
+  --color-melon-800: #7b2409;
+  --color-melon-900: #4a1506;
+}
+
+:root {
+  color-scheme: light;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: #fbf6ed;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255, 175, 105, 0.25), transparent 45%),
+    radial-gradient(circle at 80% 0%, rgba(255, 110, 64, 0.2), transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(176, 135, 76, 0.15), transparent 45%),
+    linear-gradient(120deg, #fff2e0 0%, #fff7ee 45%, #fff1dc 100%);
+  color: #3d2b16;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: "ZCOOL KuaiLe", "Noto Sans SC", cursive;
+}
+
+.paper-grid {
+  background-image:
+    linear-gradient(transparent 95%, rgba(122, 86, 48, 0.12) 96%),
+    linear-gradient(90deg, transparent 95%, rgba(122, 86, 48, 0.12) 96%);
+  background-size: 22px 22px;
+}
+
+.floating-dot {
+  animation: floaty 8s ease-in-out infinite;
+}
+
+.floating-dot.delay {
+  animation-delay: -2s;
+}
+
+.floating-dot.delay-2 {
+  animation-delay: -4s;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
