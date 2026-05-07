@@ -13,7 +13,7 @@
 - **手机贴额头玩法（Heads Up 模式）**：屏幕朝外，靠手腕翻转判定对/过
 - **屏幕常亮**：游戏过程不黑屏
 - **多档计时**：60 / 90 / 120 / 180 秒
-- **词库丰富**：≥ 800 词，按难度分层
+- **词库丰富**：≥ 800 词，**仅按难度分层，不再做分类**
 
 ## 2. 玩法定义
 
@@ -52,7 +52,7 @@
 
 后续进入直接到难度时长页。引导页上的"启用动作感应"按钮在非 iOS 设备上文案改为"我知道了"——同样在用户手势中尝试调用一次，无 `requestPermission` 方法的浏览器直接当作 granted 处理。
 
-**特色挑战**：在难度时长页底部，列出 1-2 个一键启动按钮（"成语专场" / "影视专场"），点击直接用对应分类 + 推荐难度开局。
+**主路径只有"难度 + 时长"两个选择**，不再设特色挑战 / 主题包；最大化随机感。
 
 ## 4. 架构与组件
 
@@ -65,7 +65,7 @@ src/
       CharadesGame.tsx          # 顶层组件，stage 状态机
       stages/
         IntroStage.tsx          # 玩法引导（首次进入）
-        SetupStage.tsx          # 难度 + 时长选择 + 特色挑战入口
+        SetupStage.tsx          # 难度 + 时长选择
         CountdownStage.tsx      # 3-2-1
         PlayingStage.tsx        # 比划猜进行中
         ResultStage.tsx         # 结算 + 词单回顾
@@ -99,7 +99,6 @@ interface State {
   config: {
     difficulties: Set<Difficulty>   // 默认 ['easy', 'medium']
     durationSec: 60 | 90 | 120 | 180 // 默认 90
-    categoryFilter: Category | null  // 特色挑战时设置；null = 全库
   }
   session: {
     words: WordEntry[]              // 这一局抽到的全部词
@@ -131,45 +130,38 @@ interface State {
 ```ts
 // src/games/charades/types.ts
 export type Difficulty = 'easy' | 'medium' | 'hard'
-export type Category = 'animal' | 'food' | 'object' | 'action' | 'idiom' | 'character'
 
 export interface WordEntry {
   text: string
-  pinyin?: string         // 仅在 hard / 成语 / 较难辨识词时填
   difficulty: Difficulty
-  category: Category
-  hint?: string           // 极少使用，仅给冷门词留口子（默认不显示）
 }
 ```
 
-### 5.2 分类与目标量级
+**没有分类字段**。词库就是一个扁平列表，仅按难度分层。
 
-数据层保留 6 个分类（用于内容管理与特色挑战），**默认 UI 不暴露分类多选**——主路径只让用户选难度。
+### 5.2 量级
 
-| 分类         | 目标词数 | 难度构成（粗）          |
-|--------------|---------|------------------------|
-| 动物 animal  | ≥ 100   | 多 easy / medium       |
-| 食物 food    | ≥ 130   | 多 easy / medium       |
-| 生活物品 object（家庭+学校+日常用品）| ≥ 130 | 多 easy / medium |
-| 动作日常 action | ≥ 150 | 全 medium，少量 easy/hard |
-| 成语 idiom   | ≥ 150   | 多 medium / hard        |
-| 影视人物 character（含动漫角色、明星、历史人物） | ≥ 150 | 多 medium / hard |
-| **总计**     | **≥ 810** | — |
+| 难度          | 实际词数  | 内容方向                                  |
+|--------------|----------|------------------------------------------|
+| easy         | 253      | 常见动物、食物、生活物品、基础动作、入门成语、全民动画角色 |
+| medium       | 377      | 中等难度名词、典型成语、经典影视/动漫人物、复合动作       |
+| hard         | 176      | 较难成语、历史/明星人物、复杂动作、罕见动物食物         |
+| **总计**     | **806**   | —                                        |
 
 ### 5.3 内容生成原则
 
 - 词必须"**能比划**"：纯抽象概念（如"民主""熵"）不收
-- 同义/近义词避免重复（动物里既有"小狗"就不再放"狗"）
+- 同义/近义词避免重复（既有"小狗"就不再放"狗"）
 - 成语优先选**有动作画面感**的（"狐假虎威""画蛇添足"），抽象成语（"指鹿为马"动作弱）放 hard
 - 影视人物优先选**全民认知度高**的（孙悟空、葫芦娃、海绵宝宝、周杰伦），冷门人物不收
-- 复用现有 `src/data/word-bank.ts` 时，从词对中拆出去重，标难度后并入 charades-words.ts；**不修改原 word-bank.ts**（谁是卧底仍依赖它）
+- **不修改原 `src/data/word-bank.ts`**（谁是卧底仍依赖它）；charades 自带独立词库
 
 ### 5.4 抽词算法（utils/shuffle.ts）
 
-- 按当前 `config` 过滤词池（难度交集 + 可选 category）
+- 按用户勾选的难度集合过滤词池
 - Fisher-Yates 洗牌后顺序消费
 - **同一局内不重复**：词池足够大时不会循环
-- 词池小于一局可能消耗的题数（如成语专场 + 仅 hard）时，洗完一轮后再洗第二轮，标记 `lap` 用于结算页区分
+- 词池小于一局可能消耗的题数时，洗完一轮后再洗第二轮，标记 `lap` 用于结算页区分
 
 ## 6. 翻转检测（hooks/useFlipDetector.ts）
 
