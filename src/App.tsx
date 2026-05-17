@@ -4,16 +4,17 @@ import { Gamepad2, Ghost, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { CharadesGame } from '@/games/charades/CharadesGame'
+import { StoryGame } from '@/games/story/StoryGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { cn } from '@/lib/utils'
 
-type Screen = 'home' | 'undercover' | 'charades'
+type Screen = 'home' | 'undercover' | 'charades' | 'story'
 
 const games = [
   { id: 'undercover', name: '谁是卧底', desc: '适合 3 人起玩', status: 'hot' },
   { id: 'charades', name: '你来比划', desc: '手机贴额头，限时猜词', status: 'hot' },
+  { id: 'story', name: '编故事', desc: '抽关键词，限时编故事', status: 'hot' },
   { id: 'dice', name: '骰子任务', desc: '敬请期待', status: 'soon' },
-  { id: 'story', name: '编故事', desc: '敬请期待', status: 'soon' },
   { id: 'draw', name: '你画我猜', desc: '敬请期待', status: 'soon' },
   { id: 'sound', name: '声音模仿', desc: '敬请期待', status: 'soon' },
   { id: 'memory', name: '记忆翻牌', desc: '敬请期待', status: 'soon' },
@@ -21,7 +22,7 @@ const games = [
   { id: 'mystery', name: '神秘游戏', desc: '敬请期待', status: 'soon' },
 ]
 
-const ACTIVE_GAMES = new Set(['undercover', 'charades'])
+const ACTIVE_GAMES = new Set(['undercover', 'charades', 'story'])
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
@@ -64,6 +65,7 @@ export default function App() {
                     onClick={() => {
                       if (game.id === 'undercover') setScreen('undercover')
                       else if (game.id === 'charades') setScreen('charades')
+                      else if (game.id === 'story') setScreen('story')
                     }}
                     className={cn(
                       'group flex min-h-[150px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md',
@@ -93,7 +95,7 @@ export default function App() {
               })}
             </CardContent>
             <CardFooter className="justify-between">
-              <div className="text-xs text-ink-500">已上线：谁是卧底、你来比划。</div>
+              <div className="text-xs text-ink-500">已上线：谁是卧底、你来比划、编故事。</div>
               <div className="text-xs text-ink-500">更多游戏正在路上。</div>
             </CardFooter>
           </Card>
@@ -132,6 +134,23 @@ export default function App() {
               </p>
             </div>
             <CharadesGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'story' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">编故事</h2>
+              <p className="text-sm text-ink-600">
+                抽几张关键词卡，限时内编一个把它们都用上的故事。家人当裁判。
+              </p>
+            </div>
+            <StoryGame onExit={() => setScreen('home')} />
           </section>
         )}
       </div>
