@@ -1,10 +1,13 @@
 import { useReducer, useState } from 'react'
-import type { KnowQuestion, QuestionsPerRole, RoleId, RoundRecord, Stage } from './types'
+import type { DeckCard, QuestionsPerRole, RoleId, RoundRecord, Stage } from './types'
+import { isFamilyCard } from './types'
 import { knowQuestions } from './data/know-questions'
+import { familyCards } from './data/family'
 import { buildDeck } from './utils/buildDeck'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
 import { PlayingStage } from './stages/PlayingStage'
+import { FamilyCardStage } from './stages/FamilyCardStage'
 import { ResultStage } from './stages/ResultStage'
 
 interface KnowYouGameProps {
@@ -15,7 +18,8 @@ interface State {
   stage: Stage
   players: Set<RoleId>
   perRole: QuestionsPerRole
-  deck: KnowQuestion[]
+  withFamilyCards: boolean
+  deck: DeckCard[]
   index: number
   records: RoundRecord[]
   usedTexts: Set<string>
@@ -25,10 +29,22 @@ type Action =
   | { type: 'GOTO_SETUP' }
   | { type: 'TOGGLE_PLAYER'; value: RoleId }
   | { type: 'SET_PER_ROLE'; value: QuestionsPerRole }
-  | { type: 'START'; deck: KnowQuestion[] }
+  | { type: 'TOGGLE_FAMILY_CARDS' }
+  | { type: 'START'; deck: DeckCard[] }
   | { type: 'SUBMIT_ROUND'; correctGuessers: RoleId[] }
-  | { type: 'NEXT_GAME'; deck: KnowQuestion[] }
+  | { type: 'NEXT_CARD' }
+  | { type: 'NEXT_GAME'; deck: DeckCard[] }
   | { type: 'CHANGE_SETUP' }
+
+function advance(state: State, extra: Partial<State>): State {
+  const done = state.index + 1 >= state.deck.length
+  return {
+    ...state,
+    ...extra,
+    index: done ? state.index : state.index + 1,
+    stage: done ? 'result' : 'playing',
+  }
+}
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -42,21 +58,25 @@ function reducer(state: State, action: Action): State {
     }
     case 'SET_PER_ROLE':
       return { ...state, perRole: action.value }
+    case 'TOGGLE_FAMILY_CARDS':
+      return { ...state, withFamilyCards: !state.withFamilyCards }
     case 'START':
       return { ...state, stage: 'playing', deck: action.deck, index: 0, records: [] }
     case 'SUBMIT_ROUND': {
-      const question = state.deck[state.index]
-      const records = [...state.records, { question, correctGuessers: action.correctGuessers }]
+      const card = state.deck[state.index]
+      if (isFamilyCard(card)) return state
       const usedTexts = new Set(state.usedTexts)
-      usedTexts.add(question.text)
-      const done = state.index + 1 >= state.deck.length
-      return {
-        ...state,
-        records,
+      usedTexts.add(card.text)
+      return advance(state, {
+        records: [...state.records, { question: card, correctGuessers: action.correctGuessers }],
         usedTexts,
-        index: done ? state.index : state.index + 1,
-        stage: done ? 'result' : 'playing',
-      }
+      })
+    }
+    case 'NEXT_CARD': {
+      const card = state.deck[state.index]
+      const usedTexts = new Set(state.usedTexts)
+      usedTexts.add(card.text)
+      return advance(state, { usedTexts })
     }
     case 'NEXT_GAME':
       return { ...state, stage: 'playing', deck: action.deck, index: 0, records: [] }
@@ -80,14 +100,22 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
     stage: introSeen ? 'setup' : 'intro',
     players: new Set(ALL_PLAYERS),
     perRole: 5,
+    withFamilyCards: true,
     deck: [],
     index: 0,
     records: [],
     usedTexts: new Set<string>(),
   })
 
-  function makeDeck(): KnowQuestion[] {
-    return buildDeck(knowQuestions, [...state.players], state.perRole, state.usedTexts)
+  function makeDeck(): DeckCard[] {
+    return buildDeck(
+      knowQuestions,
+      familyCards,
+      [...state.players],
+      state.perRole,
+      state.withFamilyCards,
+      state.usedTexts,
+    )
   }
 
   if (state.stage === 'intro') {
@@ -99,19 +127,32 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
       <SetupStage
         players={state.players}
         perRole={state.perRole}
+        withFamilyCards={state.withFamilyCards}
         onTogglePlayer={(r) => dispatch({ type: 'TOGGLE_PLAYER', value: r })}
         onChangePerRole={(n) => dispatch({ type: 'SET_PER_ROLE', value: n })}
+        onToggleFamilyCards={() => dispatch({ type: 'TOGGLE_FAMILY_CARDS' })}
         onStart={() => dispatch({ type: 'START', deck: makeDeck() })}
       />
     )
   }
 
   if (state.stage === 'playing') {
-    const question = state.deck[state.index]
+    const card = state.deck[state.index]
+    if (isFamilyCard(card)) {
+      return (
+        <FamilyCardStage
+          key={state.index}
+          card={card}
+          index={state.index}
+          total={state.deck.length}
+          onNext={() => dispatch({ type: 'NEXT_CARD' })}
+        />
+      )
+    }
     return (
       <PlayingStage
         key={state.index}
-        question={question}
+        question={card}
         players={[...state.players]}
         index={state.index}
         total={state.deck.length}

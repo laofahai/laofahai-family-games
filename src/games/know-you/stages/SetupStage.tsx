@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils'
 interface SetupStageProps {
   players: Set<RoleId>
   perRole: QuestionsPerRole
+  withFamilyCards: boolean
   onTogglePlayer: (r: RoleId) => void
   onChangePerRole: (n: QuestionsPerRole) => void
+  onToggleFamilyCards: () => void
   onStart: () => void
 }
 
@@ -18,12 +20,15 @@ const PER_ROLE_OPTIONS: QuestionsPerRole[] = [3, 5, 8]
 export function SetupStage({
   players,
   perRole,
+  withFamilyCards,
   onTogglePlayer,
   onChangePerRole,
+  onToggleFamilyCards,
   onStart,
 }: SetupStageProps) {
   const canStart = players.size >= 2
-  const totalQuestions = players.size * perRole
+  const familyCardCount = withFamilyCards ? perRole - 1 : 0
+  const totalQuestions = players.size * perRole + familyCardCount
 
   return (
     <Card className="paper-grid">
@@ -87,9 +92,35 @@ export function SetupStage({
             })}
           </div>
           <div className="text-xs text-ink-500">
-            本局共 {totalQuestions} 道题，主角轮流换。3 道 = 快速一局 / 8 道 = 深度互怼
+            本局共 {totalQuestions} 张卡，主角轮流换。3 道 = 快速一局 / 8 道 = 深度互怼
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onToggleFamilyCards}
+          className={cn(
+            'flex w-full items-center justify-between rounded-2xl border p-4 text-left transition',
+            withFamilyCards
+              ? 'border-violet-400 bg-violet-50 shadow'
+              : 'border-ink-200 bg-white opacity-70 hover:opacity-100'
+          )}
+        >
+          <span>
+            <span className="block text-sm font-semibold text-ink-900">🎉 穿插全家彩蛋卡</span>
+            <span className="block text-xs text-ink-500">
+              每轮换人之间加一张"谁最可能 / 模仿挑战 / 家庭回忆",不计分纯起哄
+            </span>
+          </span>
+          <span
+            className={cn(
+              'rounded-full px-3 py-1 text-xs font-semibold',
+              withFamilyCards ? 'bg-violet-500 text-white' : 'bg-ink-100 text-ink-500'
+            )}
+          >
+            {withFamilyCards ? '开' : '关'}
+          </span>
+        </button>
       </CardContent>
       <div className="px-6 pb-6">
         <Button onClick={onStart} disabled={!canStart} className="h-14 w-full gap-2 text-base">

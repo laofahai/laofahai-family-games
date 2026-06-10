@@ -64,6 +64,18 @@ interface KnowQuestion {
 数据按角色分文件:`data/dad.ts` / `data/mom.ts` / `data/big-sis.ts` /
 `data/lil-sis.ts`,由 `data/know-questions.ts` 聚合,共享 `data/builders.ts`。
 
+## 全家彩蛋卡(family)
+
+每完成一轮完整轮转(最后一轮除外)穿插一张全家卡(`data/family.ts`,50+ 张),
+不计分纯起哄,设置页可开关(默认开):
+
+- **谁最可能**:全员数三二一同时指人(调研中笑点最高的零门槛机制)
+- **模仿挑战**:模仿家人名场面,被模仿者不许笑场
+- **家庭回忆**:全家轮流说(放走心向收尾)
+
+类型上 `DeckCard = KnowQuestion | FamilyCard`,全家卡走 `FamilyCardStage`,
+不进 records、不影响双榜计分。
+
 ## 技术
 
 - 目录 `src/games/know-you/`,完全复用 story 游戏的组件风格(Card/Button/cn)。

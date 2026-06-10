@@ -13,6 +13,23 @@ export interface KnowQuestion {
   tag: string
 }
 
+/** 穿插在轮次之间的全家彩蛋卡:不计分,全员一起玩 */
+export interface FamilyCard {
+  kind: 'family'
+  text: string
+  emoji: string
+  /** "谁最可能" | "模仿挑战" | "家庭回忆" */
+  tag: string
+  /** 怎么玩的一句话提示 */
+  hint: string
+}
+
+export type DeckCard = KnowQuestion | FamilyCard
+
+export function isFamilyCard(card: DeckCard): card is FamilyCard {
+  return card.kind === 'family'
+}
+
 export interface RoleInfo {
   id: RoleId
   name: string
