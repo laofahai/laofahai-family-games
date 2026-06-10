@@ -4,27 +4,30 @@ import { Gamepad2, Ghost, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { CharadesGame } from '@/games/charades/CharadesGame'
+import { DrawGame } from '@/games/draw/DrawGame'
 import { KnowYouGame } from '@/games/know-you/KnowYouGame'
+import { PriceGame } from '@/games/price/PriceGame'
 import { StoryGame } from '@/games/story/StoryGame'
+import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { cn } from '@/lib/utils'
 
-type Screen = 'home' | 'undercover' | 'charades' | 'story' | 'knowYou'
+type Screen = 'home' | 'undercover' | 'charades' | 'story' | 'knowYou' | 'draw' | 'price' | 'truthLie'
 
 const games = [
   { id: 'undercover', name: '谁是卧底', desc: '适合 3 人起玩', status: 'hot' },
   { id: 'charades', name: '你来比划', desc: '手机贴额头，限时猜词', status: 'hot' },
   { id: 'story', name: '编故事', desc: '抽关键词，限时编故事', status: 'hot' },
   { id: 'knowYou', name: '我知道你不知道', desc: '猜猜家人的小世界', status: 'hot' },
+  { id: 'draw', name: '你画我猜', desc: '触屏作画，全家来猜', status: 'hot' },
+  { id: 'price', name: '猜价格', desc: '真实物价，最接近的赢', status: 'hot' },
+  { id: 'truthLie', name: '两真一假', desc: '拆穿家人的小谎话', status: 'hot' },
   { id: 'dice', name: '骰子任务', desc: '敬请期待', status: 'soon' },
-  { id: 'draw', name: '你画我猜', desc: '敬请期待', status: 'soon' },
   { id: 'sound', name: '声音模仿', desc: '敬请期待', status: 'soon' },
   { id: 'memory', name: '记忆翻牌', desc: '敬请期待', status: 'soon' },
-  { id: 'speed', name: '反应测试', desc: '敬请期待', status: 'soon' },
-  { id: 'mystery', name: '神秘游戏', desc: '敬请期待', status: 'soon' },
 ]
 
-const ACTIVE_GAMES = new Set(['undercover', 'charades', 'story', 'knowYou'])
+const ACTIVE_GAMES = new Set(['undercover', 'charades', 'story', 'knowYou', 'draw', 'price', 'truthLie'])
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
@@ -69,6 +72,9 @@ export default function App() {
                       else if (game.id === 'charades') setScreen('charades')
                       else if (game.id === 'story') setScreen('story')
                       else if (game.id === 'knowYou') setScreen('knowYou')
+                      else if (game.id === 'draw') setScreen('draw')
+                      else if (game.id === 'price') setScreen('price')
+                      else if (game.id === 'truthLie') setScreen('truthLie')
                     }}
                     className={cn(
                       'group flex min-h-[150px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md',
@@ -98,7 +104,9 @@ export default function App() {
               })}
             </CardContent>
             <CardFooter className="justify-between">
-              <div className="text-xs text-ink-500">已上线：谁是卧底、你来比划、编故事、我知道你不知道。</div>
+              <div className="text-xs text-ink-500">
+                已上线：谁是卧底、你来比划、编故事、我知道你不知道、你画我猜、猜价格、两真一假。
+              </div>
               <div className="text-xs text-ink-500">更多游戏正在路上。</div>
             </CardFooter>
           </Card>
@@ -154,6 +162,57 @@ export default function App() {
               </p>
             </div>
             <KnowYouGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'draw' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">你画我猜</h2>
+              <p className="text-sm text-ink-600">
+                画手偷偷看词，在屏幕上画，全家围着猜。只能画，不能说！
+              </p>
+            </div>
+            <DrawGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'price' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">猜价格</h2>
+              <p className="text-sm text-ink-600">
+                每轮一件真实商品，轮流报价，最接近真实价格的人得分。
+              </p>
+            </div>
+            <PriceGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'truthLie' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">两真一假</h2>
+              <p className="text-sm text-ink-600">
+                主角说三件自己的事，一件是编的。拆穿得分，骗过全场也得分。
+              </p>
+            </div>
+            <TruthLieGame onExit={() => setScreen('home')} />
           </section>
         )}
 
