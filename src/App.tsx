@@ -7,12 +7,22 @@ import { CharadesGame } from '@/games/charades/CharadesGame'
 import { DrawGame } from '@/games/draw/DrawGame'
 import { KnowYouGame } from '@/games/know-you/KnowYouGame'
 import { PriceGame } from '@/games/price/PriceGame'
+import { ShiliuTownGame } from '@/games/shiliu-town/ShiliuTownGame'
 import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { cn } from '@/lib/utils'
 
-type Screen = 'home' | 'undercover' | 'charades' | 'story' | 'knowYou' | 'draw' | 'price' | 'truthLie'
+type Screen =
+  | 'home'
+  | 'undercover'
+  | 'charades'
+  | 'story'
+  | 'knowYou'
+  | 'draw'
+  | 'price'
+  | 'truthLie'
+  | 'shiliuTown'
 
 const games = [
   { id: 'undercover', name: '谁是卧底', desc: '适合 3 人起玩', status: 'hot' },
@@ -21,13 +31,23 @@ const games = [
   { id: 'knowYou', name: '我知道你不知道', desc: '猜猜家人的小世界', status: 'hot' },
   { id: 'draw', name: '你画我猜', desc: '触屏作画，全家来猜', status: 'hot' },
   { id: 'price', name: '猜价格', desc: '真实物价，最接近的赢', status: 'hot' },
+  { id: 'shiliuTown', name: '闫顺儿小镇', desc: '读题破案，购物算钱', status: 'hot' },
   { id: 'truthLie', name: '两真一假', desc: '拆穿家人的小谎话', status: 'hot' },
   { id: 'dice', name: '骰子任务', desc: '敬请期待', status: 'soon' },
   { id: 'sound', name: '声音模仿', desc: '敬请期待', status: 'soon' },
   { id: 'memory', name: '记忆翻牌', desc: '敬请期待', status: 'soon' },
 ]
 
-const ACTIVE_GAMES = new Set(['undercover', 'charades', 'story', 'knowYou', 'draw', 'price', 'truthLie'])
+const ACTIVE_GAMES = new Set([
+  'undercover',
+  'charades',
+  'story',
+  'knowYou',
+  'draw',
+  'price',
+  'shiliuTown',
+  'truthLie',
+])
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
@@ -74,6 +94,7 @@ export default function App() {
                       else if (game.id === 'knowYou') setScreen('knowYou')
                       else if (game.id === 'draw') setScreen('draw')
                       else if (game.id === 'price') setScreen('price')
+                      else if (game.id === 'shiliuTown') setScreen('shiliuTown')
                       else if (game.id === 'truthLie') setScreen('truthLie')
                     }}
                     className={cn(
@@ -105,7 +126,7 @@ export default function App() {
             </CardContent>
             <CardFooter className="justify-between">
               <div className="text-xs text-ink-500">
-                已上线：谁是卧底、你来比划、编故事、我知道你不知道、你画我猜、猜价格、两真一假。
+                已上线：谁是卧底、你来比划、编故事、我知道你不知道、你画我猜、猜价格、闫顺儿小镇、两真一假。
               </div>
               <div className="text-xs text-ink-500">更多游戏正在路上。</div>
             </CardFooter>
@@ -213,6 +234,23 @@ export default function App() {
               </p>
             </div>
             <TruthLieGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'shiliuTown' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">闫顺儿小镇</h2>
+              <p className="text-sm text-ink-600">
+                小侦探先找线索，购物小掌柜再算钱。每局短一点，慢慢玩。
+              </p>
+            </div>
+            <ShiliuTownGame onExit={() => setScreen('home')} />
           </section>
         )}
 
