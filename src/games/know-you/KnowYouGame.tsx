@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import type { DeckCard, QuestionsPerRole, RoleId, RoundRecord, Stage } from './types'
 import { isFamilyCard } from './types'
 import { knowQuestions } from './data/know-questions'
@@ -35,6 +35,7 @@ type Action =
   | { type: 'NEXT_CARD' }
   | { type: 'NEXT_GAME'; deck: DeckCard[] }
   | { type: 'CHANGE_SETUP' }
+  | { type: 'RESET_USED' }
 
 function advance(state: State, extra: Partial<State>): State {
   const done = state.index + 1 >= state.deck.length
@@ -82,6 +83,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, stage: 'playing', deck: action.deck, index: 0, records: [] }
     case 'CHANGE_SETUP':
       return { ...state, stage: 'setup', deck: [], index: 0, records: [] }
+    case 'RESET_USED':
+      return { ...state, usedTexts: new Set<string>() }
     default:
       return state
   }
@@ -90,6 +93,30 @@ function reducer(state: State, action: Action): State {
 function readIntroSeen(): boolean {
   if (typeof localStorage === 'undefined') return false
   return localStorage.getItem('knowYou.introSeen') === '1'
+}
+
+const USED_TEXTS_KEY = 'knowYou.usedTexts'
+
+function readUsedTexts(): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set()
+  try {
+    const raw = localStorage.getItem(USED_TEXTS_KEY)
+    if (!raw) return new Set()
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((t): t is string => typeof t === 'string'))
+  } catch {
+    return new Set()
+  }
+}
+
+function saveUsedTexts(texts: ReadonlySet<string>): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(USED_TEXTS_KEY, JSON.stringify([...texts]))
+  } catch {
+    // 存储满/隐私模式等情况下静默失败,游戏照常进行
+  }
 }
 
 const ALL_PLAYERS: Set<RoleId> = new Set<RoleId>(['dad', 'mom', 'bigSis', 'lilSis'])
@@ -104,8 +131,12 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
     deck: [],
     index: 0,
     records: [],
-    usedTexts: new Set<string>(),
+    usedTexts: readUsedTexts(),
   })
+
+  useEffect(() => {
+    saveUsedTexts(state.usedTexts)
+  }, [state.usedTexts])
 
   function makeDeck(): DeckCard[] {
     return buildDeck(
@@ -128,9 +159,11 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
         players={state.players}
         perRole={state.perRole}
         withFamilyCards={state.withFamilyCards}
+        usedCount={state.usedTexts.size}
         onTogglePlayer={(r) => dispatch({ type: 'TOGGLE_PLAYER', value: r })}
         onChangePerRole={(n) => dispatch({ type: 'SET_PER_ROLE', value: n })}
         onToggleFamilyCards={() => dispatch({ type: 'TOGGLE_FAMILY_CARDS' })}
+        onResetUsed={() => dispatch({ type: 'RESET_USED' })}
         onStart={() => dispatch({ type: 'START', deck: makeDeck() })}
       />
     )

@@ -1,4 +1,4 @@
-import { Play, Settings2 } from 'lucide-react'
+import { Play, RotateCcw, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { QuestionsPerRole, RoleId } from '../types'
@@ -9,9 +9,11 @@ interface SetupStageProps {
   players: Set<RoleId>
   perRole: QuestionsPerRole
   withFamilyCards: boolean
+  usedCount: number
   onTogglePlayer: (r: RoleId) => void
   onChangePerRole: (n: QuestionsPerRole) => void
   onToggleFamilyCards: () => void
+  onResetUsed: () => void
   onStart: () => void
 }
 
@@ -21,9 +23,11 @@ export function SetupStage({
   players,
   perRole,
   withFamilyCards,
+  usedCount,
   onTogglePlayer,
   onChangePerRole,
   onToggleFamilyCards,
+  onResetUsed,
   onStart,
 }: SetupStageProps) {
   const canStart = players.size >= 2
@@ -121,6 +125,23 @@ export function SetupStage({
             {withFamilyCards ? '开' : '关'}
           </span>
         </button>
+
+        {usedCount > 0 && (
+          <div className="flex items-center justify-between rounded-2xl border border-ink-200 bg-white p-4">
+            <span className="text-xs text-ink-500">
+              已玩过 <span className="font-semibold text-ink-900">{usedCount}</span>{' '}
+              张卡，不会再出现（题不够时才会回收）
+            </span>
+            <button
+              type="button"
+              onClick={onResetUsed}
+              className="flex shrink-0 items-center gap-1 rounded-full border border-ink-200 px-3 py-1 text-xs font-semibold text-ink-700 transition hover:border-rose-400 hover:text-rose-600"
+            >
+              <RotateCcw className="h-3 w-3" />
+              清空记录
+            </button>
+          </div>
+        )}
       </CardContent>
       <div className="px-6 pb-6">
         <Button onClick={onStart} disabled={!canStart} className="h-14 w-full gap-2 text-base">
