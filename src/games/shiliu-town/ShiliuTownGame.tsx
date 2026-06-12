@@ -339,15 +339,19 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
         <div className="flex flex-col gap-2 px-6 pb-6 sm:flex-row">
           <Button
             onClick={() => dispatch({ type: 'START', questions: buildQuestions(state.mode, state.count) })}
-            className="h-12 flex-1 gap-2"
+            className="min-h-14 w-full shrink-0 gap-2 text-base sm:flex-1"
           >
             <RotateCcw className="h-4 w-4" />
             再来一局
           </Button>
-          <Button variant="outline" onClick={() => dispatch({ type: 'RESET' })} className="h-12 flex-1">
+          <Button
+            variant="outline"
+            onClick={() => dispatch({ type: 'RESET' })}
+            className="min-h-14 w-full shrink-0 text-base sm:flex-1"
+          >
             换模式
           </Button>
-          <Button variant="ghost" onClick={onExit} className="h-12 flex-1">
+          <Button variant="ghost" onClick={onExit} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
             回首页
           </Button>
         </div>
@@ -467,9 +471,9 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
               <Button
                 variant="outline"
                 onClick={() => setShowHint((v) => !v)}
-                className="h-12 flex-1 gap-2"
+                className="min-h-14 w-full shrink-0 gap-2 text-base sm:flex-1"
               >
-                <HelpCircle className="h-4 w-4" />
+                <HelpCircle className="h-5 w-5 shrink-0" />
                 看提示
               </Button>
               <NextButton
@@ -624,7 +628,7 @@ function ActionRow({
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
       {!checked && (
-        <Button onClick={onCheck} disabled={!canCheck} className="h-12 flex-1">
+        <Button onClick={onCheck} disabled={!canCheck} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
           {checkText}
         </Button>
       )}
@@ -635,7 +639,7 @@ function ActionRow({
 
 function NextButton({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {
   return (
-    <Button onClick={onClick} disabled={disabled} className="h-12 flex-1">
+    <Button onClick={onClick} disabled={disabled} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
       下一步
     </Button>
   )
