@@ -19,91 +19,35 @@ import {
   shuffle,
 } from '@/games/shared/question-utils'
 import { pickUnseen } from '@/platform/progress'
+import { contentFor } from '@/platform/content'
+import {
+  CHINESE_TEACHER_NAME,
+  MATH_TEACHER_NAME,
+  PLAYER_NAME,
+  classmates,
+  missingScenes,
+  shopCatalog,
+  shopPlaces,
+  things,
+  twoStepScenes,
+} from './roster'
 
-interface Thing {
-  name: string
-  unit: string
-  emoji?: string
+// 同学名单（单一可编辑源）：运行时从云端 'roster-shiliu' 取，拉不到回退打包名单。
+function roster(): string[] {
+  return contentFor('roster-shiliu', classmates)
 }
 
-const things: Thing[] = [
-  { name: '苹果', unit: '个' },
-  { name: '草莓', unit: '颗' },
-  { name: '贴纸', unit: '张' },
-  { name: '糖果', unit: '颗' },
-  { name: '铅笔', unit: '支' },
-  { name: '本子', unit: '本' },
-  { name: '小花', unit: '朵' },
-  { name: '小鱼', unit: '条' },
-  { name: '积木', unit: '块' },
-  { name: '星星卡', unit: '张' },
-  { name: '小饼干', unit: '块' },
-  { name: '跳绳次数', unit: '下' },
-]
+// people / buyerNames 不再各存一份静态数组，运行时从单一名单 roster() 实时拼。
+function peoplePool(): string[] {
+  return [PLAYER_NAME, '姐姐', '妈妈', '爸爸', MATH_TEACHER_NAME, CHINESE_TEACHER_NAME, '班长', ...roster()]
+}
 
-const PLAYER_NAME = '闫顺儿'
-const MATH_TEACHER_NAME = '朱老师'
-const CHINESE_TEACHER_NAME = '陈老师'
-const classmates = [
-  '邸飞宇',
-  '丁怡铭',
-  '范晨宇',
-  '范煜林',
-  '冯珺涵',
-  '高锦轩',
-  '高梓皓',
-  '郭欣妍',
-  '郭智旭',
-  '韩一菲',
-  '林子文',
-  '刘霄',
-  '卢昱润',
-  '马晨硕',
-  '潘芊语',
-  '逄钧然',
-  '戚艺曦',
-  '齐玉林',
-  '施政宇',
-  '宋翔赫',
-  '宋梓宸',
-  '王博冉',
-  '王晗伊',
-  '王浩宇',
-  '王佳雯',
-  '王婧瑄',
-  '王俊哲',
-  '王姝心',
-  '王兴琰',
-  '王雨航',
-  '王御阳',
-  '吴恺澄',
-  '徐嘉泽',
-  '闫鑫怡',
-  '殷中和',
-  '臧晨希',
-  '张力文',
-  '张轩宁',
-  '张怡甜',
-  '张韵渲',
-  '赵蕴涵',
-  '郑皓俊',
-  '钟嘉馨',
-  '周源',
-]
-
-const people = [
-  PLAYER_NAME,
-  '姐姐',
-  '妈妈',
-  '爸爸',
-  MATH_TEACHER_NAME,
-  CHINESE_TEACHER_NAME,
-  '班长',
-  ...classmates,
-]
+function buyerPool(): string[] {
+  return [PLAYER_NAME, '姐姐', '妈妈', '爸爸', MATH_TEACHER_NAME, ...roster()]
+}
 
 function randomClassmate(): string {
-  return pick(classmates)
+  return pick(roster())
 }
 
 function takeAwayScenes() {
@@ -129,55 +73,6 @@ function joinScenes() {
     { owner: '餐桌上', giver: '爸爸又拿来', ask: '餐桌上一共有' },
   ]
 }
-
-const missingScenes = [
-  { planner: MATH_TEACHER_NAME, verb: '准备', targetName: '闯关卡' },
-  { planner: CHINESE_TEACHER_NAME, verb: '准备', targetName: '故事卡' },
-  { planner: '班长', verb: '收齐', targetName: '小组任务' },
-  { planner: `小店老板${PLAYER_NAME}`, verb: '备货', targetName: '下午营业' },
-  { planner: '妈妈', verb: '准备', targetName: '晚饭' },
-  { planner: '图书管理员', verb: '整理', targetName: '书架' },
-]
-
-const twoStepScenes = [
-  { place: '小店货架上', more: '又补上', away: '卖出去', ask: '货架上现在有' },
-  { place: `${MATH_TEACHER_NAME}讲台上`, more: '又收上来', away: '发下去', ask: '讲台上现在有' },
-  { place: `${CHINESE_TEACHER_NAME}讲台上`, more: '又收上来', away: '发下去', ask: '讲台上现在有' },
-  { place: '班级图书角', more: '又捐来', away: '借出去', ask: '图书角现在有' },
-  { place: '家里的盘子里', more: '又放进来', away: '吃掉', ask: '盘子里现在有' },
-  { place: `${PLAYER_NAME}的盒子里`, more: '又得到', away: '送出去', ask: '盒子里现在有' },
-]
-
-const shopCatalog: ShopItem[] = [
-  { name: '铅笔', price: 2, emoji: '✏️' },
-  { name: '自动铅笔芯', price: 1.5, emoji: '✏️' },
-  { name: '橡皮', price: 3, emoji: '🧽' },
-  { name: '彩色橡皮', price: 3.5, emoji: '🧽' },
-  { name: '本子', price: 5, emoji: '📘' },
-  { name: '贴纸包', price: 4, emoji: '🎟️' },
-  { name: '小贴纸', price: 2.5, emoji: '⭐' },
-  { name: '小印章', price: 7, emoji: '🔖' },
-  { name: '果汁', price: 6, emoji: '🧃' },
-  { name: '酸梅汤', price: 3.5, emoji: '🥤' },
-  { name: '牛奶', price: 4, emoji: '🥛' },
-  { name: '包子', price: 3, emoji: '🥟' },
-  { name: '小馒头', price: 1.5, emoji: '🥟' },
-  { name: '蛋挞', price: 5, emoji: '🥧' },
-  { name: '冰淇淋', price: 8, emoji: '🍦' },
-  { name: '小发夹', price: 9, emoji: '🌼' },
-  { name: '角色卡', price: 10, emoji: '🃏' },
-  { name: '弹力球', price: 6, emoji: '🏀' },
-  { name: '酸奶', price: 5, emoji: '🥣' },
-  { name: '饼干', price: 6.5, emoji: '🍪' },
-  { name: '水彩笔', price: 12, emoji: '🖍️' },
-  { name: '小发圈', price: 6, emoji: '🎀' },
-  { name: '便利贴', price: 4, emoji: '📝' },
-]
-
-const buyerNames = [PLAYER_NAME, '姐姐', '妈妈', '爸爸', MATH_TEACHER_NAME, ...classmates]
-
-const shopPlaces = ['文具店', '小卖部', '零食铺', '玩具摊', '班级义卖摊']
-
 
 function sparkQuestion(id: number): SparkQuestion {
   const name = randomClassmate()
@@ -244,7 +139,7 @@ function verticalQuestion(id: number): VerticalQuestion {
   const answer = add ? top + bottom : top - bottom
   const operator = add ? '+' : '-'
   const onesNeedsCare = add ? (top % 10) + (bottom % 10) >= 10 : (top % 10) < (bottom % 10)
-  const [assigner, solver] = shuffle(people).slice(0, 2)
+  const [assigner, solver] = shuffle(peoplePool()).slice(0, 2)
   const scene = pick([
     `${MATH_TEACHER_NAME}让${solver}列竖式算`,
     `${CHINESE_TEACHER_NAME}请${solver}帮忙核对一道竖式`,
@@ -277,7 +172,7 @@ function verticalQuestion(id: number): VerticalQuestion {
 }
 
 function detectiveTakeAway(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const scene = pick(takeAwayScenes())
   const start = rand(8, 20)
   const away = rand(2, start - 2)
@@ -307,7 +202,7 @@ function detectiveTakeAway(id: number): DetectiveQuestion {
 }
 
 function detectiveJoin(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const scene = pick(joinScenes())
   const first = rand(3, 12)
   const second = rand(2, 9)
@@ -337,14 +232,14 @@ function detectiveJoin(id: number): DetectiveQuestion {
 }
 
 function detectiveCompare(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const small = rand(3, 12)
   const diff = rand(2, 8)
   const big = small + diff
   const firstIsBig = Math.random() > 0.5
   const a = firstIsBig ? big : small
   const b = firstIsBig ? small : big
-  const [p1, p2] = shuffle(people).slice(0, 2)
+  const [p1, p2] = shuffle(peoplePool()).slice(0, 2)
   return {
     id: `d-compare-${id}-${big}-${small}`,
     kind: 'detective',
@@ -370,7 +265,7 @@ function detectiveCompare(id: number): DetectiveQuestion {
 }
 
 function detectiveMissing(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const scene = pick(missingScenes)
   const target = rand(10, 25)
   const done = rand(3, target - 3)
@@ -403,7 +298,7 @@ function detectiveLine(id: number): DetectiveQuestion {
   const front = rand(2, 9)
   const back = rand(2, 9)
   const answer = front + back + 1
-  const center = pick(people)
+  const center = pick(peoplePool())
   return {
     id: `d-line-${id}-${front}-${back}`,
     kind: 'detective',
@@ -429,7 +324,7 @@ function detectiveLine(id: number): DetectiveQuestion {
 }
 
 function detectiveTwoStep(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const scene = pick(twoStepScenes)
   const start = rand(8, 16)
   const more = rand(2, 7)
@@ -460,12 +355,12 @@ function detectiveTwoStep(id: number): DetectiveQuestion {
 }
 
 function detectiveRelation(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const base = rand(4, 14)
   const diff = rand(2, 7)
   const more = Math.random() > 0.5
   const answer = more ? base + diff : base - diff
-  const [knownPerson, targetPerson] = shuffle(people).slice(0, 2)
+  const [knownPerson, targetPerson] = shuffle(peoplePool()).slice(0, 2)
   return {
     id: `d-relation-${id}-${base}-${diff}-${more ? 'more' : 'less'}`,
     kind: 'detective',
@@ -491,7 +386,7 @@ function detectiveRelation(id: number): DetectiveQuestion {
 }
 
 function detectiveOriginal(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const change = rand(3, 9)
   const now = rand(6, 16)
   const gaveAway = Math.random() > 0.5
@@ -524,8 +419,8 @@ function detectiveOriginal(id: number): DetectiveQuestion {
 }
 
 function detectivePairChange(id: number): DetectiveQuestion {
-  const thing = pick(things)
-  const [p1, p2] = shuffle(people).slice(0, 2)
+  const thing = pick(contentFor('nouns', things))
+  const [p1, p2] = shuffle(peoplePool()).slice(0, 2)
   const a = rand(4, 12)
   const b = rand(3, 10)
   const used = rand(2, Math.min(8, a + b - 3))
@@ -555,7 +450,7 @@ function detectivePairChange(id: number): DetectiveQuestion {
 }
 
 function detectiveRepeated(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const groupCount = pick([2, 3, 4])
   const each = rand(2, 6)
   const answer = groupCount * each
@@ -585,8 +480,9 @@ function detectiveRepeated(id: number): DetectiveQuestion {
 }
 
 function detectiveIrrelevant(id: number): DetectiveQuestion {
-  const main = pick(things)
-  const noise = pick(things.filter((item) => item.name !== main.name))
+  const nouns = contentFor('nouns', things)
+  const main = pick(nouns)
+  const noise = pick(nouns.filter((item) => item.name !== main.name))
   const start = rand(10, 24)
   const other = rand(3, 12)
   const away = rand(2, start - 3)
@@ -617,11 +513,11 @@ function detectiveIrrelevant(id: number): DetectiveQuestion {
 }
 
 function detectiveAskOnePart(id: number): DetectiveQuestion {
-  const thing = pick(things)
+  const thing = pick(contentFor('nouns', things))
   const total = rand(12, 28)
   const known = rand(4, total - 4)
   const answer = total - known
-  const [p1, p2] = shuffle(people).slice(0, 2)
+  const [p1, p2] = shuffle(peoplePool()).slice(0, 2)
   return {
     id: `d-one-part-${id}-${total}-${known}`,
     kind: 'detective',
@@ -662,12 +558,12 @@ const detectiveFactories = [
 ]
 
 function chooseShopItems(count: number): ShopItem[] {
-  return shuffle(shopCatalog).slice(0, count)
+  return shuffle(contentFor('shiliu-shop', shopCatalog)).slice(0, count)
 }
 
 function shopTotal(id: number): ShopQuestion {
   const [a, b] = chooseShopItems(2)
-  const buyer = pick(buyerNames)
+  const buyer = pick(buyerPool())
   const place = pick(shopPlaces)
   const answer = a.price + b.price
   return {
@@ -688,8 +584,8 @@ function shopTotal(id: number): ShopQuestion {
 }
 
 function shopTwoSame(id: number): ShopQuestion {
-  const item = pick(shopCatalog.filter((x) => x.price <= 10))
-  const buyer = pick(buyerNames)
+  const item = pick(contentFor('shiliu-shop', shopCatalog).filter((x) => x.price <= 10))
+  const buyer = pick(buyerPool())
   const count = pick([2, 3])
   const answer = item.price * count
   return {
@@ -711,7 +607,7 @@ function shopTwoSame(id: number): ShopQuestion {
 
 function shopChange(id: number): ShopQuestion {
   const [a, b] = chooseShopItems(2)
-  const buyer = pick(buyerNames)
+  const buyer = pick(buyerPool())
   const total = a.price + b.price
   const budget = pick([20, 30, 50].filter((value) => value > total))
   const answer = budget - total
@@ -734,7 +630,7 @@ function shopChange(id: number): ShopQuestion {
 
 function shopBossChange(id: number): ShopQuestion {
   const [a, b] = chooseShopItems(2)
-  const customer = pick(buyerNames.filter((name) => name !== PLAYER_NAME))
+  const customer = pick(buyerPool().filter((name) => name !== PLAYER_NAME))
   const total = a.price + b.price
   const paid = pick([20, 30, 50].filter((value) => value > total))
   const answer = paid - total
@@ -757,7 +653,7 @@ function shopBossChange(id: number): ShopQuestion {
 
 function shopEnough(id: number): ShopQuestion {
   const [a, b] = chooseShopItems(2)
-  const buyer = pick(buyerNames)
+  const buyer = pick(buyerPool())
   const total = a.price + b.price
   const budget = total + pick([-2, -1, 0, 1, 3])
   const answer = budget >= total ? (budget === total ? 'just' : 'enough') : 'no'
@@ -786,8 +682,9 @@ function shopEnough(id: number): ShopQuestion {
 }
 
 function shopCompare(id: number): ShopQuestion {
-  const a = pick(shopCatalog)
-  const b = pick(shopCatalog.filter((item) => item.price !== a.price))
+  const catalog = contentFor('shiliu-shop', shopCatalog)
+  const a = pick(catalog)
+  const b = pick(catalog.filter((item) => item.price !== a.price))
   const expensive = a.price >= b.price ? a : b
   const cheap = a.price >= b.price ? b : a
   const answer = expensive.price - cheap.price
@@ -809,8 +706,8 @@ function shopCompare(id: number): ShopQuestion {
 }
 
 function shopNeedMore(id: number): ShopQuestion {
-  const item = pick(shopCatalog.filter((x) => x.price >= 5))
-  const buyer = pick(buyerNames)
+  const item = pick(contentFor('shiliu-shop', shopCatalog).filter((x) => x.price >= 5))
+  const buyer = pick(buyerPool())
   const budget = rand(1, item.price - 1)
   const answer = item.price - budget
   return {

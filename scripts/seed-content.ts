@@ -11,6 +11,10 @@ import { drawWords } from '../src/games/draw/data/draw-words'
 import { knowQuestions } from '../src/games/know-you/data/know-questions'
 import { familyCards } from '../src/games/know-you/data/family'
 import { wordBank } from '../src/data/word-bank'
+// 程序化学习游戏的静态数据（名单 / 通用名词 / 商店 / spark 卡）——生成算法仍留代码
+import { things, classmates, shopCatalog } from '../src/games/shiliu-town/data/roster'
+import { CLASSMATES as yiyiClassmates } from '../src/games/yiyi-bureau/data/people'
+import { TRUE_FALSE, FUN_CARDS } from '../src/games/yiyi-bureau/data/spark'
 
 const banks: Record<string, readonly unknown[]> = {
   charades: charadesWords,
@@ -21,6 +25,16 @@ const banks: Record<string, readonly unknown[]> = {
   'know-you': knowQuestions,
   'know-family': familyCards,
   'word-bank': wordBank,
+  // 共享：通用名词池，任何需要「物品+单位」的游戏都复用这一份
+  nouns: things,
+  // 各孩子的班级名单（单一可编辑源；people/buyerNames 在代码里据此实时拼）
+  'roster-shiliu': classmates,
+  'roster-yiyi': yiyiClassmates,
+  // 石榴镇商店目录
+  'shiliu-shop': shopCatalog,
+  // 一依局 spark 静态卡
+  'yiyi-truefalse': TRUE_FALSE,
+  'yiyi-funcards': FUN_CARDS,
 }
 
 const out: string[] = []
