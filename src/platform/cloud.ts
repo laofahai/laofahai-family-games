@@ -90,3 +90,80 @@ export async function pushSeen(syncCode: string, scope: string, itemIds: string[
   if (!supabase) return
   await supabase.rpc('push_seen', { p_code: syncCode, p_scope: scope, p_item_ids: itemIds })
 }
+
+// ── 远程协作房间（各自设备看各自的秘密）─────────────────────────────────
+export interface RoomMemberPublic {
+  name: string
+  emoji: string
+  seat: number
+  is_host: boolean
+}
+export interface RoomSnapshot {
+  state: string
+  game: string
+  payload: Record<string, unknown>
+  you: { name: string; emoji: string; seat: number; is_host: boolean; secret: unknown } | null
+  members: RoomMemberPublic[]
+  updated_at: string
+}
+
+export async function createRoomRpc(
+  code: string,
+  hostToken: string,
+  game: string,
+  name: string,
+  emoji: string
+): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase.rpc('create_room', {
+    p_code: code,
+    p_host_token: hostToken,
+    p_game: game,
+    p_name: name,
+    p_emoji: emoji,
+  })
+  return !error && data === true
+}
+
+/** 返回座位号；-1 房不存在 / -2 已开局谢绝新人 / -3 网络或未配置 */
+export async function joinRoomRpc(code: string, token: string, name: string, emoji: string): Promise<number> {
+  if (!supabase) return -3
+  const { data, error } = await supabase.rpc('join_room', {
+    p_code: code,
+    p_token: token,
+    p_name: name,
+    p_emoji: emoji,
+  })
+  if (error) return -3
+  return typeof data === 'number' ? data : -3
+}
+
+export async function hostSetRpc(
+  code: string,
+  hostToken: string,
+  state: string | null,
+  payload: Record<string, unknown> | null,
+  secrets: Record<string, unknown> | null
+): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('host_set', {
+    p_code: code,
+    p_host_token: hostToken,
+    p_state: state,
+    p_payload: payload,
+    p_secrets: secrets,
+  })
+  return !error
+}
+
+export async function roomSnapshotRpc(code: string, token: string): Promise<RoomSnapshot | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase.rpc('room_snapshot', { p_code: code, p_token: token })
+  if (error || !data) return null
+  return data as RoomSnapshot
+}
+
+export async function leaveRoomRpc(code: string, token: string): Promise<void> {
+  if (!supabase) return
+  await supabase.rpc('leave_room', { p_code: code, p_token: token })
+}
