@@ -25,6 +25,21 @@ export const things: Thing[] = [
   { name: '星星卡', unit: '张' },
   { name: '小饼干', unit: '块' },
   { name: '跳绳次数', unit: '下' },
+  { name: '橘子', unit: '个', emoji: '🍊' },
+  { name: '馒头', unit: '个', emoji: '🥟' },
+  { name: '气球', unit: '只', emoji: '🎈' },
+  { name: '风筝', unit: '只', emoji: '🪁' },
+  { name: '橡皮', unit: '块', emoji: '🧽' },
+  { name: '香蕉', unit: '根', emoji: '🍌' },
+  { name: '西瓜', unit: '个', emoji: '🍉' },
+  { name: '鸡蛋', unit: '个', emoji: '🥚' },
+  { name: '雨伞', unit: '把', emoji: '🌂' },
+  { name: '尺子', unit: '把', emoji: '📏' },
+  { name: '树叶', unit: '片', emoji: '🍃' },
+  { name: '小船', unit: '艘', emoji: '⛵' },
+  { name: '蜡笔', unit: '盒', emoji: '🖍️' },
+  { name: '面包', unit: '袋', emoji: '🍞' },
+  { name: '气泡水', unit: '瓶', emoji: '🥤' },
 ]
 
 export const PLAYER_NAME = '闫顺儿'
@@ -120,6 +135,20 @@ export const shopCatalog: ShopItem[] = [
   { name: '水彩笔', price: 12, emoji: '🖍️' },
   { name: '小发圈', price: 6, emoji: '🎀' },
   { name: '便利贴', price: 4, emoji: '📝' },
+  { name: '直尺', price: 2, emoji: '📏' },
+  { name: '卷笔刀', price: 5, emoji: '✏️' },
+  { name: '胶棒', price: 4, emoji: '🩹' },
+  { name: '透明胶带', price: 3, emoji: '📦' },
+  { name: '中性笔', price: 3, emoji: '🖊️' },
+  { name: '荧光笔', price: 6, emoji: '🖍️' },
+  { name: '笔袋', price: 13, emoji: '👝' },
+  { name: '橡皮泥', price: 9, emoji: '🧱' },
+  { name: '画本', price: 8, emoji: '🎨' },
+  { name: '书签', price: 3, emoji: '🔖' },
+  { name: '小本夹', price: 4, emoji: '📎' },
+  { name: '矿泉水', price: 2, emoji: '💧' },
+  { name: '小蛋糕', price: 7, emoji: '🧁' },
+  { name: '棒棒糖', price: 1, emoji: '🍭' },
 ]
 
 export const shopPlaces = ['文具店', '小卖部', '零食铺', '玩具摊', '班级义卖摊']

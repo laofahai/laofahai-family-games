@@ -104,4 +104,38 @@ export const truthTopics: TruthTopic[] = [
   { text: '你偷偷给自己定过但没告诉别人的小目标', category: 'secret', emoji: '🎯' },
   { text: '你心里悄悄珍藏的一句话或一个人', category: 'secret', emoji: '💌' },
   { text: '你假装没听见、其实都记在心里的事', category: 'secret', emoji: '👂' },
+
+  // ===== 第二轮追加 =====
+  // 童年回忆
+  { text: '你小时候藏起来不肯交给大人的「宝贝」', category: 'childhood', emoji: '📿' },
+  { text: '你小时候赖床或不肯睡觉时用过的招', category: 'childhood', emoji: '🛏️' },
+  { text: '你小时候缠着家人买过的东西', category: 'childhood', emoji: '🛒' },
+  { text: '你小时候去亲戚家串门最难忘的一次', category: 'childhood', emoji: '🏠' },
+
+  // 学校与工作
+  { text: '你上学/上班时坐在你旁边的人是谁、什么样', category: 'schoolWork', emoji: '🧑‍🤝‍🧑' },
+  { text: '你为了应付检查或考核临时抱过的佛脚', category: 'schoolWork', emoji: '📖' },
+  { text: '你和老师/领导之间一件好笑的小事', category: 'schoolWork', emoji: '😄' },
+  { text: '你最盼望的放假/休息是怎么过的', category: 'schoolWork', emoji: '🏖️' },
+
+  // 吃吃喝喝
+  { text: '你做饭做菜时翻过的车', category: 'food', emoji: '🍳' },
+  { text: '你逢年过节家里必上的一道菜', category: 'food', emoji: '🥢' },
+  { text: '你对某种「网红美食」的真实评价', category: 'food', emoji: '🔥' },
+  { text: '你最爱去的那家店和最常点的那一样', category: 'food', emoji: '🏪' },
+
+  // 玩乐爱好
+  { text: '你最近迷上的一件小事或一个新爱好', category: 'fun', emoji: '🌱' },
+  { text: '你旅行或出门玩时发生过的意外小插曲', category: 'fun', emoji: '🧳' },
+  { text: '你一直想去却还没去成的地方', category: 'fun', emoji: '📍' },
+
+  // 糗事现场
+  { text: '你买东西时算错钱或拿错找零的一次', category: 'embarrassing', emoji: '💵' },
+  { text: '你在群里或公开场合发错内容的一次', category: 'embarrassing', emoji: '💬' },
+  { text: '你信誓旦旦说对、结果错得离谱的一次', category: 'embarrassing', emoji: '🤓' },
+
+  // 小心思
+  { text: '你嘴上不承认、心里却很在意的一件事', category: 'secret', emoji: '🫥' },
+  { text: '你偷偷为家里某个人做过、没邀功的事', category: 'secret', emoji: '🤐' },
+  { text: '你藏在心底、想等以后再实现的小愿望', category: 'secret', emoji: '🔮' },
 ]

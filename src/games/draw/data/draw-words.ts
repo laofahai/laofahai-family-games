@@ -349,4 +349,84 @@ export const drawWords: DrawWord[] = [
   { text: '抱头鼠窜', hint: '成语', difficulty: 'hard' },
   { text: '马到成功', hint: '成语', difficulty: 'hard' },
   { text: '画龙点睛', hint: '成语', difficulty: 'hard' },
+
+  // ==================== 第二批补充 ====================
+  // easy · 动物
+  { text: '小鹿', hint: '动物', difficulty: 'easy' },
+  { text: '小狐狸', hint: '动物', difficulty: 'easy' },
+  { text: '小熊', hint: '动物', difficulty: 'easy' },
+  { text: '海马', hint: '动物', difficulty: 'easy' },
+  { text: '毛毛虫', hint: '动物', difficulty: 'easy' },
+  // easy · 水果 / 食物
+  { text: '橙子', hint: '水果', difficulty: 'easy' },
+  { text: '番茄', hint: '食物', difficulty: 'easy' },
+  { text: '茄子', hint: '食物', difficulty: 'easy' },
+  { text: '面包', hint: '食物', difficulty: 'easy' },
+  { text: '糖果', hint: '食物', difficulty: 'easy' },
+  // easy · 日常物品
+  { text: '盘子', hint: '日常物品', difficulty: 'easy' },
+  { text: '手套', hint: '日常物品', difficulty: 'easy' },
+  { text: '手表', hint: '日常物品', difficulty: 'easy' },
+  { text: '书桌', hint: '日常物品', difficulty: 'easy' },
+  { text: '门', hint: '日常物品', difficulty: 'easy' },
+  { text: '窗户', hint: '日常物品', difficulty: 'easy' },
+  { text: '蜡烛', hint: '日常物品', difficulty: 'easy' },
+  // easy · 自然
+  { text: '山', hint: '自然', difficulty: 'easy' },
+  { text: '河流', hint: '自然', difficulty: 'easy' },
+  { text: '小草', hint: '植物', difficulty: 'easy' },
+  // easy · 交通工具
+  { text: '小船', hint: '交通工具', difficulty: 'easy' },
+  { text: '三轮车', hint: '交通工具', difficulty: 'easy' },
+  // easy · 动作
+  { text: '鼓掌', hint: '动作', difficulty: 'easy' },
+  { text: '挥手', hint: '动作', difficulty: 'easy' },
+
+  // medium · 职业
+  { text: '科学家', hint: '职业', difficulty: 'medium' },
+  { text: '邮递员', hint: '职业', difficulty: 'medium' },
+  { text: '牙医', hint: '职业', difficulty: 'medium' },
+  { text: '飞行员', hint: '职业', difficulty: 'medium' },
+  { text: '裁判', hint: '职业', difficulty: 'medium' },
+  { text: '清洁工', hint: '职业', difficulty: 'medium' },
+  // medium · 体育 / 运动
+  { text: '保龄球', hint: '运动', difficulty: 'medium' },
+  { text: '冲浪', hint: '运动', difficulty: 'medium' },
+  { text: '攀岩', hint: '运动', difficulty: 'medium' },
+  { text: '跳水', hint: '运动', difficulty: 'medium' },
+  { text: '高尔夫', hint: '运动', difficulty: 'medium' },
+  { text: '骑独轮车', hint: '运动', difficulty: 'medium' },
+  // medium · 交通工具
+  { text: '消防车', hint: '交通工具', difficulty: 'medium' },
+  { text: '警车', hint: '交通工具', difficulty: 'medium' },
+  { text: '校车', hint: '交通工具', difficulty: 'medium' },
+  { text: '帆船', hint: '交通工具', difficulty: 'medium' },
+  { text: '坦克', hint: '交通工具', difficulty: 'medium' },
+  { text: '缆车', hint: '交通工具', difficulty: 'medium' },
+  // medium · 地点
+  { text: '图书馆', hint: '地点', difficulty: 'medium' },
+  { text: '邮局', hint: '地点', difficulty: 'medium' },
+  { text: '加油站', hint: '地点', difficulty: 'medium' },
+  { text: '电影院', hint: '地点', difficulty: 'medium' },
+  { text: '金字塔', hint: '地点', difficulty: 'medium' },
+  { text: '摩天轮', hint: '地点', difficulty: 'medium' },
+  { text: '游泳池', hint: '地点', difficulty: 'medium' },
+  // medium · 自然
+  { text: '森林', hint: '自然', difficulty: 'medium' },
+  { text: '山洞', hint: '自然', difficulty: 'medium' },
+  { text: '龙卷风', hint: '自然', difficulty: 'medium' },
+  // medium · 动物
+  { text: '考拉', hint: '动物', difficulty: 'medium' },
+  { text: '河马', hint: '动物', difficulty: 'medium' },
+  { text: '犀牛', hint: '动物', difficulty: 'medium' },
+  // medium · 动作
+  { text: '种树', hint: '动作', difficulty: 'medium' },
+  { text: '切菜', hint: '动作', difficulty: 'medium' },
+  { text: '梳头', hint: '动作', difficulty: 'medium' },
+
+  // hard · 成语
+  { text: '九牛一毛', hint: '成语', difficulty: 'hard' },
+  { text: '骑虎难下', hint: '成语', difficulty: 'hard' },
+  { text: '过河拆桥', hint: '成语', difficulty: 'hard' },
+  { text: '人山人海', hint: '成语', difficulty: 'hard' },
 ]
