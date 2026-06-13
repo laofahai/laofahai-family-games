@@ -102,9 +102,17 @@ export interface RoomSnapshot {
   state: string
   game: string
   payload: Record<string, unknown>
-  you: { name: string; emoji: string; seat: number; is_host: boolean; secret: unknown } | null
+  you: { name: string; emoji: string; seat: number; is_host: boolean; secret: unknown; submission: unknown } | null
   members: RoomMemberPublic[]
+  submittedCount: number
   updated_at: string
+}
+
+export interface CollectedSubmission {
+  seat: number
+  name: string
+  emoji: string
+  submission: unknown
 }
 
 export async function createRoomRpc(
@@ -166,4 +174,26 @@ export async function roomSnapshotRpc(code: string, token: string): Promise<Room
 export async function leaveRoomRpc(code: string, token: string): Promise<void> {
   if (!supabase) return
   await supabase.rpc('leave_room', { p_code: code, p_token: token })
+}
+
+/** 成员写自己的私密提交（猜的价格、投票等）。 */
+export async function memberSubmitRpc(code: string, token: string, data: unknown): Promise<boolean> {
+  if (!supabase) return false
+  const { data: ok, error } = await supabase.rpc('member_submit', { p_code: code, p_token: token, p_data: data })
+  return !error && ok === true
+}
+
+/** 房主汇总所有人的提交（公布时算结果用）。 */
+export async function collectSubmissionsRpc(code: string, hostToken: string): Promise<CollectedSubmission[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('collect_submissions', { p_code: code, p_host_token: hostToken })
+  if (error || !Array.isArray(data)) return []
+  return data as CollectedSubmission[]
+}
+
+/** 房主清空所有人提交（开新一轮前）。 */
+export async function clearSubmissionsRpc(code: string, hostToken: string): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('clear_submissions', { p_code: code, p_host_token: hostToken })
+  return !error
 }

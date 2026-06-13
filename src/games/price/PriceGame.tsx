@@ -9,6 +9,8 @@ import type {
 } from './types'
 import { PLAYERS } from './types'
 import { buildRounds } from './utils/buildRounds'
+import { roomsAvailable } from '@/platform/rooms'
+import { PriceRemote } from './PriceRemote'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
 import { GuessingStage } from './stages/GuessingStage'
@@ -129,6 +131,7 @@ function tallyScores(history: RoundRecord[]): Partial<Record<PlayerId, number>> 
 
 export function PriceGame({ onExit }: PriceGameProps) {
   const [introSeen] = useState(readIntroSeen)
+  const [remote, setRemote] = useState(false)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     players: new Set(ALL_PLAYERS),
@@ -143,23 +146,38 @@ export function PriceGame({ onExit }: PriceGameProps) {
   const activePlayers = ALL_PLAYERS.filter((p) => state.players.has(p))
   const scores = tallyScores(state.history)
 
+  if (remote) {
+    return <PriceRemote onBack={() => setRemote(false)} />
+  }
+
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
   }
 
   if (state.stage === 'setup') {
     return (
-      <SetupStage
-        players={state.players}
-        categories={state.categories}
-        roundCount={state.roundCount}
-        onTogglePlayer={(p) => dispatch({ type: 'TOGGLE_PLAYER', value: p })}
-        onToggleCategory={(c) => dispatch({ type: 'TOGGLE_CATEGORY', value: c })}
-        onChangeRounds={(n) => dispatch({ type: 'SET_ROUNDS', value: n })}
-        onStart={() =>
-          dispatch({ type: 'START', items: buildRounds(state.categories, state.roundCount) })
-        }
-      />
+      <div className="space-y-4">
+        {roomsAvailable() && (
+          <button
+            type="button"
+            onClick={() => setRemote(true)}
+            className="rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+          >
+            📱 各自用自己手机玩（远程）
+          </button>
+        )}
+        <SetupStage
+          players={state.players}
+          categories={state.categories}
+          roundCount={state.roundCount}
+          onTogglePlayer={(p) => dispatch({ type: 'TOGGLE_PLAYER', value: p })}
+          onToggleCategory={(c) => dispatch({ type: 'TOGGLE_CATEGORY', value: c })}
+          onChangeRounds={(n) => dispatch({ type: 'SET_ROUNDS', value: n })}
+          onStart={() =>
+            dispatch({ type: 'START', items: buildRounds(state.categories, state.roundCount) })
+          }
+        />
+      </div>
     )
   }
 

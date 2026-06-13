@@ -3,16 +3,19 @@
 // 同步靠轮询快照（家庭小局足够稳，免去 Realtime 配置）；之后要更跟手可换 Realtime。
 
 import {
+  clearSubmissionsRpc,
   cloudAvailable,
+  collectSubmissionsRpc,
   createRoomRpc,
   hostSetRpc,
   joinRoomRpc,
   leaveRoomRpc,
+  memberSubmitRpc,
   roomSnapshotRpc,
   type RoomSnapshot,
 } from './cloud'
 
-export type { RoomSnapshot, RoomMemberPublic } from './cloud'
+export type { RoomSnapshot, RoomMemberPublic, CollectedSubmission } from './cloud'
 
 const TOKEN_KEY = 'fg:roomtoken'
 
@@ -78,6 +81,21 @@ export async function snapshot(code: string): Promise<RoomSnapshot | null> {
 
 export async function leaveRoom(code: string): Promise<void> {
   return leaveRoomRpc(code, deviceToken())
+}
+
+/** 成员写自己的私密提交（每个玩家自己出价/投票）。 */
+export async function memberSubmit(code: string, data: unknown): Promise<boolean> {
+  return memberSubmitRpc(code, deviceToken(), data)
+}
+
+/** 房主汇总所有人的提交（公布算分）。 */
+export async function collectSubmissions(code: string) {
+  return collectSubmissionsRpc(code, deviceToken())
+}
+
+/** 房主清空提交（开新一轮前）。 */
+export async function clearSubmissions(code: string): Promise<boolean> {
+  return clearSubmissionsRpc(code, deviceToken())
 }
 
 /**
