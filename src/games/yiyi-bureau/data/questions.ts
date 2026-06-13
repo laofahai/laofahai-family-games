@@ -531,6 +531,30 @@ const cnMainIdea: Maker = (id) => {
       wrongs: ['蚂蚁喜欢在下午搬家', '蚂蚁的队伍排得很长'],
       why: '「有的……有的……」写分工，结尾写合作的成果。',
     },
+    {
+      text: `${name}的字以前歪歪扭扭。这学期他每天坚持练十分钟，一个月后，作业本上的字已经工整得让老师惊讶。`,
+      right: '坚持每天一点点，就能带来明显的改变',
+      wrongs: ['练字必须用很长时间', '老师很容易感到惊讶'],
+      why: '中心是「每天坚持带来改变」，时间和老师都只是陪衬。',
+    },
+    {
+      text: `图书角原本乱糟糟的。${name}把书按颜色和类别重新摆放，还做了指引牌。现在同学几秒就能找到想看的书。`,
+      right: '用心整理能让事情变得更高效',
+      wrongs: ['图书角的书非常多', '彩色的书更好看'],
+      why: '重点是整理带来的效率，不是书多或好看。',
+    },
+    {
+      text: `小溪一路上遇到石头、遇到弯道，却从不停下，绕一绕、让一让，最终还是汇入了大海。`,
+      right: '遇到阻碍不放弃，总能抵达目标',
+      wrongs: ['小溪喜欢绕弯路', '大海是所有水的家'],
+      why: '石头和弯道是阻碍，中心是「不停下、终抵达」。',
+    },
+    {
+      text: `第一次做蛋糕，${name}把盐当成了糖。家人尝了一口都皱眉，他却笑着记下：下次一定看清瓶子上的字。`,
+      right: '从失误里吸取教训，比失误本身更重要',
+      wrongs: ['做蛋糕很容易失败', '盐和糖长得很像'],
+      why: '中心是「从失误中学到东西」，而不是失误本身。',
+    },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -566,6 +590,30 @@ const cnInfer: Maker = (id) => {
       wrongs: ['他考试没考好', '他在生别人的气'],
       why: '贴奖状、嘴角上扬、哼歌，都说明他很高兴、比赛拿了好名次。',
     },
+    {
+      text: `${mate()}盯着窗外的篮球场叹了口气，把摊开的书又翻回第一页，笔在本子上戳出一个个小点。`,
+      right: '他有点走神，没怎么看进去书',
+      wrongs: ['他正在认真做笔记', '他已经把书全背下来了'],
+      why: '盯着球场、翻回第一页、戳小点，都说明他心思没在书上。',
+    },
+    {
+      text: `餐桌上摆着两副碗筷、还冒热气的两碗面，门口却整整齐齐放着一双没人穿的拖鞋。`,
+      right: '家里还有一个人，刚出门一会儿',
+      wrongs: ['这家人已经搬走了', '这顿饭是昨天剩下的'],
+      why: '两副碗筷、热气、多出的拖鞋，都说明另一个人只是临时离开。',
+    },
+    {
+      text: `${mate()}把外套裹得紧紧的，搓着手呵了口气，呵出的白气在面前散开。`,
+      right: '天气很冷',
+      wrongs: ['他刚跑完步很热', '屋里开着暖气'],
+      why: '裹外套、搓手、呵出白气，都说明气温很低。',
+    },
+    {
+      text: `走廊地面有一串由大变小、渐渐变干的湿脚印，一直通向洗手间的门口。`,
+      right: '有人刚光脚或湿着脚走进了洗手间',
+      wrongs: ['洗手间的水管爆了', '有人在走廊里拖了地'],
+      why: '脚印成串、由湿变干、指向门口，说明是有人走过去留下的。',
+    },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -589,6 +637,14 @@ const cnIdiom: Maker = (id) => {
     { text: '做事不能（  ），三天打鱼两天晒网是干不成事的。', right: '半途而废', wrongs: ['持之以恒', '一鼓作气'], why: '对应「三天打鱼两天晒网」的毛病是「半途而废」。' },
     { text: '他把那次旅行讲得（  ），同学们听得入了迷。', right: '绘声绘色', wrongs: ['索然无味', '异口同声'], why: '讲得生动形象叫「绘声绘色」。' },
     { text: '这份计划考虑得（  ），连下雨的预案都想到了。', right: '面面俱到', wrongs: ['顾此失彼', '画蛇添足'], why: '各方面都照顾到，用「面面俱到」。' },
+    { text: '上课铃一响，他才（  ）地想起作业还躺在家里的书桌上。', right: '恍然大悟', wrongs: ['胸有成竹', '深思熟虑'], why: '突然明白过来叫「恍然大悟」。' },
+    { text: '值日表刚贴出来，大家就（  ），七嘴八舌地讨论开了。', right: '议论纷纷', wrongs: ['鸦雀无声', '一声不吭'], why: '你一言我一语地讨论叫「议论纷纷」。' },
+    { text: '他吹牛说能背下整本字典，结果第一页就卡住，真是（  ）。', right: '自不量力', wrongs: ['量力而行', '实事求是'], why: '高估自己、办不到还硬撑叫「自不量力」。' },
+    { text: '为了赶上交稿，他熬了两个通宵，终于（  ）地完成了海报。', right: '废寝忘食', wrongs: ['游手好闲', '无所事事'], why: '忙到顾不上吃饭睡觉叫「废寝忘食」。' },
+    { text: '听到自己被选为升旗手，他高兴得（  ）。', right: '手舞足蹈', wrongs: ['垂头丧气', '愁眉苦脸'], why: '又蹦又跳、特别开心叫「手舞足蹈」。' },
+    { text: '这两幅画乍一看一模一样，仔细比才发现（  ）的小差别。', right: '大同小异', wrongs: ['天壤之别', '截然不同'], why: '大体相同、只有小区别叫「大同小异」。' },
+    { text: '他做事总爱（  ），刚开了头又跑去做别的，结果都没做完。', right: '三心二意', wrongs: ['一心一意', '全力以赴'], why: '心思不专一叫「三心二意」。' },
+    { text: '老师一句鼓励，让原本想放弃的他又（  ）地坚持了下来。', right: '重整旗鼓', wrongs: ['偃旗息鼓', '半途而废'], why: '重新振作、再次努力叫「重整旗鼓」。' },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -612,6 +668,12 @@ const cnClassical: Maker = (id) => {
     { text: '己所不欲，勿施于人', right: '自己不愿意的，不要强加给别人', wrongs: ['自己想要的要先给别人', '不喜欢的人不要理睬'] },
     { text: '千里之行，始于足下', right: '再远的路也要从脚下第一步走起', wrongs: ['走一千里路要从买鞋开始', '路太远了不如不走'] },
     { text: '亡羊补牢，未为迟也', right: '出了问题及时补救，还不算晚', wrongs: ['羊丢了修圈已没用', '迟到的人要修羊圈'] },
+    { text: '三人行，必有我师焉', right: '几个人同行，里面总有值得我学习的人', wrongs: ['三个人走路必须带老师', '人多了就要排队走'] },
+    { text: '知之为知之，不知为不知', right: '懂就说懂，不懂就说不懂，别不懂装懂', wrongs: ['知道的事越多越聪明', '知道了也别告诉别人'] },
+    { text: '业精于勤，荒于嬉', right: '学业靠勤奋才能精进，贪玩就会荒废', wrongs: ['工作精细就会很累', '玩游戏能让人变厉害'] },
+    { text: '尺有所短，寸有所长', right: '各有长处也各有短处，要取长补短', wrongs: ['尺子总比寸长', '长的东西一定更好'] },
+    { text: '不积跬步，无以至千里', right: '不一步步积累，就走不到千里之外', wrongs: ['不跑步就到不了一千里', '路太远了走不到头'] },
+    { text: '海纳百川，有容乃大', right: '像大海容纳众多河流那样，能包容才显得宽广', wrongs: ['大海里有一百条河', '海越大装的水越多'] },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -633,6 +695,11 @@ const cnRelate: Maker = (id) => {
     { text: '（  ）多读几遍，你（  ）能明白这段话的意思。', right: '只要……就……', wrongs: ['因为……所以……', '不但……而且……'], why: '前是条件后是结果，用「只要……就……」。' },
     { text: '这本书（  ）内容有趣，（  ）插图也很精美。', right: '不但……而且……', wrongs: ['虽然……但是……', '与其……不如……'], why: '两点并列递进，用「不但……而且……」。' },
     { text: '（  ）任务再难，我们（  ）不会放弃。', right: '无论……都……', wrongs: ['只有……才……', '因为……所以……'], why: '不管什么情况结果都一样，用「无论……都……」。' },
+    { text: '他（  ）在班里成绩好，（  ）很乐意帮同学讲题。', right: '不但……还……', wrongs: ['即使……也……', '宁可……也不……'], why: '两个优点并列递进，用「不但……还……」。' },
+    { text: '（  ）你认真检查一遍，（  ）能发现这个小错误。', right: '只有……才……', wrongs: ['虽然……但是……', '不是……而是……'], why: '强调唯一条件，用「只有……才……」。' },
+    { text: '（  ）外面下着大雪，他（  ）坚持去图书馆还书。', right: '虽然……却……', wrongs: ['只要……就……', '因为……所以……'], why: '前后意思相反，用表转折的「虽然……却……」。' },
+    { text: '这次失误（  ）不是你一个人的责任，（  ）需要大家一起改进。', right: '既……也……', wrongs: ['不是……就是……', '与其……不如……'], why: '两层意思并列，用「既……也……」。' },
+    { text: '（  ）想在比赛中拿好成绩，（  ）平时要多练习。', right: '要想……就……', wrongs: ['尽管……还是……', '一……就……'], why: '前是目的后是条件，用「要想……就……」。' },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -789,6 +856,41 @@ const enPassage: Maker = (id) => {
       wrongs: ['正在营业', '在打折促销'],
       why: 'dark、lights off、"See you tomorrow" 都说明店已打烊。',
     },
+    {
+      text: `Sam looks at the menu, but everything is in French. He doesn't understand it, so he just points at a picture.`,
+      q: 'Sam 现在遇到了什么麻烦？',
+      right: '他看不懂菜单',
+      wrongs: ['他没带钱', '餐厅已经关门'],
+      why: "in French、doesn't understand、points at a picture 都说明他看不懂菜单。",
+    },
+    {
+      text: `The sky turns dark. Birds fly away quickly and the wind becomes very strong. People start to run home.`,
+      q: '接下来最可能发生什么？',
+      right: '一场暴风雨就要来了',
+      wrongs: ['马上要天晴了', '人们要去公园野餐'],
+      why: 'dark sky、strong wind、people run home 都是暴风雨将至的信号。',
+    },
+    {
+      text: `Anna's bag is full of books. She is holding a library card and walking into a quiet building with many shelves.`,
+      q: 'Anna 最可能要去哪里？',
+      right: '图书馆',
+      wrongs: ['游泳馆', '电影院'],
+      why: 'books、library card、quiet building with shelves 都指向图书馆。',
+    },
+    {
+      text: `Ben keeps looking at the clock. His leg is shaking and he checks the door again and again.`,
+      q: '从短文能看出 Ben 现在的心情是？',
+      right: '紧张、在等什么人或什么事',
+      wrongs: ['很困、想睡觉', '很无聊、不想动'],
+      why: '反复看钟、抖腿、盯着门，都说明他既紧张又焦急地在等。',
+    },
+    {
+      text: `Mr. Green opens the window, smells the fresh air and says, "Winter is finally over!" The trees are turning green.`,
+      q: '现在最可能是什么季节？',
+      right: '春天',
+      wrongs: ['冬天', '深秋'],
+      why: 'Winter is over、fresh air、trees turning green 都说明春天到了。',
+    },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -824,6 +926,26 @@ const sciExperiment: Maker = (id) => {
       goal: '比较斜坡高度对小车滑行距离的影响',
       right: '同一辆小车，只改变斜坡的高度',
       wrongs: ['换更重的小车同时加高斜坡', '每次在不同地面上滑'],
+    },
+    {
+      goal: '比较水温对方糖溶解快慢的影响',
+      right: '两杯水量一样，只让水温不同，各放一块同样的方糖',
+      wrongs: ['一杯水多一杯水少，水温也不一样', '一杯放方糖、一杯放冰糖'],
+    },
+    {
+      goal: '比较肥料多少对番茄苗长高的影响',
+      right: '几盆一样的番茄苗，只改施肥的量，阳光和浇水都一样',
+      wrongs: ['施肥多的那盆顺便多晒太阳', '每盆换不同种类的苗来种'],
+    },
+    {
+      goal: '比较橡皮筋拉的长短对小车弹射距离的影响',
+      right: '同一辆车、同一根橡皮筋，只改变往后拉的长度',
+      wrongs: ['每次换一根不同的橡皮筋', '拉得长就同时把车也换重一点'],
+    },
+    {
+      goal: '比较盐放多少对鸡蛋能否浮起来的影响',
+      right: '几杯水量相同的水，只改变加盐的多少',
+      wrongs: ['一杯热水一杯冷水，盐也加得不一样', '一杯放鸡蛋、一杯放乒乓球'],
     },
   ])
   const built = textChoices(card.right, card.wrongs)
@@ -903,6 +1025,12 @@ const sciClassify: Maker = (id) => {
     { group: '导体', members: ['铁钉', '铜线', '铝勺'], odd: '橡皮', oddWhy: '橡皮不导电' },
     { group: '气体', members: ['氧气', '二氧化碳', '水蒸气'], odd: '冰块', oddWhy: '冰块是固体' },
     { group: '质数', members: ['7', '11', '13'], odd: '15', oddWhy: '15 = 3 × 5，是合数' },
+    { group: '行星', members: ['火星', '木星', '金星'], odd: '月球', oddWhy: '月球是地球的卫星，不是行星' },
+    { group: '液体', members: ['牛奶', '果汁', '食用油'], odd: '面粉', oddWhy: '面粉是固体粉末' },
+    { group: '偶数', members: ['24', '36', '50'], odd: '27', oddWhy: '27 是奇数' },
+    { group: '能被 3 整除的数', members: ['18', '27', '42'], odd: '20', oddWhy: '20 不能被 3 整除' },
+    { group: '输入设备', members: ['键盘', '鼠标', '麦克风'], odd: '打印机', oddWhy: '打印机是输出设备' },
+    { group: '凭电池工作的', members: ['手电筒', '遥控器', '电子表'], odd: '风筝', oddWhy: '风筝靠风飞，不用电池' },
   ])
   const options = shuffle([...card.members, card.odd])
   return {
@@ -940,6 +1068,31 @@ const sciInfo: Maker = (id) => {
       right: '查权威科普网站或图书核实',
       wrongs: ['配图很精美，直接相信', '投票，多数人信就算真'],
     },
+    {
+      msg: '同学转来一张「某明星去世」的截图，但所有正规新闻网站都查不到。',
+      right: '没有正规来源前，不信也不传',
+      wrongs: ['先转到家庭群里再说', '截图这么清楚肯定是真的'],
+    },
+    {
+      msg: '弹窗广告说：「你的手机中病毒了，点这里立即清理！」',
+      right: '不点弹窗，直接关掉',
+      wrongs: ['赶紧点进去清理', '按提示下载那个清理软件'],
+    },
+    {
+      msg: '一篇文章标题是「震惊！白开水居然不能喝」，点进去全是卖净水器的。',
+      right: '这是博眼球的标题党，不能当真',
+      wrongs: ['赶紧把家里的水都倒掉', '马上下单买一台净水器'],
+    },
+    {
+      msg: '游戏里有人私信：「加我领免费皮肤，先把账号密码发我。」',
+      right: '绝不发密码，并告诉家长',
+      wrongs: ['先发个密码试试能不能领', '把同学的账号也一起发过去'],
+    },
+    {
+      msg: '小组要在作业里引用一个数据，找到两个网站，一个是官方统计局，一个是不知名论坛。',
+      right: '采用官方统计局的数据',
+      wrongs: ['用论坛的，因为先搜到它', '两个平均一下'],
+    },
   ])
   const built = textChoices(card.right, card.wrongs)
   return {
@@ -959,7 +1112,7 @@ const sciCode: Maker = (id) => {
   const variant = pick(['shift', 'binary'] as const)
   if (variant === 'shift') {
     const shift = pick([1, 2, 3])
-    const base = pick(['CAT', 'DOG', 'SUN', 'MAP', 'BUS'])
+    const base = pick(['CAT', 'DOG', 'SUN', 'MAP', 'BUS', 'BOX', 'CUP', 'KEY', 'FOX', 'PEN', 'ICE', 'JAM'])
     const encode = (s: string) =>
       s
         .split('')
@@ -1012,74 +1165,81 @@ const sciCode: Maker = (id) => {
 // 茶水间（穿插小卡，不计分）
 // ===========================================================================
 
+// 真的假的：事实都经过核实，real=true 表示「真的」。joke 是搞笑的第三个选项。
+const TRUE_FALSE: { fact: string; real: boolean; why: string; joke: string }[] = [
+  { fact: '章鱼有三颗心脏。', real: true, why: '真的：两颗给鳃供血，一颗负责全身血液循环。', joke: '只有星期三才跳' },
+  { fact: '蜂蜜保存得当，放很多年也几乎不会坏。', real: true, why: '真的：蜂蜜含水极少又偏酸，细菌很难存活。', joke: '只有放冰箱才不会坏' },
+  { fact: '长颈鹿和人脖子里都是 7 块颈椎骨。', real: true, why: '真的：哺乳动物大多 7 块，长颈鹿只是每块特别长。', joke: '长颈鹿有 70 块' },
+  { fact: '闪电那一瞬间的温度，比太阳表面还高。', real: true, why: '真的：闪电可达上万摄氏度，比太阳表面还烫。', joke: '和洗澡水差不多' },
+  { fact: '北极熊的皮肤其实是黑色的。', real: true, why: '真的：黑皮肤更吸热，毛是半透明的中空管，看起来才发白。', joke: '北极熊是透明的隐形熊' },
+  { fact: '鲨鱼比地球上第一棵树出现得还早。', real: true, why: '真的：鲨鱼已经在海里游了好几亿年，比树还古老。', joke: '鲨鱼是上个月才进化出来的' },
+  { fact: '鸵鸟的眼睛比它的大脑还大。', real: true, why: '真的：鸵鸟眼睛大得惊人，脑子反而小小一颗。', joke: '鸵鸟根本没长眼睛' },
+  { fact: '香蕉在植物学上其实算一种浆果。', real: true, why: '真的：按植物学定义香蕉是浆果，而草莓反倒不是。', joke: '香蕉其实是蔬菜' },
+  { fact: '人的左肺比右肺小一点。', real: true, why: '真的：左边要给心脏让地方，所以左肺小一些。', joke: '人只有一个肺' },
+  { fact: '蓝鲸是地球上出现过的最大动物，比恐龙还大。', real: true, why: '真的：蓝鲸的体重超过已知任何恐龙。', joke: '蓝鲸和金鱼差不多大' },
+  { fact: '月球上是真空，面对面大喊也听不见。', real: true, why: '真的：没有空气传声，宇航员只能靠无线电对讲。', joke: '月球上回声特别响' },
+  { fact: '企鹅是鸟，可它一辈子都不会飞。', real: true, why: '真的：企鹅是鸟类，翅膀进化成了划水的鳍。', joke: '企鹅能飞越南极' },
+  { fact: '土星太轻了，理论上能浮在一大盆水上。', real: true, why: '真的：土星的平均密度比水还小。', joke: '土星比铁球还沉' },
+  { fact: '海星没有大脑。', real: true, why: '真的：海星靠分布在全身的神经网络活动，没有大脑。', joke: '海星有五个大脑' },
+  { fact: '老虎剃光毛之后，皮肤上也有条纹。', real: true, why: '真的：条纹连皮肤都印着，不只是长在毛上。', joke: '条纹是饲养员画上去的' },
+  { fact: '金鱼的记忆只有三秒。', real: false, why: '假的：研究发现金鱼能记住事情好几个月。', joke: '夏天三秒、冬天五秒' },
+  { fact: '人打喷嚏的时候，心脏会停跳一下。', real: false, why: '假的：心跳并不会因为打喷嚏而停止。', joke: '会停整整一分钟' },
+  { fact: '在太空里用肉眼能看到的人造建筑，只有长城。', real: false, why: '假的：这是流传很广的误传，肉眼其实很难看清长城。', joke: '还能看到学校操场' },
+  { fact: '鸵鸟一害怕就把头埋进沙子里。', real: false, why: '假的：这是误传，它只是低头察看或翻动鸟蛋。', joke: '它会把全身都埋起来' },
+  { fact: '人一辈子只用了大脑的 10%。', real: false, why: '假的：这早被辟谣，大脑各区域都在工作。', joke: '只用了 1%' },
+  { fact: '骆驼的驼峰里装的是水。', real: false, why: '假的：驼峰里装的是脂肪，可不是一袋水。', joke: '装的是沙子' },
+  { fact: '地球一年绕着太阳转 365 圈。', real: false, why: '假的：一年地球只绕太阳转 1 圈，约 365 天。', joke: '一年转 12 圈' },
+]
+
+// 脑筋急转弯 / 吐槽 / 冷知识
+const FUN_CARDS: { title: string; scenario?: string; prompt: string; right: string; wrongs: [string, string]; why: string }[] = [
+  { title: '脑筋急转弯', prompt: '什么数字最听话？', right: '100（百依百顺）', wrongs: ['1（一马当先）', '0（一无所有）'], why: '一「百」依「百」顺，所以是 100。' },
+  { title: '脑筋急转弯', prompt: '什么东西越分越多？', right: '快乐', wrongs: ['蛋糕', '零花钱'], why: '快乐分给别人，自己不会变少，反而更多。' },
+  { title: '脑筋急转弯', prompt: '什么东西天气越热，它爬得越高？', right: '温度计', wrongs: ['爬山虎', '蚂蚁'], why: '天越热，温度计里的水银柱就升得越高。' },
+  { title: '脑筋急转弯', prompt: '什么海里一滴水都没有？', right: '脑海', wrongs: ['大海', '黄海'], why: '「脑海」里装的是想法，不是水。' },
+  { title: '脑筋急转弯', prompt: '什么车天天转却寸步难行？', right: '风车', wrongs: ['公交车', '自行车'], why: '风车原地转个不停，却一步都走不了。' },
+  { title: '脑筋急转弯', prompt: '一年四季都开、还从不用浇水的花是什么？', right: '塑料花', wrongs: ['桃花', '向日葵'], why: '塑料花当然不挑季节、也不用浇水。' },
+  { title: '吐槽时间', scenario: `${MATH_TEACHER}说：「这道题我只讲一遍。」结果一连讲了五遍。`, prompt: '闫一依心里想？', right: '老师真好，我假装第一次听', wrongs: ['第一遍就开始走神', '举手要求讲第六遍'], why: '老师其实是怕大家没听懂，会心一笑继续就好。' },
+  { title: '吐槽时间', scenario: '体育老师大手一挥：「这节课自由活动！」', prompt: '全班最后自由地干了什么？', right: '回教室自由地写作业', wrongs: ['自由地睡了一觉', '自由地考了一场试'], why: '「自由活动」的尽头，往往是补作业，笑一下继续。' },
+  { title: '吐槽时间', scenario: `考试前 ${HEAD_TEACHER} 班上的同学都说「我一点没复习」，结果个个考得不错。`, prompt: '闫一依的对策是？', right: '笑而不语，自己照样认真准备', wrongs: ['从此再不信这句话', '也跟着不复习'], why: '别人嘴上说不复习，桌上的笔记可一点没少——做好自己的就行。' },
+  { title: '冷知识', scenario: '一天之内，钟面上时针和分针会重合好几次。', prompt: '一共重合几次？', right: '22 次', wrongs: ['24 次', '12 次'], why: '12 小时里重合 11 次，一整天就是 22 次。' },
+]
+
+const SPARK_INTROS = [
+  (s: string, f: string) => `${s}拍着胸脯保证：${f}`,
+  (s: string, f: string) => `${s}压低声音说：${f}`,
+  (s: string, f: string) => `茶水间情报站：${f}（消息来自 ${s}）`,
+  (s: string, f: string) => `${s}赌一包辣条：${f}`,
+  (s: string, f: string) => `${s}神秘兮兮地凑过来：${f}`,
+]
+
 const sparkQuestion: Maker = (id) => {
   const [a, b] = twoMates()
-  const cards = [
-    {
-      title: '脑筋急转弯',
-      scenario: undefined as string | undefined,
-      prompt: `${a}问：什么数字最听话？`,
-      right: '100（百依百顺）',
-      wrongs: ['1（一马当先）', '0（一无所有）'],
-      why: '一百「依」百顺，所以是 100。',
-    },
-    {
-      title: '脑筋急转弯',
-      scenario: undefined as string | undefined,
-      prompt: `${b}问：什么东西越分越多？`,
-      right: '快乐',
-      wrongs: ['蛋糕', '零花钱'],
-      why: '快乐分享给别人，自己不会变少，反而更多。',
-    },
-    {
+  if (Math.random() < 0.6) {
+    const card = pick(TRUE_FALSE)
+    const intro = pick(SPARK_INTROS)
+    const right = card.real ? '真的' : '假的'
+    const built = textChoices(right, [card.real ? '假的' : '真的', card.joke])
+    return {
+      id: `spark-${id}`,
+      kind: 'spark',
+      badge: '茶水间 · 真的假的',
       title: '真的假的',
-      scenario: `${b}神秘兮兮地说：章鱼有三颗心脏。`,
-      prompt: '这是真的还是假的？',
-      right: '真的',
-      wrongs: ['假的', '只有受伤时才会多长'],
-      why: '真的：两颗给鳃供血，一颗负责全身。',
-    },
-    {
-      title: '真的假的',
-      scenario: `${a}说：蜂蜜放很多年也几乎不会变质。`,
-      prompt: '这是真的还是假的？',
-      right: '真的',
-      wrongs: ['假的', '只有冬天不变质'],
-      why: '真的：蜂蜜含水极少又偏酸，细菌很难存活。',
-    },
-    {
-      title: '真的假的',
-      scenario: `${b}说：金鱼的记忆只有三秒。`,
-      prompt: '这是真的还是假的？',
-      right: '假的',
-      wrongs: ['真的', '夏天三秒冬天五秒'],
-      why: '假的：研究发现金鱼能记住事情好几个月。',
-    },
-    {
-      title: '冷知识',
-      scenario: `${a}冷不丁问：一天里时针和分针一共会重合几次？`,
-      prompt: '猜一个？',
-      right: '22 次',
-      wrongs: ['24 次', '12 次'],
-      why: '12 小时重合 11 次，一整天 22 次——不是 24 次哦。',
-    },
-    {
-      title: '轻松一刻',
-      scenario: `${HEAD_TEACHER}点名说：「没到的同学请举手。」全班安静三秒，然后笑成一片。`,
-      prompt: `${PLAYER}的反应是？`,
-      right: '笑一下，继续干活',
-      wrongs: ['替没到的同学举手', '认真等没到的人举手'],
-      why: '没到的人当然举不了手，休息一下，继续任务。',
-    },
-  ]
-  const card = pick(cards)
+      scenario: intro(a, card.fact),
+      prompt: '这是真的，还是假的？',
+      ...built,
+      hint: '茶水间小卡不计分，大胆猜。',
+      explanation: card.why,
+    }
+  }
+  const card = pick(FUN_CARDS)
   const built = textChoices(card.right, card.wrongs)
   return {
     id: `spark-${id}`,
     kind: 'spark',
     badge: '茶水间',
     title: card.title,
-    scenario: card.scenario,
+    scenario: card.scenario ?? (Math.random() < 0.5 ? `${a}突然发问——` : `${b}举手抢答——`),
     prompt: card.prompt,
     ...built,
     hint: '茶水间小卡不计分，放松一下。',
@@ -1154,7 +1314,7 @@ export function buildBureauQuestions(mode: BureauMode, count: number): BureauQue
   const preview = cycled(PREVIEW_MAKERS)
 
   const questions = Array.from({ length: count }, (_, idx) => {
-    if (idx > 0 && idx % 5 === 4) return sparkQuestion(idx)
+    if (idx > 0 && idx % 4 === 3) return sparkQuestion(idx)
     if (mode === 'planner') return planner(idx)
     if (mode === 'archive') return archive(idx)
     if (mode === 'preview') return preview(idx)

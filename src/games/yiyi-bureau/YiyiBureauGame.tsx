@@ -1,4 +1,4 @@
-import { useMemo, useReducer, useState } from 'react'
+import { useEffect, useMemo, useReducer, useState } from 'react'
 import {
   BadgeCheck,
   CheckCircle2,
@@ -53,6 +53,9 @@ const MODE_META: Record<BureauMode, { label: string; desc: string; icon: typeof 
 }
 
 const COUNT_OPTIONS = [6, 10, 15]
+
+// 答题后先停顿这么多秒看解析，再放开「下一个任务」
+const REVIEW_SECONDS = 4
 
 const KIND_TONE: Record<BureauQuestion['kind'], string> = {
   math: 'bg-melon-100 text-melon-700',
@@ -135,6 +138,13 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
     records: [],
   })
   const [showHint, setShowHint] = useState(false)
+  const [review, setReview] = useState(0)
+
+  useEffect(() => {
+    if (review <= 0) return
+    const timer = setTimeout(() => setReview((s) => s - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [review])
 
   const question = state.questions[state.index]
   const progress = state.questions.length ? ((state.index + 1) / state.questions.length) * 100 : 0
@@ -322,7 +332,11 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
               <button
                 key={choice.id}
                 type="button"
-                onClick={() => !state.checked && dispatch({ type: 'SELECT', value: choice.id })}
+                onClick={() => {
+                  if (state.checked) return
+                  dispatch({ type: 'SELECT', value: choice.id })
+                  setReview(REVIEW_SECONDS)
+                }}
                 className={cn(
                   'min-h-14 rounded-2xl border bg-white px-4 py-3 text-sm font-semibold text-ink-800 transition',
                   active && 'border-melon-500 bg-melon-50',
@@ -369,12 +383,17 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
           <Button
             onClick={() => {
               setShowHint(false)
+              setReview(0)
               dispatch({ type: 'NEXT' })
             }}
-            disabled={!state.checked}
+            disabled={!state.checked || review > 0}
             className="min-h-14 w-full shrink-0 text-base sm:flex-1"
           >
-            {state.index + 1 >= state.questions.length ? '交差结算' : '下一个任务'}
+            {review > 0
+              ? `看一下解析… ${review}`
+              : state.index + 1 >= state.questions.length
+                ? '交差结算'
+                : '下一个任务'}
           </Button>
         </div>
 
