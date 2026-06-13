@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { wordBank, type WordItem } from '@/data/word-bank'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
+import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
 
 function getMaxSpies(n: number) {
@@ -237,6 +238,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，等人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RemoteVoiceHint />
           {memberList}
           {isHost ? (
             <div className="space-y-3 rounded-2xl border border-ink-100 bg-white/70 p-4">
