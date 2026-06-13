@@ -62,7 +62,8 @@ begin
   return s;
 end; $$;
 
--- 房主更新：改状态 + 公共 payload + 可选地给每人下发私密 secret(jsonb: { token: secret })。
+-- 房主更新：改状态 + 公共 payload + 可选地给每人下发私密 secret。
+-- secret 按「座位号」下发({ "1": secret, "2": secret })——房主看得到座位，但看不到他人令牌，所以按座位。
 create or replace function public.host_set(p_code text, p_host_token text, p_state text, p_payload jsonb, p_secrets jsonb)
 returns boolean language plpgsql security definer set search_path = public as $$
 declare k text; v jsonb;
@@ -74,7 +75,7 @@ begin
     where code = p_code;
   if p_secrets is not null then
     for k, v in select * from jsonb_each(p_secrets) loop
-      update room_members set secret = v where code = p_code and token = k;
+      update room_members set secret = v where code = p_code and seat = k::int;
     end loop;
   end if;
   return true;

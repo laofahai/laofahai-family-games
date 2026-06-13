@@ -8,7 +8,9 @@ import { wordBank, wordTags, type WordItem, type WordPair } from '@/data/word-ba
 import { getPlayers } from '@/platform/players'
 import { pickUnseen } from '@/platform/progress'
 import { RosterPicker } from '@/platform/RosterPicker'
+import { roomsAvailable } from '@/platform/rooms'
 import { getRosterIds, setRoster } from '@/platform/session'
+import { UndercoverRemote } from './UndercoverRemote'
 
 type Phase = 'setup' | 'reveal' | 'done'
 type RoleType = 'civilian' | 'spy' | 'blank'
@@ -56,6 +58,7 @@ function shuffle<T>(items: T[]) {
 }
 
 export function UndercoverGame() {
+  const [mode, setMode] = useState<'local' | 'remote'>('local')
   const [phase, setPhase] = useState<Phase>('setup')
   const [rosterIds, setRosterIds] = useState<string[]>(getRosterIds)
   const [spyCount, setSpyCount] = useState(1)
@@ -161,6 +164,14 @@ export function UndercoverGame() {
     })
   }
 
+  if (mode === 'remote') {
+    return (
+      <div className="space-y-6">
+        <UndercoverRemote onBack={() => setMode('local')} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {phase === 'setup' && (
@@ -171,6 +182,15 @@ export function UndercoverGame() {
               配置玩家
             </CardTitle>
             <CardDescription>支持 3 人起玩，卧底数量会自动限制。</CardDescription>
+            {roomsAvailable() && (
+              <button
+                type="button"
+                onClick={() => setMode('remote')}
+                className="mt-2 self-start rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+              >
+                📱 各自用自己手机玩（远程）
+              </button>
+            )}
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">
             <div className="space-y-4">
