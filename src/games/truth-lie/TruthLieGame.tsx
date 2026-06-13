@@ -7,7 +7,7 @@ import type {
   StatementIndex,
   TruthTopic,
 } from './types'
-import { PLAYERS } from './types'
+import { getRosterIds, setRoster } from '@/platform/session'
 import { pickTopic } from './utils/pickTopic'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
@@ -22,7 +22,8 @@ interface TruthLieGameProps {
 
 interface State {
   stage: Stage
-  players: Set<PlayerId>
+  /** 本局玩家（有序，来自平台名单：家人 + 朋友/其他人） */
+  playerIds: string[]
   roundsPerPlayer: RoundsPerPlayer
   /** 主角出场顺序 */
   queue: PlayerId[]
@@ -34,7 +35,7 @@ interface State {
 
 type Action =
   | { type: 'GOTO_SETUP' }
-  | { type: 'TOGGLE_PLAYER'; value: PlayerId }
+  | { type: 'SET_PLAYERS'; value: string[] }
   | { type: 'SET_ROUNDS'; value: RoundsPerPlayer }
   | { type: 'START'; queue: PlayerId[]; topic: TruthTopic }
   | { type: 'SWAP_TOPIC'; topic: TruthTopic }
@@ -49,12 +50,8 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'GOTO_SETUP':
       return { ...state, stage: 'setup' }
-    case 'TOGGLE_PLAYER': {
-      const next = new Set(state.players)
-      if (next.has(action.value)) next.delete(action.value)
-      else next.add(action.value)
-      return { ...state, players: next }
-    }
+    case 'SET_PLAYERS':
+      return { ...state, playerIds: action.value }
     case 'SET_ROUNDS':
       return { ...state, roundsPerPlayer: action.value }
     case 'START':
@@ -106,13 +103,11 @@ function readIntroSeen(): boolean {
   return localStorage.getItem('truthLie.introSeen') === '1'
 }
 
-const ALL_PLAYERS: PlayerId[] = PLAYERS.map((p) => p.id)
-
 export function TruthLieGame({ onExit }: TruthLieGameProps) {
   const [introSeen] = useState(readIntroSeen)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
-    players: new Set(ALL_PLAYERS),
+    playerIds: getRosterIds(),
     roundsPerPlayer: 1,
     queue: [],
     roundIdx: 0,
@@ -122,8 +117,8 @@ export function TruthLieGame({ onExit }: TruthLieGameProps) {
   })
 
   const teller = state.queue[state.roundIdx]
-  const voters = [...state.players].filter((p) => p !== teller)
-  const activePlayers = ALL_PLAYERS.filter((p) => state.players.has(p))
+  const activePlayers = state.playerIds
+  const voters = activePlayers.filter((p) => p !== teller)
 
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
@@ -132,11 +127,12 @@ export function TruthLieGame({ onExit }: TruthLieGameProps) {
   if (state.stage === 'setup') {
     return (
       <SetupStage
-        players={state.players}
+        selectedIds={state.playerIds}
         roundsPerPlayer={state.roundsPerPlayer}
-        onTogglePlayer={(p) => dispatch({ type: 'TOGGLE_PLAYER', value: p })}
+        onChangePlayers={(ids) => dispatch({ type: 'SET_PLAYERS', value: ids })}
         onChangeRounds={(n) => dispatch({ type: 'SET_ROUNDS', value: n })}
         onStart={() => {
+          setRoster(state.playerIds)
           const queue: PlayerId[] = []
           for (let i = 0; i < state.roundsPerPlayer; i += 1) queue.push(...activePlayers)
           dispatch({ type: 'START', queue, topic: pickTopic() })

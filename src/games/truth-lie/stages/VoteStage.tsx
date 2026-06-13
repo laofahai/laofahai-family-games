@@ -2,7 +2,7 @@ import { Vote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { PlayerId, StatementIndex } from '../types'
-import { PLAYER_MAP } from '../types'
+import { infoOf } from '../types'
 import { cn } from '@/lib/utils'
 
 interface VoteStageProps {
@@ -16,7 +16,7 @@ interface VoteStageProps {
 const INDEXES: StatementIndex[] = [1, 2, 3]
 
 export function VoteStage({ teller, voters, votes, onVote, onReveal }: VoteStageProps) {
-  const tellerInfo = PLAYER_MAP[teller]
+  const tellerInfo = infoOf(teller)
   const allVoted = voters.every((v) => votes[v] !== undefined)
 
   return (
@@ -32,7 +32,7 @@ export function VoteStage({ teller, voters, votes, onVote, onReveal }: VoteStage
       </CardHeader>
       <CardContent className="space-y-3">
         {voters.map((voter) => {
-          const info = PLAYER_MAP[voter]
+          const info = infoOf(voter)
           const picked = votes[voter]
           return (
             <div

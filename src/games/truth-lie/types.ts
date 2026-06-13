@@ -1,4 +1,7 @@
-export type PlayerId = 'dad' | 'mom' | 'bigSis' | 'lilSis'
+import { getPlayers } from '@/platform/players'
+
+// 玩家 id 改为 string：玩家来自平台共享名单（家人 + 任意添加的朋友/其他人）。
+export type PlayerId = string
 
 export interface PlayerInfo {
   id: PlayerId
@@ -6,16 +9,12 @@ export interface PlayerInfo {
   emoji: string
 }
 
-export const PLAYERS: PlayerInfo[] = [
-  { id: 'dad', name: '爸爸', emoji: '👨‍💻' },
-  { id: 'mom', name: '妈妈', emoji: '🛍️' },
-  { id: 'bigSis', name: '姐姐', emoji: '🎤' },
-  { id: 'lilSis', name: '妹妹', emoji: '🎀' },
-]
-
-export const PLAYER_MAP: Record<PlayerId, PlayerInfo> = Object.fromEntries(
-  PLAYERS.map((p) => [p.id, p])
-) as Record<PlayerId, PlayerInfo>
+/** 按 id 取玩家显示信息（实时读平台名单，找不到给个兜底） */
+export function infoOf(id: PlayerId): PlayerInfo {
+  const p = getPlayers().find((x) => x.id === id)
+  if (p) return { id: p.id, name: p.name, emoji: p.emoji }
+  return { id, name: id, emoji: '🙂' }
+}
 
 export type TopicCategory =
   | 'childhood'

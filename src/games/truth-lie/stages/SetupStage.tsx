@@ -1,14 +1,14 @@
 import { Play, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import type { PlayerId, RoundsPerPlayer } from '../types'
-import { PLAYERS } from '../types'
+import { RosterPicker } from '@/platform/RosterPicker'
+import type { RoundsPerPlayer } from '../types'
 import { cn } from '@/lib/utils'
 
 interface SetupStageProps {
-  players: Set<PlayerId>
+  selectedIds: string[]
   roundsPerPlayer: RoundsPerPlayer
-  onTogglePlayer: (p: PlayerId) => void
+  onChangePlayers: (ids: string[]) => void
   onChangeRounds: (n: RoundsPerPlayer) => void
   onStart: () => void
 }
@@ -16,13 +16,13 @@ interface SetupStageProps {
 const ROUND_OPTIONS: RoundsPerPlayer[] = [1, 2]
 
 export function SetupStage({
-  players,
+  selectedIds,
   roundsPerPlayer,
-  onTogglePlayer,
+  onChangePlayers,
   onChangeRounds,
   onStart,
 }: SetupStageProps) {
-  const canStart = players.size >= 2
+  const canStart = selectedIds.length >= 2
 
   return (
     <Card className="paper-grid">
@@ -31,33 +31,13 @@ export function SetupStage({
           <Settings2 className="h-5 w-5 text-melon-600" />
           开局设置
         </CardTitle>
-        <CardDescription>勾选今天在场的家人，每人轮流当主角。</CardDescription>
+        <CardDescription>选今天在场的人（家人、朋友都行），每人轮流当主角。</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          <div className="text-sm font-semibold text-ink-700">今天谁在场？（至少 2 人）</div>
-          <div className="grid grid-cols-2 gap-2">
-            {PLAYERS.map((player) => {
-              const active = players.has(player.id)
-              return (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => onTogglePlayer(player.id)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-2xl border p-3 text-left transition',
-                    active
-                      ? 'border-melon-500 bg-melon-50 shadow'
-                      : 'border-ink-200 bg-white opacity-60 hover:border-melon-300 hover:opacity-100'
-                  )}
-                >
-                  <span className="text-3xl">{player.emoji}</span>
-                  <span className="text-sm font-semibold text-ink-900">{player.name}</span>
-                </button>
-              )
-            })}
-          </div>
-          {!canStart && <div className="text-xs text-rose-600">至少要有 2 位家人才能玩</div>}
+          <div className="text-sm font-semibold text-ink-700">今天谁在场？（已选 {selectedIds.length} 人，至少 2 人）</div>
+          <RosterPicker selectedIds={selectedIds} onChange={onChangePlayers} min={2} />
+          {!canStart && <div className="text-xs text-rose-600">至少要有 2 个人才能玩</div>}
         </div>
 
         <div className="space-y-2">
@@ -77,7 +57,7 @@ export function SetupStage({
                       : 'border-ink-200 bg-white text-ink-700 hover:border-ink-400'
                   )}
                 >
-                  {n} 次（共 {players.size * n} 轮）
+                  {n} 次（共 {selectedIds.length * n} 轮）
                 </button>
               )
             })}

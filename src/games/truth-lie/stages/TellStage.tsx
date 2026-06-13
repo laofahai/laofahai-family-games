@@ -2,7 +2,7 @@ import { Lightbulb, MessageCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { PlayerId, TruthTopic } from '../types'
-import { PLAYER_MAP, TOPIC_LABEL } from '../types'
+import { infoOf, TOPIC_LABEL } from '../types'
 
 interface TellStageProps {
   teller: PlayerId
@@ -14,7 +14,7 @@ interface TellStageProps {
 }
 
 export function TellStage({ teller, roundNo, totalRounds, topic, onSwapTopic, onDone }: TellStageProps) {
-  const info = PLAYER_MAP[teller]
+  const info = infoOf(teller)
 
   return (
     <Card className="paper-grid">

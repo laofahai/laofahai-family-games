@@ -3,7 +3,7 @@ import { Eye, PartyPopper } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { PlayerId, StatementIndex } from '../types'
-import { PLAYER_MAP } from '../types'
+import { infoOf } from '../types'
 import { cn } from '@/lib/utils'
 
 interface RevealStageProps {
@@ -18,7 +18,7 @@ const INDEXES: StatementIndex[] = [1, 2, 3]
 
 export function RevealStage({ teller, votes, isLastRound, onConfirm, onNext }: RevealStageProps) {
   const [lieIndex, setLieIndex] = useState<StatementIndex | null>(null)
-  const tellerInfo = PLAYER_MAP[teller]
+  const tellerInfo = infoOf(teller)
 
   if (lieIndex === null) {
     return (
@@ -82,7 +82,7 @@ export function RevealStage({ teller, votes, isLastRound, onConfirm, onNext }: R
                   key={p}
                   className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-emerald-800 shadow-sm"
                 >
-                  {PLAYER_MAP[p].emoji} {PLAYER_MAP[p].name}
+                  {infoOf(p).emoji} {infoOf(p).name}
                 </span>
               ))}
             </div>
@@ -104,7 +104,7 @@ export function RevealStage({ teller, votes, isLastRound, onConfirm, onNext }: R
                   key={p}
                   className="rounded-full bg-white px-3 py-1 text-sm font-semibold text-amber-800 shadow-sm"
                 >
-                  {PLAYER_MAP[p].emoji} {PLAYER_MAP[p].name}
+                  {infoOf(p).emoji} {infoOf(p).name}
                 </span>
               ))}
             </div>

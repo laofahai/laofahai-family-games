@@ -2,7 +2,7 @@ import { Home, RotateCcw, Trophy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { PlayerId, RoundRecord } from '../types'
-import { PLAYER_MAP, totalScores } from '../types'
+import { infoOf, totalScores } from '../types'
 import { cn } from '@/lib/utils'
 
 interface ResultStageProps {
@@ -28,7 +28,7 @@ export function ResultStage({ players, history, onPlayAgain, onExit }: ResultSta
       </CardHeader>
       <CardContent className="space-y-3">
         {ranked.map((p, idx) => {
-          const info = PLAYER_MAP[p]
+          const info = infoOf(p)
           const score = scores[p] ?? 0
           const isTop = score === topScore && topScore > 0
           return (
