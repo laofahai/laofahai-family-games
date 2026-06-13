@@ -73,4 +73,35 @@ export const truthTopics: TruthTopic[] = [
   { text: '你心里给家人排过的「最XX排行榜」', category: 'secret', emoji: '🏆' },
   { text: '如果可以变成一种动物/一个人，你想变成谁', category: 'secret', emoji: '🦋' },
   { text: '你长大后/退休后最想做的事', category: 'secret', emoji: '🌈' },
+
+  // ===== 追加 =====
+  // 童年回忆
+  { text: '你小时候攒过的零花钱拿去买了什么', category: 'childhood', emoji: '🪙' },
+  { text: '你小时候和兄弟姐妹/小伙伴争抢过的东西', category: 'childhood', emoji: '🤼' },
+  { text: '你小时候过生日最难忘的一次', category: 'childhood', emoji: '🎂' },
+
+  // 学校与工作
+  { text: '你被老师/领导叫到办公室的一次经历', category: 'schoolWork', emoji: '🚪' },
+  { text: '你做过的小组作业或团队项目里的趣事', category: 'schoolWork', emoji: '🧩' },
+  { text: '你第一份工作或第一次打工赚到的钱', category: 'schoolWork', emoji: '💼' },
+
+  // 吃吃喝喝
+  { text: '你为了好吃的排过最长的一次队', category: 'food', emoji: '🧍' },
+  { text: '你深夜偷偷加过的餐', category: 'food', emoji: '🌙' },
+  { text: '你坚决不放进自己火锅/外卖里的东西', category: 'food', emoji: '🌶️' },
+
+  // 玩乐爱好
+  { text: '你为某个爱好花过最多钱的一次', category: 'fun', emoji: '💸' },
+  { text: '你手机相册里存得最多的是什么照片', category: 'fun', emoji: '🖼️' },
+  { text: '你一个人偷偷享受过的快乐时光', category: 'fun', emoji: '🎧' },
+
+  // 糗事现场
+  { text: '你把别人的东西错当成自己的拿走过', category: 'embarrassing', emoji: '🎒' },
+  { text: '你在电梯或公共场合尬住的一次', category: 'embarrassing', emoji: '😬' },
+  { text: '你自信满满却搞错方向/走错路的一次', category: 'embarrassing', emoji: '🧭' },
+
+  // 小心思
+  { text: '你偷偷给自己定过但没告诉别人的小目标', category: 'secret', emoji: '🎯' },
+  { text: '你心里悄悄珍藏的一句话或一个人', category: 'secret', emoji: '💌' },
+  { text: '你假装没听见、其实都记在心里的事', category: 'secret', emoji: '👂' },
 ]

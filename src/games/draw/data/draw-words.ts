@@ -274,4 +274,79 @@ export const drawWords: DrawWord[] = [
   // 家庭专属彩蛋
   { text: '演唱会', hint: '地点', difficulty: 'hard' },
   { text: '广场舞', hint: '运动', difficulty: 'hard' },
+
+  // ==================== 补充批次 ====================
+  // easy · 动物
+  { text: '狮子', hint: '动物', difficulty: 'easy' },
+  { text: '小鸡', hint: '动物', difficulty: 'easy' },
+  { text: '瓢虫', hint: '动物', difficulty: 'easy' },
+  { text: '海星', hint: '动物', difficulty: 'easy' },
+  { text: '松鼠', hint: '动物', difficulty: 'easy' },
+  { text: '猫头鹰', hint: '动物', difficulty: 'easy' },
+  // easy · 食物 / 水果
+  { text: '甜甜圈', hint: '食物', difficulty: 'easy' },
+  { text: '薯条', hint: '食物', difficulty: 'easy' },
+  { text: '饺子', hint: '食物', difficulty: 'easy' },
+  { text: '柠檬', hint: '水果', difficulty: 'easy' },
+  { text: '玉米', hint: '食物', difficulty: 'easy' },
+  { text: '胡萝卜', hint: '食物', difficulty: 'easy' },
+  // easy · 日常物品
+  { text: '雨靴', hint: '日常物品', difficulty: 'easy' },
+  { text: '书', hint: '日常物品', difficulty: 'easy' },
+  { text: '锤子', hint: '日常物品', difficulty: 'easy' },
+  { text: '梳子', hint: '日常物品', difficulty: 'easy' },
+  { text: '勺子', hint: '日常物品', difficulty: 'easy' },
+  { text: '袜子', hint: '日常物品', difficulty: 'easy' },
+  { text: '篮子', hint: '日常物品', difficulty: 'easy' },
+  { text: '皮球', hint: '日常物品', difficulty: 'easy' },
+  // easy · 自然 / 植物
+  { text: '闪电', hint: '自然', difficulty: 'easy' },
+  { text: '雪花', hint: '自然', difficulty: 'easy' },
+  { text: '仙人掌', hint: '植物', difficulty: 'easy' },
+  { text: '向日葵', hint: '植物', difficulty: 'easy' },
+  // easy · 动作
+  { text: '招手', hint: '动作', difficulty: 'easy' },
+  { text: '喝水', hint: '动作', difficulty: 'easy' },
+  // easy · 交通工具
+  { text: '公交车', hint: '交通工具', difficulty: 'easy' },
+  { text: '滑板', hint: '交通工具', difficulty: 'easy' },
+
+  // medium · 职业 / 人物
+  { text: '画家', hint: '职业', difficulty: 'medium' },
+  { text: '运动员', hint: '职业', difficulty: 'medium' },
+  { text: '快递员', hint: '职业', difficulty: 'medium' },
+  { text: '小丑', hint: '职业', difficulty: 'medium' },
+  // medium · 日常物品
+  { text: '雨衣', hint: '日常物品', difficulty: 'medium' },
+  { text: '吉他', hint: '日常物品', difficulty: 'medium' },
+  { text: '相机', hint: '日常物品', difficulty: 'medium' },
+  { text: '冰箱', hint: '日常物品', difficulty: 'medium' },
+  { text: '洗衣机', hint: '日常物品', difficulty: 'medium' },
+  { text: '电风扇', hint: '日常物品', difficulty: 'medium' },
+  // medium · 动作
+  { text: '叠衣服', hint: '动作', difficulty: 'medium' },
+  { text: '系鞋带', hint: '动作', difficulty: 'medium' },
+  { text: '拖地', hint: '动作', difficulty: 'medium' },
+  { text: '打喷嚏', hint: '动作', difficulty: 'medium' },
+  // medium · 地点 / 自然
+  { text: '城堡', hint: '地点', difficulty: 'medium' },
+  { text: '瀑布', hint: '自然', difficulty: 'medium' },
+  { text: '岛屿', hint: '自然', difficulty: 'medium' },
+  // medium · 运动
+  { text: '骑马', hint: '运动', difficulty: 'medium' },
+  { text: '羽毛球', hint: '运动', difficulty: 'medium' },
+  { text: '溜冰鞋', hint: '运动', difficulty: 'medium' },
+  // medium · 动物
+  { text: '蝙蝠', hint: '动物', difficulty: 'medium' },
+  { text: '海豚', hint: '动物', difficulty: 'medium' },
+  { text: '斑马', hint: '动物', difficulty: 'medium' },
+  { text: '蜻蜓', hint: '动物', difficulty: 'medium' },
+
+  // hard · 成语
+  { text: '滴水穿石', hint: '成语', difficulty: 'hard' },
+  { text: '愚公移山', hint: '成语', difficulty: 'hard' },
+  { text: '名落孙山', hint: '成语', difficulty: 'hard' },
+  { text: '抱头鼠窜', hint: '成语', difficulty: 'hard' },
+  { text: '马到成功', hint: '成语', difficulty: 'hard' },
+  { text: '画龙点睛', hint: '成语', difficulty: 'hard' },
 ]

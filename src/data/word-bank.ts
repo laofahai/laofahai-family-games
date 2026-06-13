@@ -529,6 +529,54 @@ export const wordBank: WordPair[] = [
   { id: 'tool-8', tag: '工具', words: [{ text: '刷子', pinyin: 'shua zi' }, { text: '海绵', pinyin: 'hai mian' }] },
   { id: 'tool-9', tag: '工具', words: [{ text: '砂纸', pinyin: 'sha zhi' }, { text: '抹布', pinyin: 'mo bu' }] },
   { id: 'tool-10', tag: '工具', words: [{ text: '手套', pinyin: 'shou tao' }, { text: '护膝', pinyin: 'hu xi' }] },
+
+  { id: 'drink-1', tag: '饮品', words: [{ text: '可乐', pinyin: 'ke le' }, { text: '雪碧', pinyin: 'xue bi' }] },
+  { id: 'drink-2', tag: '饮品', words: [{ text: '奶茶', pinyin: 'nai cha' }, { text: '果茶', pinyin: 'guo cha' }] },
+  { id: 'drink-3', tag: '饮品', words: [{ text: '咖啡', pinyin: 'ka fei' }, { text: '可可', pinyin: 'ke ke' }] },
+  { id: 'drink-4', tag: '饮品', words: [{ text: '绿茶', pinyin: 'lv cha' }, { text: '红茶', pinyin: 'hong cha' }] },
+  { id: 'drink-5', tag: '饮品', words: [{ text: '橙汁', pinyin: 'cheng zhi' }, { text: '苹果汁', pinyin: 'ping guo zhi' }] },
+  { id: 'drink-6', tag: '饮品', words: [{ text: '矿泉水', pinyin: 'kuang quan shui' }, { text: '苏打水', pinyin: 'su da shui' }] },
+  { id: 'drink-7', tag: '饮品', words: [{ text: '冰淇淋', pinyin: 'bing qi lin' }, { text: '奶昔', pinyin: 'nai xi' }] },
+  { id: 'drink-8', tag: '饮品', words: [{ text: '蜂蜜水', pinyin: 'feng mi shui' }, { text: '柠檬水', pinyin: 'ning meng shui' }] },
+
+  { id: 'fruit-1', tag: '水果', words: [{ text: '橙子', pinyin: 'cheng zi' }, { text: '橘子', pinyin: 'ju zi' }] },
+  { id: 'fruit-2', tag: '水果', words: [{ text: '西瓜', pinyin: 'xi gua' }, { text: '哈密瓜', pinyin: 'ha mi gua' }] },
+  { id: 'fruit-3', tag: '水果', words: [{ text: '草莓', pinyin: 'cao mei' }, { text: '樱桃', pinyin: 'ying tao' }] },
+  { id: 'fruit-4', tag: '水果', words: [{ text: '葡萄', pinyin: 'pu tao' }, { text: '提子', pinyin: 'ti zi' }] },
+  { id: 'fruit-5', tag: '水果', words: [{ text: '香蕉', pinyin: 'xiang jiao' }, { text: '芭蕉', pinyin: 'ba jiao' }] },
+  { id: 'fruit-6', tag: '水果', words: [{ text: '柠檬', pinyin: 'ning meng' }, { text: '青柠', pinyin: 'qing ning' }] },
+  { id: 'fruit-7', tag: '水果', words: [{ text: '桃子', pinyin: 'tao zi' }, { text: '油桃', pinyin: 'you tao' }] },
+  { id: 'fruit-8', tag: '水果', words: [{ text: '芒果', pinyin: 'mang guo' }, { text: '木瓜', pinyin: 'mu gua' }] },
+  { id: 'fruit-9', tag: '水果', words: [{ text: '蓝莓', pinyin: 'lan mei' }, { text: '桑葚', pinyin: 'sang shen' }] },
+  { id: 'fruit-10', tag: '水果', words: [{ text: '菠萝', pinyin: 'bo luo' }, { text: '凤梨', pinyin: 'feng li' }] },
+
+  { id: 'veggie-1', tag: '蔬菜', words: [{ text: '白菜', pinyin: 'bai cai' }, { text: '生菜', pinyin: 'sheng cai' }] },
+  { id: 'veggie-2', tag: '蔬菜', words: [{ text: '黄瓜', pinyin: 'huang gua' }, { text: '丝瓜', pinyin: 'si gua' }] },
+  { id: 'veggie-3', tag: '蔬菜', words: [{ text: '番茄', pinyin: 'fan qie' }, { text: '柿子', pinyin: 'shi zi' }] },
+  { id: 'veggie-4', tag: '蔬菜', words: [{ text: '胡萝卜', pinyin: 'hu luo bo' }, { text: '白萝卜', pinyin: 'bai luo bo' }] },
+  { id: 'veggie-5', tag: '蔬菜', words: [{ text: '茄子', pinyin: 'qie zi' }, { text: '辣椒', pinyin: 'la jiao' }] },
+  { id: 'veggie-6', tag: '蔬菜', words: [{ text: '南瓜', pinyin: 'nan gua' }, { text: '冬瓜', pinyin: 'dong gua' }] },
+  { id: 'veggie-7', tag: '蔬菜', words: [{ text: '菠菜', pinyin: 'bo cai' }, { text: '芹菜', pinyin: 'qin cai' }] },
+  { id: 'veggie-8', tag: '蔬菜', words: [{ text: '蒜', pinyin: 'suan' }, { text: '葱', pinyin: 'cong' }] },
+
+  { id: 'food-21', tag: '食物', words: [{ text: '锅巴', pinyin: 'guo ba' }, { text: '薯片', pinyin: 'shu pian' }] },
+  { id: 'food-22', tag: '食物', words: [{ text: '油条', pinyin: 'you tiao' }, { text: '麻花', pinyin: 'ma hua' }] },
+  { id: 'food-23', tag: '食物', words: [{ text: '春卷', pinyin: 'chun juan' }, { text: '蛋卷', pinyin: 'dan juan' }] },
+  { id: 'food-24', tag: '食物', words: [{ text: '汤圆', pinyin: 'tang yuan' }, { text: '元宵', pinyin: 'yuan xiao' }] },
+  { id: 'food-25', tag: '食物', words: [{ text: '烧麦', pinyin: 'shao mai' }, { text: '小笼包', pinyin: 'xiao long bao' }] },
+
+  { id: 'object-21', tag: '物品', words: [{ text: '丝巾', pinyin: 'si jin' }, { text: '围巾', pinyin: 'wei jin' }] },
+  { id: 'object-22', tag: '物品', words: [{ text: '钱包', pinyin: 'qian bao' }, { text: '卡包', pinyin: 'ka bao' }] },
+  { id: 'object-23', tag: '物品', words: [{ text: '相机', pinyin: 'xiang ji' }, { text: '摄像机', pinyin: 'she xiang ji' }] },
+
+  { id: 'home-21', tag: '家庭', words: [{ text: '台灯', pinyin: 'tai deng' }, { text: '吊灯', pinyin: 'diao deng' }] },
+  { id: 'home-22', tag: '家庭', words: [{ text: '抽屉', pinyin: 'chou ti' }, { text: '柜门', pinyin: 'gui men' }] },
+
+  { id: 'music-11', tag: '乐器', words: [{ text: '架子鼓', pinyin: 'jia zi gu' }, { text: '非洲鼓', pinyin: 'fei zhou gu' }] },
+  { id: 'music-12', tag: '乐器', words: [{ text: '葫芦丝', pinyin: 'hu lu si' }, { text: '竖笛', pinyin: 'shu di' }] },
+
+  { id: 'animal-21', tag: '动物', words: [{ text: '骆驼', pinyin: 'luo tuo' }, { text: '羊驼', pinyin: 'yang tuo' }] },
+  { id: 'animal-22', tag: '动物', words: [{ text: '老虎', pinyin: 'lao hu' }, { text: '狮子', pinyin: 'shi zi' }] },
 ]
 
 export const wordTags = Array.from(new Set(wordBank.map((pair) => pair.tag)))
