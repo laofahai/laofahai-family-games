@@ -13,6 +13,8 @@ import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
+import { addPlayer, getPlayers, type Player } from '@/platform/players'
+import { getCurrentPlayer, setCurrentPlayer } from '@/platform/progress'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
 
@@ -58,6 +60,29 @@ export default function App() {
     }
   }
 
+  const [players, setPlayers] = useState<Player[]>(getPlayers)
+  const [playerId, setPlayerId] = useState<string>(getCurrentPlayer)
+  const [adding, setAdding] = useState(false)
+  const [newName, setNewName] = useState('')
+
+  const choosePlayer = (id: string) => {
+    setPlayerId(id)
+    setCurrentPlayer(id)
+  }
+
+  const confirmAdd = () => {
+    const name = newName.trim()
+    if (!name) {
+      setAdding(false)
+      return
+    }
+    const p = addPlayer(name)
+    setPlayers(getPlayers())
+    choosePlayer(p.id)
+    setNewName('')
+    setAdding(false)
+  }
+
   return (
     <div className="min-h-screen px-4 py-10 md:px-10">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
@@ -73,6 +98,62 @@ export default function App() {
               <p className="max-w-xl text-sm text-ink-600">
                 适合一家人围坐的小游戏清单。九宫格入口，随时开玩。
               </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="text-xs font-semibold text-ink-500">谁在玩？各自记录「玩过」和进度</div>
+              <div className="flex flex-wrap items-center gap-2">
+                {players.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => choosePlayer(p.id)}
+                    className={cn(
+                      'flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition',
+                      p.id === playerId
+                        ? 'border-melon-500 bg-melon-50 text-melon-700'
+                        : 'border-ink-200 bg-white text-ink-600 hover:border-melon-300'
+                    )}
+                  >
+                    <span>{p.emoji}</span>
+                    <span>{p.name}</span>
+                  </button>
+                ))}
+                {adding ? (
+                  <span className="flex items-center gap-1">
+                    <input
+                      autoFocus
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') confirmAdd()
+                        if (e.key === 'Escape') {
+                          setAdding(false)
+                          setNewName('')
+                        }
+                      }}
+                      placeholder="名字"
+                      maxLength={8}
+                      className="h-10 w-24 rounded-full border border-melon-400 px-3 text-sm outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={confirmAdd}
+                      className="min-h-10 rounded-full border border-melon-500 bg-melon-50 px-3 text-sm font-semibold text-melon-700"
+                    >
+                      加入
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAdding(true)}
+                    className="min-h-10 rounded-full border border-dashed border-ink-300 px-3 text-sm font-semibold text-ink-500 hover:border-melon-400"
+                  >
+                    ＋ 加人
+                  </button>
+                )}
+              </div>
             </div>
           </header>
         )}
