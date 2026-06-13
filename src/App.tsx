@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Gamepad2, Ghost, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,8 @@ import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
+import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
+import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
 
 type Screen =
@@ -26,35 +28,35 @@ type Screen =
   | 'shiliuTown'
   | 'yiyiBureau'
 
-const games = [
-  { id: 'undercover', name: '谁是卧底', desc: '适合 3 人起玩', status: 'hot' },
-  { id: 'charades', name: '你来比划', desc: '手机贴额头，限时猜词', status: 'hot' },
-  { id: 'story', name: '编故事', desc: '抽关键词，限时编故事', status: 'hot' },
-  { id: 'knowYou', name: '我知道你不知道', desc: '猜猜家人的小世界', status: 'hot' },
-  { id: 'draw', name: '你画我猜', desc: '触屏作画，全家来猜', status: 'hot' },
-  { id: 'price', name: '猜价格', desc: '真实物价，最接近的赢', status: 'hot' },
-  { id: 'shiliuTown', name: '闫顺儿小镇', desc: '读题破案，购物算钱', status: 'hot' },
-  { id: 'yiyiBureau', name: '闫一依任务局', desc: '当策划队长，破任务闯关', status: 'hot' },
-  { id: 'truthLie', name: '两真一假', desc: '拆穿家人的小谎话', status: 'hot' },
-  { id: 'dice', name: '骰子任务', desc: '敬请期待', status: 'soon' },
-  { id: 'sound', name: '声音模仿', desc: '敬请期待', status: 'soon' },
-  { id: 'memory', name: '记忆翻牌', desc: '敬请期待', status: 'soon' },
-]
+const games = GAMES
+const ACTIVE_GAMES = ACTIVE_GAME_IDS
 
-const ACTIVE_GAMES = new Set([
-  'undercover',
-  'charades',
-  'story',
-  'knowYou',
-  'draw',
-  'price',
-  'shiliuTown',
-  'yiyiBureau',
-  'truthLie',
-])
+function loadBand(): string {
+  try {
+    return localStorage.getItem('fg:ageBand') ?? 'all'
+  } catch {
+    return 'all'
+  }
+}
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
+  const [bandId, setBandId] = useState<string>(loadBand)
+
+  const band = AGE_BANDS.find((b) => b.id === bandId) ?? AGE_BANDS[0]
+  const visibleGames = useMemo(
+    () => games.filter((g) => band.id === 'all' || ageOverlaps(g.age, band.range)),
+    [band]
+  )
+
+  const chooseBand = (id: string) => {
+    setBandId(id)
+    try {
+      localStorage.setItem('fg:ageBand', id)
+    } catch {
+      /* 忽略 */
+    }
+  }
 
   return (
     <div className="min-h-screen px-4 py-10 md:px-10">
@@ -82,10 +84,27 @@ export default function App() {
                 <Sparkles className="h-5 w-5 text-melon-600" />
                 游戏列表
               </CardTitle>
-              <CardDescription>点击进入小游戏，陆续更新更多玩法。</CardDescription>
+              <CardDescription>点击进入小游戏。按年龄段挑，更快找到合适的。</CardDescription>
+              <div className="flex flex-wrap gap-2 pt-3">
+                {AGE_BANDS.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => chooseBand(b.id)}
+                    className={cn(
+                      'min-h-9 rounded-full border px-4 text-sm font-semibold transition',
+                      b.id === band.id
+                        ? 'border-melon-500 bg-melon-50 text-melon-700'
+                        : 'border-ink-200 bg-white text-ink-600 hover:border-melon-300'
+                    )}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {games.map((game) => {
+              {visibleGames.map((game) => {
                 const isActive = ACTIVE_GAMES.has(game.id)
                 return (
                   <button
@@ -121,13 +140,23 @@ export default function App() {
                         </span>
                       )}
                     </div>
-                    <div>
-                      <div className="font-display text-xl text-ink-900">{game.name}</div>
+                    <div className="w-full">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-display text-xl text-ink-900">{game.name}</div>
+                        <span className="shrink-0 rounded-full bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
+                          {game.audience}
+                        </span>
+                      </div>
                       <div className="text-xs text-ink-500">{game.desc}</div>
                     </div>
                   </button>
                 )
               })}
+              {visibleGames.length === 0 && (
+                <div className="col-span-full rounded-2xl border border-dashed border-ink-200 p-6 text-center text-sm text-ink-500">
+                  这个年龄段暂时没有游戏，换一个试试。
+                </div>
+              )}
             </CardContent>
             <CardFooter className="justify-between">
               <div className="text-xs text-ink-500">
