@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Gamepad2, Ghost, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -15,9 +15,10 @@ import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
 import { isAdmin, isUnlocked } from '@/platform/access'
 import { AdminPanel } from '@/platform/AdminPanel'
 import { UnlockGate } from '@/platform/UnlockGate'
+import { SyncBar } from '@/platform/SyncBar'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
-import { getCurrentPlayer, setCurrentPlayer } from '@/platform/progress'
+import { getCurrentPlayer, hydratePlayer, setCurrentPlayer } from '@/platform/progress'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
 
@@ -73,7 +74,14 @@ export default function App() {
   const choosePlayer = (id: string) => {
     setPlayerId(id)
     setCurrentPlayer(id)
+    void hydratePlayer(id) // 连了同步码的人，切到 TA 就先把云端进度拉回合并
   }
+
+  // 进场时把当前玩家的云端进度拉回来（没连码的人是无操作）
+  useEffect(() => {
+    void hydratePlayer(playerId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const confirmAdd = () => {
     const name = newName.trim()
@@ -182,6 +190,7 @@ export default function App() {
                   </button>
                 )}
               </div>
+              <SyncBar playerId={playerId} />
               {isAdmin() && (
                 <button
                   type="button"
