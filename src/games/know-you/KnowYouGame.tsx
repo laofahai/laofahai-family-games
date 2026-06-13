@@ -4,6 +4,8 @@ import { isFamilyCard } from './types'
 import { knowQuestions } from './data/know-questions'
 import { familyCards } from './data/family'
 import { buildDeck } from './utils/buildDeck'
+import { roomsAvailable } from '@/platform/rooms'
+import { KnowYouRemote } from './KnowYouRemote'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
 import { PlayingStage } from './stages/PlayingStage'
@@ -123,6 +125,7 @@ const ALL_PLAYERS: Set<RoleId> = new Set<RoleId>(['dad', 'mom', 'bigSis', 'lilSi
 
 export function KnowYouGame({ onExit }: KnowYouGameProps) {
   const [introSeen] = useState(readIntroSeen)
+  const [remote, setRemote] = useState(false)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     players: new Set(ALL_PLAYERS),
@@ -149,23 +152,38 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
     )
   }
 
+  if (remote) {
+    return <KnowYouRemote onBack={() => setRemote(false)} />
+  }
+
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
   }
 
   if (state.stage === 'setup') {
     return (
-      <SetupStage
-        players={state.players}
-        perRole={state.perRole}
-        withFamilyCards={state.withFamilyCards}
-        usedCount={state.usedTexts.size}
-        onTogglePlayer={(r) => dispatch({ type: 'TOGGLE_PLAYER', value: r })}
-        onChangePerRole={(n) => dispatch({ type: 'SET_PER_ROLE', value: n })}
-        onToggleFamilyCards={() => dispatch({ type: 'TOGGLE_FAMILY_CARDS' })}
-        onResetUsed={() => dispatch({ type: 'RESET_USED' })}
-        onStart={() => dispatch({ type: 'START', deck: makeDeck() })}
-      />
+      <div className="space-y-4">
+        {roomsAvailable() && (
+          <button
+            type="button"
+            onClick={() => setRemote(true)}
+            className="rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+          >
+            📱 各自用自己手机玩（远程）
+          </button>
+        )}
+        <SetupStage
+          players={state.players}
+          perRole={state.perRole}
+          withFamilyCards={state.withFamilyCards}
+          usedCount={state.usedTexts.size}
+          onTogglePlayer={(r) => dispatch({ type: 'TOGGLE_PLAYER', value: r })}
+          onChangePerRole={(n) => dispatch({ type: 'SET_PER_ROLE', value: n })}
+          onToggleFamilyCards={() => dispatch({ type: 'TOGGLE_FAMILY_CARDS' })}
+          onResetUsed={() => dispatch({ type: 'RESET_USED' })}
+          onStart={() => dispatch({ type: 'START', deck: makeDeck() })}
+        />
+      </div>
     )
   }
 
