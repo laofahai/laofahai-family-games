@@ -5,13 +5,17 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { wordBank, wordTags, type WordItem, type WordPair } from '@/data/word-bank'
+import { getPlayers } from '@/platform/players'
 import { pickUnseen } from '@/platform/progress'
+import { RosterPicker } from '@/platform/RosterPicker'
+import { getRosterIds, setRoster } from '@/platform/session'
 
 type Phase = 'setup' | 'reveal' | 'done'
 type RoleType = 'civilian' | 'spy' | 'blank'
 
 type Role = {
   player: number
+  name: string
   type: RoleType
   word: WordItem | null
 }
@@ -53,7 +57,7 @@ function shuffle<T>(items: T[]) {
 
 export function UndercoverGame() {
   const [phase, setPhase] = useState<Phase>('setup')
-  const [playerCount, setPlayerCount] = useState(4)
+  const [rosterIds, setRosterIds] = useState<string[]>(getRosterIds)
   const [spyCount, setSpyCount] = useState(1)
   const [tagFilter, setTagFilter] = useState('全部')
   const [round, setRound] = useState<Round | null>(null)
@@ -62,7 +66,7 @@ export function UndercoverGame() {
   const [revealedPlayers, setRevealedPlayers] = useState<boolean[]>([])
   const [showAll, setShowAll] = useState(false)
 
-  const playerOptions = useMemo(() => Array.from({ length: 8 }, (_, index) => index + 3), [])
+  const playerCount = rosterIds.length
   const maxSpies = useMemo(() => getMaxSpies(playerCount), [playerCount])
 
   useEffect(() => {
@@ -83,8 +87,11 @@ export function UndercoverGame() {
     const [first, second] = pair.words
     const spyWord = Math.random() > 0.5 ? first : second
     const civilianWord = spyWord === first ? second : first
+    const all = getPlayers()
+    const names = rosterIds.map((id) => all.find((p) => p.id === id)?.name ?? '')
     const roles: Role[] = Array.from({ length: playerCount }, (_, index) => ({
       player: index + 1,
+      name: names[index] || `玩家 ${index + 1}`,
       type: 'civilian',
       word: civilianWord,
     }))
@@ -115,6 +122,7 @@ export function UndercoverGame() {
         })
     }
 
+    setRoster(rosterIds)
     setRound({ pair, spyWord, civilianWord, roles, hasBlank })
     setPhase('reveal')
     setCurrentPlayer(1)
@@ -167,19 +175,11 @@ export function UndercoverGame() {
           <CardContent className="grid gap-5 md:grid-cols-2">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="players">玩家人数</Label>
-                <select
-                  id="players"
-                  className="h-11 w-full rounded-2xl border border-ink-200/80 bg-white px-3 text-sm text-ink-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-500 focus-visible:ring-offset-2"
-                  value={playerCount}
-                  onChange={(event) => setPlayerCount(Number(event.target.value))}
-                >
-                  {playerOptions.map((value) => (
-                    <option key={value} value={value}>
-                      {value} 人
-                    </option>
-                  ))}
-                </select>
+                <Label>这一局有谁（已选 {playerCount} 人）</Label>
+                <RosterPicker selectedIds={rosterIds} onChange={setRosterIds} min={3} max={10} />
+                {playerCount < 3 && (
+                  <p className="text-xs text-rose-500">至少选 3 个人才能开局。</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="spies">卧底人数 (最多 {maxSpies})</Label>
@@ -234,6 +234,7 @@ export function UndercoverGame() {
           <CardFooter className="justify-end">
             <Button
               onClick={handleStart}
+              disabled={playerCount < 3}
               className="h-12 w-full gap-2 bg-orange-500 text-white shadow-md hover:bg-orange-600"
             >
               <Shuffle className="h-4 w-4" />
@@ -248,9 +249,9 @@ export function UndercoverGame() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-2xl">
               <UserRound className="h-5 w-5 text-melon-600" />
-              玩家 {currentPlayer} 看词
+              {currentRole?.name ?? `玩家 ${currentPlayer}`} 看词
             </CardTitle>
-            <CardDescription>看完后点击确定，立刻传给下一位。</CardDescription>
+            <CardDescription>看完后点击确定，把手机传给下一位。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <button
@@ -276,7 +277,9 @@ export function UndercoverGame() {
               )}
             </button>
             <Button onClick={handleNext} className="h-12 w-full gap-2" disabled={!showWord}>
-              确定并传给下一位
+              {currentPlayer < playerCount
+                ? `确定，传给 ${round.roles[currentPlayer]?.name ?? '下一位'}`
+                : '看完了，开始讨论'}
             </Button>
           </CardContent>
           <CardFooter className="justify-end" />
@@ -304,7 +307,7 @@ export function UndercoverGame() {
                     onClick={() => toggleReveal(index)}
                     className="flex min-h-[120px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/85 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   >
-                    <div className="text-sm font-semibold text-ink-700">玩家 {role.player}</div>
+                    <div className="text-sm font-semibold text-ink-700">{role.name}</div>
                     {revealed ? (
                       <div className="space-y-1">
                         <div className="font-display text-2xl text-ink-900">{word?.text}</div>
