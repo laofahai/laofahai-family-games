@@ -1,6 +1,8 @@
 import { useReducer, useState } from 'react'
 import type { DrawDifficulty, DrawWord, Duration, RoundOutcome, RoundRecord, Stage } from './types'
+import { roomsAvailable } from '@/platform/rooms'
 import { pickWord } from './utils/pickWord'
+import { DrawRemote } from './DrawRemote'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
 import { PreviewStage } from './stages/PreviewStage'
@@ -86,6 +88,7 @@ function readIntroSeen(): boolean {
 
 export function DrawGame({ onExit }: DrawGameProps) {
   const [introSeen] = useState(readIntroSeen)
+  const [remote, setRemote] = useState(false)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     difficulties: new Set<DrawDifficulty>(['easy', 'medium']),
@@ -100,19 +103,34 @@ export function DrawGame({ onExit }: DrawGameProps) {
     return pickWord(state.difficulties, state.usedTexts)
   }
 
+  if (remote) {
+    return <DrawRemote onBack={() => setRemote(false)} />
+  }
+
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
   }
 
   if (state.stage === 'setup') {
     return (
-      <SetupStage
-        difficulties={state.difficulties}
-        durationSec={state.durationSec}
-        onToggleDifficulty={(d) => dispatch({ type: 'TOGGLE_DIFFICULTY', value: d })}
-        onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
-        onStart={() => dispatch({ type: 'NEW_ROUND', word: nextWord() })}
-      />
+      <div className="space-y-4">
+        {roomsAvailable() && (
+          <button
+            type="button"
+            onClick={() => setRemote(true)}
+            className="rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+          >
+            📱 各自用自己手机玩（远程·实时画板）
+          </button>
+        )}
+        <SetupStage
+          difficulties={state.difficulties}
+          durationSec={state.durationSec}
+          onToggleDifficulty={(d) => dispatch({ type: 'TOGGLE_DIFFICULTY', value: d })}
+          onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
+          onStart={() => dispatch({ type: 'NEW_ROUND', word: nextWord() })}
+        />
+      </div>
     )
   }
 
