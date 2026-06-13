@@ -12,8 +12,11 @@ import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
+import { isAdmin, isUnlocked } from '@/platform/access'
+import { AdminPanel } from '@/platform/AdminPanel'
+import { UnlockGate } from '@/platform/UnlockGate'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
-import { addPlayer, getPlayers, type Player } from '@/platform/players'
+import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, setCurrentPlayer } from '@/platform/progress'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
@@ -42,6 +45,8 @@ function loadBand(): string {
 }
 
 export default function App() {
+  const [unlocked, setUnlocked] = useState(isUnlocked)
+  const [showAdmin, setShowAdmin] = useState(false)
   const [screen, setScreen] = useState<Screen>('home')
   const [bandId, setBandId] = useState<string>(loadBand)
 
@@ -83,8 +88,20 @@ export default function App() {
     setAdding(false)
   }
 
+  const handleRemovePlayer = (id: string) => {
+    removePlayer(id)
+    const next = getPlayers()
+    setPlayers(next)
+    if (playerId === id) choosePlayer(next[0]?.id ?? 'guest')
+  }
+
+  if (!unlocked) {
+    return <UnlockGate onUnlocked={() => setUnlocked(true)} />
+  }
+
   return (
     <div className="min-h-screen px-4 py-10 md:px-10">
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         {screen === 'home' && (
           <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -104,20 +121,31 @@ export default function App() {
               <div className="text-xs font-semibold text-ink-500">谁在玩？各自记录「玩过」和进度</div>
               <div className="flex flex-wrap items-center gap-2">
                 {players.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => choosePlayer(p.id)}
-                    className={cn(
-                      'flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition',
-                      p.id === playerId
-                        ? 'border-melon-500 bg-melon-50 text-melon-700'
-                        : 'border-ink-200 bg-white text-ink-600 hover:border-melon-300'
+                  <span key={p.id} className="relative inline-flex">
+                    <button
+                      type="button"
+                      onClick={() => choosePlayer(p.id)}
+                      className={cn(
+                        'flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition',
+                        p.id === playerId
+                          ? 'border-melon-500 bg-melon-50 text-melon-700'
+                          : 'border-ink-200 bg-white text-ink-600 hover:border-melon-300'
+                      )}
+                    >
+                      <span>{p.emoji}</span>
+                      <span>{p.name}</span>
+                    </button>
+                    {p.kind === 'guest' && (
+                      <button
+                        type="button"
+                        aria-label={`删除 ${p.name}`}
+                        onClick={() => handleRemovePlayer(p.id)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-ink-200 bg-white text-[10px] text-ink-400 shadow-sm hover:border-rose-300 hover:text-rose-500"
+                      >
+                        ✕
+                      </button>
                     )}
-                  >
-                    <span>{p.emoji}</span>
-                    <span>{p.name}</span>
-                  </button>
+                  </span>
                 ))}
                 {adding ? (
                   <span className="flex items-center gap-1">
@@ -154,6 +182,15 @@ export default function App() {
                   </button>
                 )}
               </div>
+              {isAdmin() && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdmin(true)}
+                  className="self-start rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:border-melon-300"
+                >
+                  🔑 管理邀请码
+                </button>
+              )}
             </div>
           </header>
         )}

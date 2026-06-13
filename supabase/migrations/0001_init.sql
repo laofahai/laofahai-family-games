@@ -43,10 +43,11 @@ create or replace function public.list_codes(p_admin_code text)
 returns table(code text, is_admin boolean, label text, revoked boolean, created_at timestamptz)
 language plpgsql security definer set search_path = public as $$
 begin
-  if not exists (select 1 from access_codes where code = p_admin_code and is_admin and not revoked) then
+  -- 用别名 a 限定列，避免与 RETURNS TABLE 的同名输出列(code/is_admin/revoked)歧义
+  if not exists (select 1 from access_codes a where a.code = p_admin_code and a.is_admin and not a.revoked) then
     raise exception 'not an admin';
   end if;
-  return query select ac.code, ac.is_admin, ac.label, ac.revoked, ac.created_at from access_codes ac order by ac.created_at desc;
+  return query select a.code, a.is_admin, a.label, a.revoked, a.created_at from access_codes a order by a.created_at desc;
 end; $$;
 
 -- 管理员吊销/恢复一个码
