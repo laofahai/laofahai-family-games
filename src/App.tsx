@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Gamepad2, Ghost, Sparkles } from 'lucide-react'
+import { Gamepad2, Ghost, Sparkles, UserRound } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,10 +12,9 @@ import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
-import { isAdmin, isUnlocked } from '@/platform/access'
-import { AdminPanel } from '@/platform/AdminPanel'
+import { isUnlocked } from '@/platform/access'
 import { UnlockGate } from '@/platform/UnlockGate'
-import { SyncBar } from '@/platform/SyncBar'
+import { IdentitySheet } from '@/platform/IdentitySheet'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer } from '@/platform/progress'
@@ -47,7 +46,7 @@ function loadBand(): string {
 
 export default function App() {
   const [unlocked, setUnlocked] = useState(isUnlocked)
-  const [showAdmin, setShowAdmin] = useState(false)
+  const [showMe, setShowMe] = useState(false)
   const [screen, setScreen] = useState<Screen>('home')
   const [bandId, setBandId] = useState<string>(loadBand)
 
@@ -68,8 +67,7 @@ export default function App() {
 
   const [players, setPlayers] = useState<Player[]>(getPlayers)
   const [playerId, setPlayerId] = useState<string>(getCurrentPlayer)
-  const [adding, setAdding] = useState(false)
-  const [newName, setNewName] = useState('')
+  const currentPlayer = players.find((p) => p.id === playerId)
 
   const choosePlayer = (id: string) => {
     setPlayerId(id)
@@ -83,17 +81,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const confirmAdd = () => {
-    const name = newName.trim()
-    if (!name) {
-      setAdding(false)
-      return
-    }
+  const handleAddPlayer = (name: string) => {
     const p = addPlayer(name)
     setPlayers(getPlayers())
     choosePlayer(p.id)
-    setNewName('')
-    setAdding(false)
   }
 
   const handleRemovePlayer = (id: string) => {
@@ -109,10 +100,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen px-4 py-10 md:px-10">
-      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {showMe && (
+        <IdentitySheet
+          players={players}
+          currentId={playerId}
+          onPick={choosePlayer}
+          onAdd={handleAddPlayer}
+          onRemove={handleRemovePlayer}
+          onClose={() => setShowMe(false)}
+        />
+      )}
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         {screen === 'home' && (
-          <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <span className="rounded-full bg-white/80 p-2 shadow-sm">
@@ -121,86 +121,21 @@ export default function App() {
                 <h1 className="font-display text-3xl text-ink-900">家庭小游戏乐园</h1>
               </div>
               <p className="max-w-xl text-sm text-ink-600">
-                适合一家人围坐的小游戏清单。九宫格入口，随时开玩。
+                适合一家人围坐的小游戏清单。每局玩的人，进游戏后再选。
               </p>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <div className="text-xs font-semibold text-ink-500">谁在玩？各自记录「玩过」和进度</div>
-              <div className="flex flex-wrap items-center gap-2">
-                {players.map((p) => (
-                  <span key={p.id} className="relative inline-flex">
-                    <button
-                      type="button"
-                      onClick={() => choosePlayer(p.id)}
-                      className={cn(
-                        'flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition',
-                        p.id === playerId
-                          ? 'border-melon-500 bg-melon-50 text-melon-700'
-                          : 'border-ink-200 bg-white text-ink-600 hover:border-melon-300'
-                      )}
-                    >
-                      <span>{p.emoji}</span>
-                      <span>{p.name}</span>
-                    </button>
-                    {p.kind === 'guest' && (
-                      <button
-                        type="button"
-                        aria-label={`删除 ${p.name}`}
-                        onClick={() => handleRemovePlayer(p.id)}
-                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-ink-200 bg-white text-[10px] text-ink-400 shadow-sm hover:border-rose-300 hover:text-rose-500"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {adding ? (
-                  <span className="flex items-center gap-1">
-                    <input
-                      autoFocus
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') confirmAdd()
-                        if (e.key === 'Escape') {
-                          setAdding(false)
-                          setNewName('')
-                        }
-                      }}
-                      placeholder="名字"
-                      maxLength={8}
-                      className="h-10 w-24 rounded-full border border-melon-400 px-3 text-sm outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={confirmAdd}
-                      className="min-h-10 rounded-full border border-melon-500 bg-melon-50 px-3 text-sm font-semibold text-melon-700"
-                    >
-                      加入
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAdding(true)}
-                    className="min-h-10 rounded-full border border-dashed border-ink-300 px-3 text-sm font-semibold text-ink-500 hover:border-melon-400"
-                  >
-                    ＋ 加人
-                  </button>
-                )}
-              </div>
-              <SyncBar playerId={playerId} />
-              {isAdmin() && (
-                <button
-                  type="button"
-                  onClick={() => setShowAdmin(true)}
-                  className="self-start rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:border-melon-300"
-                >
-                  🔑 管理邀请码
-                </button>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowMe(true)}
+              className="flex items-center gap-2 self-start rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
+            >
+              <UserRound className="h-4 w-4 text-melon-600" />
+              <span className="text-ink-400">我</span>
+              <span>{currentPlayer?.emoji ?? '🙂'}</span>
+              <span>{currentPlayer?.name ?? '选一个'}</span>
+              <span className="text-ink-400">▾</span>
+            </button>
           </header>
         )}
 
