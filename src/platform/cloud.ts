@@ -91,6 +91,23 @@ export async function pushSeen(syncCode: string, scope: string, itemIds: string[
   await supabase.rpc('push_seen', { p_code: syncCode, p_scope: scope, p_item_ids: itemIds })
 }
 
+// ── 学习数据同步（错题本 + 成长统计跟着孩子换设备）──────────────────────
+/** 拉一个云端码名下所有游戏的学习 blob：{ game: data } */
+export async function pullLearn(code: string): Promise<Record<string, unknown>> {
+  if (!supabase) return {}
+  const { data, error } = await supabase.rpc('pull_learn', { p_code: code })
+  if (error || !Array.isArray(data)) return {}
+  const out: Record<string, unknown> = {}
+  for (const row of data as { game: string; data: unknown }[]) out[row.game] = row.data
+  return out
+}
+
+/** 推某个游戏的整份学习 blob 到云端 */
+export async function pushLearn(code: string, game: string, data: unknown): Promise<void> {
+  if (!supabase) return
+  await supabase.rpc('push_learn', { p_code: code, p_game: game, p_data: data })
+}
+
 // ── 远程协作房间（各自设备看各自的秘密）─────────────────────────────────
 export interface RoomMemberPublic {
   name: string

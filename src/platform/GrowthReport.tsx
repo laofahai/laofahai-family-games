@@ -1,13 +1,18 @@
 // 成长小报：给一个学习游戏（=一个孩子）看「练了多少、哪科强哪科弱、错题本」。
 // 入口在游戏的开始页和结算页；错题重做按钮把错题原样回放。
 
-import { useState, type ReactNode } from 'react'
-import { Award, Flame, RotateCcw, Target, Trash2, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { Award, Cloud, CloudOff, Flame, RotateCcw, Target, Trash2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
   clearMistakes,
+  clearLearnCode,
+  connectLearn,
+  getLearnCode,
   getReport,
+  hydrateLearn,
+  KID_NAME,
   type LearnGame,
   type Report,
 } from '@/platform/learning'
@@ -33,6 +38,18 @@ function cheer(r: Report): string {
 export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
   const [report, setReport] = useState<Report>(() => getReport(game))
   const empty = report.totalDone === 0
+  const refresh = () => setReport(getReport(game))
+
+  // 打开小报时若连了云端码，先把云端最新拉回来再显示
+  useEffect(() => {
+    let alive = true
+    void hydrateLearn(game).then((synced) => {
+      if (alive && synced) setReport(getReport(game))
+    })
+    return () => {
+      alive = false
+    }
+  }, [game])
 
   const handleClear = () => {
     clearMistakes(game)
@@ -57,9 +74,9 @@ export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           {empty ? (
-            <p className="py-10 text-center text-sm text-ink-500">{cheer(report)}</p>
+            <p className="py-8 text-center text-sm text-ink-500">{cheer(report)}</p>
           ) : (
             <div className="space-y-5">
               {/* 三个大数字 */}
@@ -160,6 +177,7 @@ export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
               </section>
             </div>
           )}
+          <SyncSection game={game} onSynced={refresh} />
         </div>
 
         {/* 底部：鼓励 + 错题重做 */}
@@ -178,6 +196,88 @@ export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+function SyncSection({ game, onSynced }: { game: LearnGame; onSynced: () => void }) {
+  const [code, setCode] = useState<string | null>(() => getLearnCode(game))
+  const [input, setInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const kid = KID_NAME[game]
+
+  const connect = async (value: string) => {
+    const v = value.replace(/\D/g, '').slice(0, 6)
+    if (v.length < 4) return
+    setBusy(true)
+    const ok = await connectLearn(game, v)
+    setBusy(false)
+    if (ok) {
+      setCode(v)
+      setInput('')
+      onSynced()
+    }
+  }
+
+  const disconnect = () => {
+    clearLearnCode(game)
+    setCode(null)
+  }
+
+  if (code) {
+    return (
+      <section className="rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-sm text-emerald-800">
+            <Cloud className="h-4 w-4" />
+            <span>已连云端 · 码 {code}</span>
+          </div>
+          <button onClick={disconnect} className="text-xs text-ink-500 hover:text-ink-700">
+            断开
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-emerald-700/80">
+          {kid}的错题本和成长记录已跟着这个码走，换设备输入同一个码即可。
+        </p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-2xl border border-ink-100 bg-ink-50 px-4 py-3">
+      <div className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+        <CloudOff className="h-4 w-4 text-ink-400" />
+        云端同步（可选）
+      </div>
+      <p className="mt-1 text-xs text-ink-500">
+        连一个 6 位码，{kid}的错题本和成长记录就能跟着 TA 换设备。换手机时输同一个码即可。
+      </p>
+      <div className="mt-2 flex gap-2">
+        <input
+          inputMode="numeric"
+          value={input}
+          onChange={(e) => setInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          placeholder="6 位数字"
+          className="h-10 w-32 rounded-full border border-ink-200 bg-white px-4 text-center text-sm tracking-widest text-ink-800 outline-none focus:border-melon-400"
+        />
+        <Button
+          size="sm"
+          disabled={busy || input.length < 4}
+          onClick={() => connect(input)}
+          className="h-10"
+        >
+          {busy ? '连接中…' : '连接'}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => connect(String(100000 + Math.floor(Math.random() * 900000)))}
+          className="h-10"
+        >
+          生成
+        </Button>
+      </div>
+    </section>
   )
 }
 

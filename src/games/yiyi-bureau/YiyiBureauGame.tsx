@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { GrowthReport } from '@/platform/GrowthReport'
-import { getMistakeQuestions, recordSession } from '@/platform/learning'
+import { getMistakeQuestions, hydrateLearn, recordSession } from '@/platform/learning'
 import { buildBureauQuestions } from './data/questions'
 import type { BureauMode, BureauQuestion, BureauRecord } from './types'
 
@@ -148,6 +148,11 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
   const [review, setReview] = useState(0)
   const [showReport, setShowReport] = useState(false)
   const recordedRef = useRef(false)
+
+  // 进场先把云端学习数据拉回来（没连码是无操作）
+  useEffect(() => {
+    void hydrateLearn('yiyi')
+  }, [])
 
   useEffect(() => {
     if (review <= 0) return

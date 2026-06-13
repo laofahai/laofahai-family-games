@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { GrowthReport } from '@/platform/GrowthReport'
-import { getMistakeQuestions, recordSession } from '@/platform/learning'
+import { getMistakeQuestions, hydrateLearn, recordSession } from '@/platform/learning'
 import { buildQuestions } from './data/questions'
 import type { AnswerRecord, TownMode, TownQuestion } from './types'
 
@@ -199,6 +199,11 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
   const [showHint, setShowHint] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const recordedRef = useRef(false)
+
+  // 进场先把云端学习数据拉回来（没连码是无操作）
+  useEffect(() => {
+    void hydrateLearn('shiliu')
+  }, [])
 
   // 一局结束记进学习库（错题进错题本、对的清掉）；「轻松一下」spark 卡不计分不入库。
   useEffect(() => {

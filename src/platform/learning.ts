@@ -1,6 +1,9 @@
 // 学习记录：给两个学习闯关游戏（一依局=闫一依、石榴镇=闫顺儿）记「做了多少、对了多少、
 // 哪科是弱项、错题本」。本地优先（localStorage），每个游戏就是一个孩子，按游戏分开存。
 // 答错进错题本，答对自动从错题本清掉（错题清零的成就感）。
+// 连了「云端码」的孩子，记录后整份上推、进场/打开小报时下拉，跟着孩子换设备。
+
+import { pullLearn, pushLearn } from './cloud'
 
 export type LearnGame = 'yiyi' | 'shiliu'
 
@@ -83,6 +86,9 @@ function mKey(game: LearnGame): string {
 }
 function sKey(game: LearnGame): string {
   return `fg:learn:${game}:stats`
+}
+function cKey(game: LearnGame): string {
+  return `fg:learn:${game}:code`
 }
 
 function safeGet(key: string): string | null {
@@ -187,6 +193,7 @@ export function recordSession(game: LearnGame, items: LearnItem[]): void {
   if (mistakes.length > MISTAKE_CAP) mistakes = mistakes.slice(0, MISTAKE_CAP)
   safeSet(sKey(game), JSON.stringify(stats))
   safeSet(mKey(game), JSON.stringify(mistakes))
+  void pushBlobToCloud(game) // 连了云就顺手推，失败不影响本地
 }
 
 /** 连续练习天数（含今天往前数，断了就停）。 */
@@ -249,4 +256,76 @@ export function hasMistakes(game: LearnGame): boolean {
 
 export function clearMistakes(game: LearnGame): void {
   safeSet(mKey(game), JSON.stringify([]))
+  void pushBlobToCloud(game)
+}
+
+// ── 云端同步：错题本 + 统计跟着孩子换设备（一个游戏一个 6 位码）────────────
+
+/** 这个游戏连上的云端码（没连返回 null） */
+export function getLearnCode(game: LearnGame): string | null {
+  return safeGet(cKey(game))
+}
+
+export function clearLearnCode(game: LearnGame): void {
+  try {
+    localStorage.removeItem(cKey(game))
+  } catch {
+    /* 忽略 */
+  }
+}
+
+interface Blob {
+  stats: Stats
+  mistakes: Mistake[]
+}
+
+function loadBlob(game: LearnGame): Blob {
+  return { stats: loadStats(game), mistakes: loadMistakes(game) }
+}
+
+function saveBlob(game: LearnGame, blob: Blob): void {
+  if (blob.stats) safeSet(sKey(game), JSON.stringify(blob.stats))
+  if (Array.isArray(blob.mistakes)) safeSet(mKey(game), JSON.stringify(blob.mistakes))
+}
+
+/** 推本地整份 blob 到云端（连了码才动）。 */
+async function pushBlobToCloud(game: LearnGame): Promise<void> {
+  const code = getLearnCode(game)
+  if (!code) return
+  await pushLearn(code, game, loadBlob(game))
+}
+
+/**
+ * 连接一个云端码并同步。规则：以「做题更多的一方」为准——
+ * 新设备（本地空）直接采用云端历史；活跃设备（本地更多）把本地推上云。
+ * 返回是否同步成功（连了码且通了网）。
+ */
+export async function connectLearn(game: LearnGame, code: string): Promise<boolean> {
+  const trimmed = code.trim()
+  if (!trimmed) return false
+  safeSet(cKey(game), trimmed)
+  return hydrateLearn(game)
+}
+
+/** 从云端拉取并按「活动多者为准」合并；连了码才动，返回是否同步过。 */
+export async function hydrateLearn(game: LearnGame): Promise<boolean> {
+  const code = getLearnCode(game)
+  if (!code) return false
+  const remote = await pullLearn(code)
+  const cloud = remote[game] as Blob | undefined
+  const localTotal = loadStats(game).totalDone
+  if (!cloud || !cloud.stats) {
+    // 云端还没有这个游戏：把本地播上去
+    await pushBlobToCloud(game)
+    return true
+  }
+  const cloudTotal = cloud.stats.totalDone ?? 0
+  if (cloudTotal >= localTotal) {
+    // 云端更全（或新设备本地为空）：采用云端
+    saveBlob(game, cloud)
+  } else {
+    // 本地更全：推上云
+    await pushBlobToCloud(game)
+  }
+  return true
 }
