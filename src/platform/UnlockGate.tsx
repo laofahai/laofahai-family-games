@@ -7,7 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { tryUnlock } from './access'
 
-export function UnlockGate({ onUnlocked }: { onUnlocked: () => void }) {
+export function UnlockGate({
+  onUnlocked,
+}: {
+  onUnlocked: (person?: { name: string; emoji: string | null; code: string }) => void
+}) {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(false)
@@ -16,9 +20,9 @@ export function UnlockGate({ onUnlocked }: { onUnlocked: () => void }) {
     if (!code.trim() || busy) return
     setBusy(true)
     setErr(false)
-    const ok = await tryUnlock(code)
+    const res = await tryUnlock(code)
     setBusy(false)
-    if (ok) onUnlocked()
+    if (res.ok) onUnlocked(res.person)
     else setErr(true)
   }
 
@@ -28,9 +32,11 @@ export function UnlockGate({ onUnlocked }: { onUnlocked: () => void }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <KeyRound className="h-5 w-5 text-melon-600" />
-            输入识别码
+            输入你的码
           </CardTitle>
-          <CardDescription>第一次在这台设备上玩，输一次识别码解锁，之后就不用再输了。</CardDescription>
+          <CardDescription>
+            每人一个码：输你的个人码就进，玩过的题、错题本都跟着你换设备走。管理员输管理码。第一次输一次，以后免输。
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <input

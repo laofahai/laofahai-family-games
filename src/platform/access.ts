@@ -1,7 +1,7 @@
 // 设备解锁状态：一次性「识别码解锁这台设备」，之后本设备直接进、随便玩。
 // 仅当配置了云端时才设门；未配置（纯本地）则永远视为已解锁，零门槛。
 
-import { cloudAvailable, redeemCode } from './cloud'
+import { cloudAvailable, redeemLogin } from './cloud'
 
 const KEY = 'fg:unlock'
 
@@ -48,12 +48,21 @@ export function adminCode(): string | null {
   return u?.isAdmin ? u.code : null
 }
 
-export async function tryUnlock(code: string): Promise<boolean> {
+/** 登录成功时若是「个人码」，带回这个人是谁（用于自动选中 TA + 绑定个人码同步）。 */
+export interface UnlockResult {
+  ok: boolean
+  person?: { name: string; emoji: string | null; code: string }
+}
+
+export async function tryUnlock(code: string): Promise<UnlockResult> {
   const trimmed = code.trim()
-  const r = await redeemCode(trimmed)
-  if (!r.valid) return false
+  const r = await redeemLogin(trimmed)
+  if (!r.valid) return { ok: false }
   save({ code: trimmed, isAdmin: r.isAdmin })
-  return true
+  if (r.isPerson && r.name) {
+    return { ok: true, person: { name: r.name, emoji: r.emoji, code: trimmed } }
+  }
+  return { ok: true }
 }
 
 export function lock(): void {

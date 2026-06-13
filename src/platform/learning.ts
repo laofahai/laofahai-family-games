@@ -4,8 +4,12 @@
 // 连了「云端码」的孩子，记录后整份上推、进场/打开小报时下拉，跟着孩子换设备。
 
 import { pullLearn, pushLearn } from './cloud'
+import { getSyncCode } from './progress'
 
 export type LearnGame = 'yiyi' | 'shiliu'
+
+// 学习游戏对应哪个孩子（家庭成员 id）——错题本/统计跟着这个孩子的「个人码」走
+const KID_PLAYER: Record<LearnGame, string> = { yiyi: 'yiyi', shiliu: 'shuner' }
 
 // 学科标签：用题目的 kind 归类，给人看的名字
 const SUBJECTS: Record<LearnGame, Record<string, string>> = {
@@ -86,9 +90,6 @@ function mKey(game: LearnGame): string {
 }
 function sKey(game: LearnGame): string {
   return `fg:learn:${game}:stats`
-}
-function cKey(game: LearnGame): string {
-  return `fg:learn:${game}:code`
 }
 
 function safeGet(key: string): string | null {
@@ -259,19 +260,11 @@ export function clearMistakes(game: LearnGame): void {
   void pushBlobToCloud(game)
 }
 
-// ── 云端同步：错题本 + 统计跟着孩子换设备（一个游戏一个 6 位码）────────────
+// ── 云端同步：错题本 + 统计跟着孩子的「个人码」走（与进度同用一个码）──────────
 
-/** 这个游戏连上的云端码（没连返回 null） */
+/** 这个孩子的个人码（= TA 的进度同步码）；没连返回 null，则纯本地。 */
 export function getLearnCode(game: LearnGame): string | null {
-  return safeGet(cKey(game))
-}
-
-export function clearLearnCode(game: LearnGame): void {
-  try {
-    localStorage.removeItem(cKey(game))
-  } catch {
-    /* 忽略 */
-  }
+  return getSyncCode(KID_PLAYER[game])
 }
 
 interface Blob {
@@ -293,18 +286,6 @@ async function pushBlobToCloud(game: LearnGame): Promise<void> {
   const code = getLearnCode(game)
   if (!code) return
   await pushLearn(code, game, loadBlob(game))
-}
-
-/**
- * 连接一个云端码并同步。规则：以「做题更多的一方」为准——
- * 新设备（本地空）直接采用云端历史；活跃设备（本地更多）把本地推上云。
- * 返回是否同步成功（连了码且通了网）。
- */
-export async function connectLearn(game: LearnGame, code: string): Promise<boolean> {
-  const trimmed = code.trim()
-  if (!trimmed) return false
-  safeSet(cKey(game), trimmed)
-  return hydrateLearn(game)
 }
 
 /** 从云端拉取并按「活动多者为准」合并；连了码才动，返回是否同步过。 */

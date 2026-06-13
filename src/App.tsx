@@ -18,7 +18,7 @@ import { IdentitySheet } from '@/platform/IdentitySheet'
 import { WhoPlaying } from '@/platform/WhoPlaying'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
-import { getCurrentPlayer, hydratePlayer, setCurrentPlayer } from '@/platform/progress'
+import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
 import { refreshContent } from '@/platform/content'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
@@ -98,8 +98,24 @@ export default function App() {
     if (playerId === id) choosePlayer(next[0]?.id ?? 'guest')
   }
 
+  // 用个人码登录：自动选中这个人（家庭成员按名字匹配，否则新建），并把这个码绑成 TA 的个人码
+  const handleUnlocked = (person?: { name: string; emoji: string | null; code: string }) => {
+    setUnlocked(true)
+    if (!person) return
+    const existing = getPlayers().find((p) => p.name === person.name)
+    let pid: string
+    if (existing) {
+      pid = existing.id
+    } else {
+      pid = addPlayer(person.name).id
+      setPlayers(getPlayers())
+    }
+    setSyncCode(person.code, pid)
+    choosePlayer(pid)
+  }
+
   if (!unlocked) {
-    return <UnlockGate onUnlocked={() => setUnlocked(true)} />
+    return <UnlockGate onUnlocked={handleUnlocked} />
   }
 
   return (

@@ -24,6 +24,30 @@ export async function redeemCode(code: string): Promise<{ valid: boolean; isAdmi
   return { valid: Boolean(row.valid), isAdmin: Boolean(row.is_admin) }
 }
 
+export interface LoginResult {
+  valid: boolean
+  isAdmin: boolean
+  isPerson: boolean
+  name: string | null
+  emoji: string | null
+}
+
+/** 统一登录校验：访问/管理码或个人码都走这里。个人码会带回是谁。 */
+export async function redeemLogin(code: string): Promise<LoginResult> {
+  const miss: LoginResult = { valid: false, isAdmin: false, isPerson: false, name: null, emoji: null }
+  if (!supabase) return miss
+  const { data, error } = await supabase.rpc('redeem_login', { p_code: code })
+  const row = Array.isArray(data) ? data[0] : data
+  if (error || !row) return miss
+  return {
+    valid: Boolean(row.valid),
+    isAdmin: Boolean(row.is_admin),
+    isPerson: Boolean(row.is_person),
+    name: (row.name as string) ?? null,
+    emoji: (row.emoji as string) ?? null,
+  }
+}
+
 export async function mintCode(
   adminCode: string,
   newCode: string,

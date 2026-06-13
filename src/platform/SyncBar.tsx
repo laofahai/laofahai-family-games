@@ -1,5 +1,5 @@
-// 个人进度同步条：给当前选中的玩家连一个数字同步码，TA 的「玩过/进度」就能跟着换设备。
-// 没配云端时整块隐藏；连接 = 领取档案 + 双向合并（先拉云、再把本机推上去）。
+// 个人码：给当前选中的人设一个数字码。这个码就是 TA 的一切——换设备/解锁都用它，
+// 玩过的题、进度、错题本都跟着走。没配云端时整块隐藏；连接 = 领档案 + 双向合并。
 
 import { useState } from 'react'
 import { Cloud, Loader2 } from 'lucide-react'
@@ -29,7 +29,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
   const connect = async (raw: string) => {
     const c = raw.replace(/\D/g, '')
     if (c.length < 4 || busy || !player) {
-      if (c.length < 4) setErr('同步码至少 4 位数字')
+      if (c.length < 4) setErr('个人码至少 4 位数字')
       return
     }
     setBusy(true)
@@ -61,7 +61,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
       <div className="flex flex-wrap items-center gap-2 self-start rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-sky-700">
         <Cloud className="h-3.5 w-3.5" />
         <span>
-          {name} 已同步 · 码 <span className="font-mono font-semibold tracking-widest">{code}</span>
+          {name} 的个人码 <span className="font-mono font-semibold tracking-widest">{code}</span>（换设备/解锁都用它）
         </span>
         <button
           type="button"
@@ -86,7 +86,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
         className="flex items-center gap-1.5 self-start rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:border-sky-300"
       >
         <Cloud className="h-3.5 w-3.5 text-sky-500" />
-        给「{name}」连个同步码
+        给「{name}」设个个人码
       </button>
     )
   }
@@ -94,7 +94,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
   return (
     <div className="flex flex-col gap-2 self-start rounded-2xl border border-sky-200 bg-sky-50/60 p-3 text-xs">
       <div className="text-ink-600">
-        给「{name}」连个数字同步码。别的设备给 TA 输同一个码，进度就接着走。
+        给「{name}」设个数字个人码。换设备/解锁都输它，玩过的题、进度、错题本都跟着 TA 走。
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <input
@@ -105,7 +105,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter') void connect(input)
           }}
-          placeholder="输已有同步码"
+          placeholder="输个人码"
           maxLength={10}
           className="h-10 w-36 rounded-full border border-ink-200 bg-white px-3 text-center font-mono tracking-widest outline-none focus:border-sky-400"
         />

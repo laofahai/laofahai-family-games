@@ -121,12 +121,12 @@ export function IdentitySheet({
           <p className="text-xs text-ink-400">每一局玩的人，进游戏后再选；远程局在房间里定。这里只是「我是谁」。</p>
         </div>
 
-        {/* 进度跟人走 */}
+        {/* 个人码：解锁 + 身份 + 进度/错题本，一个码全包 */}
         <div className="mt-5 space-y-1.5">
-          <div className="text-xs font-semibold text-ink-500">进度跟人走（可选）</div>
+          <div className="text-xs font-semibold text-ink-500">个人码（换设备 / 解锁都用它）</div>
           <p className="text-xs text-ink-400">
-            想让「{meName}」换手机/平板也接着玩、玩过的题不重复？连个数字同步码，别的设备输同一个就接上。
-            只在这一台玩就用不着。
+            「{meName}」的专属码：别的手机/平板输这个码就能进，而且玩过的题、进度、错题本都跟着 TA 走。
+            每人一个，互不影响；只在这一台玩就用不着。
           </p>
           <SyncBar playerId={currentId} />
         </div>
@@ -154,7 +154,7 @@ export function IdentitySheet({
                 className="flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 transition hover:border-rose-300 hover:text-rose-500"
               >
                 <Lock className="h-3.5 w-3.5" />
-                锁定这台设备
+                锁定（退出，下次要重新输码）
               </button>
             )}
           </div>
