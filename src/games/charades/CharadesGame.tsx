@@ -1,7 +1,12 @@
 import { useEffect, useReducer, useState } from 'react'
+import { pickUnseen } from '@/platform/progress'
 import type { Difficulty, Duration, RoundResult, Stage, WordEntry } from './types'
 import { charadesWords } from './data/charades-words'
 import { shuffledPool } from './utils/shuffle'
+
+// 一局最多 180 秒，正常翻牌速度下用不到这么多词；取一个足够大的批量，
+// 让计时器（而不是词数）来结束这一局，同时让「已见」记录保持有意义。
+const ROUND_BATCH = 80
 import { useStoredFlag } from './hooks/useStoredFlag'
 import { useMotionPermission } from './hooks/useMotionPermission'
 import { IntroStage } from './stages/IntroStage'
@@ -109,7 +114,11 @@ export function CharadesGame({ onExit }: CharadesGameProps) {
   }, [state.stage, state.cursor, state.pool.length])
 
   function makePool() {
-    return shuffledPool(charadesWords, state.difficulties)
+    // 先按所选难度过滤并打乱，再用共享「已见库」优先挑没玩过的词；
+    // 整批用完才回收，避免玩过的词下一局又立刻冒出来。scope 固定 'charades'，
+    // 用词文本（WordEntry.text）作稳定 id。
+    const filtered = shuffledPool(charadesWords, state.difficulties)
+    return pickUnseen('charades', filtered, (word) => word.text, ROUND_BATCH)
   }
 
   const currentWord = state.pool[state.cursor]

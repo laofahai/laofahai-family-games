@@ -1,9 +1,22 @@
 import { c, pick, rand, shuffle } from '@/games/shared/question-utils'
+import { pickUnseen } from '@/platform/progress'
 
 import type { BureauMode, BureauQuestion, Choice } from '../types'
 import { CHINESE_TEACHER, CLASSMATES, HEAD_TEACHER, MATH_TEACHER, PLAYER } from './people'
 
 type Maker = (id: number) => BureauQuestion
+
+// 固定卡池的稳定 key：优先用不随机插名的字段（right / fact / odd），
+// 避免用带 ${同学名} 插值的 text，保证「玩过的卡」跨局能稳定去重。
+function cardKey(card: unknown): string {
+  const o = card as Record<string, unknown>
+  return String(o.right ?? o.fact ?? o.odd ?? o.text ?? JSON.stringify(card))
+}
+
+// 从固定卡池里挑一张「优先没出过」的；池子出完自动回收。
+function freshPick<T>(scope: string, cards: readonly T[]): T {
+  return pickUnseen(`yiyi:${scope}`, cards, cardKey, 1)[0] ?? cards[0]
+}
 
 function mate(): string {
   return pick(CLASSMATES)
@@ -506,7 +519,7 @@ const cnNotice: Maker = (id) => {
 
 const cnMainIdea: Maker = (id) => {
   const name = mate()
-  const card = pick([
+  const card = freshPick('mainidea', [
     {
       text: `毛竹前四年只长三厘米，第五年起每天能蹿三十厘米。原来那四年里，它的根已经在土里悄悄铺开了几百平方米。`,
       right: '扎实的积累是后来爆发的底气',
@@ -571,7 +584,7 @@ const cnMainIdea: Maker = (id) => {
 }
 
 const cnInfer: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('infer', [
     {
       text: `${mate()}走进教室，把湿透的伞收进墙角，又掏出纸巾擦了擦镜片上的水珠。`,
       right: '外面正在下雨',
@@ -630,7 +643,7 @@ const cnInfer: Maker = (id) => {
 }
 
 const cnIdiom: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('idiom', [
     { text: '比赛只剩最后一分钟，比分紧咬，观众都（  ）地盯着球场。', right: '全神贯注', wrongs: ['漫不经心', '七嘴八舌'], why: '注意力高度集中用「全神贯注」。' },
     { text: '他平时积累了很多素材，写起文章来（  ）。', right: '得心应手', wrongs: ['手忙脚乱', '守株待兔'], why: '积累充分所以顺手，用「得心应手」。' },
     { text: '面对突然的提问，她（  ），很快给出答案。', right: '从容不迫', wrongs: ['惊慌失措', '张冠李戴'], why: '不慌不忙叫「从容不迫」。' },
@@ -661,7 +674,7 @@ const cnIdiom: Maker = (id) => {
 }
 
 const cnClassical: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('classical', [
     { text: '温故而知新', right: '回顾旧知识，能有新的体会', wrongs: ['旧东西放久会变新', '故事听多了就懂新道理'] },
     { text: '凡事预则立，不预则废', right: '做事先有准备就容易成功，没准备就容易失败', wrongs: ['任何事预报了就成立', '做事要先清理废品'] },
     { text: '学而不思则罔，思而不学则殆', right: '只学不想会糊涂，只想不学会疑惑无所得', wrongs: ['学习和思考不能同时进行', '想得太多就会很危险'] },
@@ -690,7 +703,7 @@ const cnClassical: Maker = (id) => {
 }
 
 const cnRelate: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('relate', [
     { text: '（  ）天气预报说有雨，我们（  ）把活动改到了室内。', right: '因为……所以……', wrongs: ['虽然……但是……', '如果……就……'], why: '前是原因后是结果，用「因为……所以……」。' },
     { text: '（  ）多读几遍，你（  ）能明白这段话的意思。', right: '只要……就……', wrongs: ['因为……所以……', '不但……而且……'], why: '前是条件后是结果，用「只要……就……」。' },
     { text: '这本书（  ）内容有趣，（  ）插图也很精美。', right: '不但……而且……', wrongs: ['虽然……但是……', '与其……不如……'], why: '两点并列递进，用「不但……而且……」。' },
@@ -834,7 +847,7 @@ const enSchedule: Maker = (id) => {
 
 // 英文短文推断
 const enPassage: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('passage', [
     {
       text: `Tom puts on his coat, takes an umbrella, and looks at the grey sky. "I need my boots, too," he says.`,
       q: '从短文能推断出当时的天气怎么样？',
@@ -911,7 +924,7 @@ const enPassage: Maker = (id) => {
 // ===========================================================================
 
 const sciExperiment: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('experiment', [
     {
       goal: '比较机翼大小对纸飞机飞行距离的影响',
       right: '只改机翼大小，用同样的纸、同样的力气投掷',
@@ -1019,7 +1032,7 @@ const sciFlow: Maker = (id) => {
 }
 
 const sciClassify: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('classify', [
     { group: '哺乳动物', members: ['鲸', '蝙蝠', '海豚'], odd: '企鹅', oddWhy: '企鹅是鸟类' },
     { group: '昆虫', members: ['蚂蚁', '蜜蜂', '瓢虫'], odd: '蜘蛛', oddWhy: '蜘蛛有八条腿，不是昆虫' },
     { group: '导体', members: ['铁钉', '铜线', '铝勺'], odd: '橡皮', oddWhy: '橡皮不导电' },
@@ -1047,7 +1060,7 @@ const sciClassify: Maker = (id) => {
 }
 
 const sciInfo: Maker = (id) => {
-  const card = pick([
+  const card = freshPick('info', [
     {
       msg: '群里转发：「明天全市停水，赶紧囤水！」但水务公司官网没有任何通知。',
       right: '先查官方消息，确认前不转发',
@@ -1216,7 +1229,7 @@ const SPARK_INTROS = [
 const sparkQuestion: Maker = (id) => {
   const [a, b] = twoMates()
   if (Math.random() < 0.6) {
-    const card = pick(TRUE_FALSE)
+    const card = freshPick('spark-tf', TRUE_FALSE)
     const intro = pick(SPARK_INTROS)
     const right = card.real ? '真的' : '假的'
     const built = textChoices(right, [card.real ? '假的' : '真的', card.joke])
@@ -1232,7 +1245,7 @@ const sparkQuestion: Maker = (id) => {
       explanation: card.why,
     }
   }
-  const card = pick(FUN_CARDS)
+  const card = freshPick('spark-fun', FUN_CARDS)
   const built = textChoices(card.right, card.wrongs)
   return {
     id: `spark-${id}`,

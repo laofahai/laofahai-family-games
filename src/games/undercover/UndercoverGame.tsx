@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { wordBank, wordTags, type WordItem, type WordPair } from '@/data/word-bank'
+import { pickUnseen } from '@/platform/progress'
 
 type Phase = 'setup' | 'reveal' | 'done'
 type RoleType = 'civilian' | 'spy' | 'blank'
@@ -75,7 +76,10 @@ export function UndercoverGame() {
 
 
   function handleStart() {
-    const pair = pickRandom(filteredBank.length ? filteredBank : wordBank)
+    const pool = filteredBank.length ? filteredBank : wordBank
+    // 优先挑没玩过的词对：shuffle 后传入，pickUnseen 从「没见过」的里取第一个并自动标记已见；
+    // 整库用过一轮后会自动回收重来。scope 固定为 'undercover'，idOf 用稳定的 pair.id。
+    const [pair = pickRandom(pool)] = pickUnseen('undercover', shuffle(pool), (item) => item.id, 1)
     const [first, second] = pair.words
     const spyWord = Math.random() > 0.5 ? first : second
     const civilianWord = spyWord === first ? second : first

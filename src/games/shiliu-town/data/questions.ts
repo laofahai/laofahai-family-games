@@ -18,6 +18,7 @@ import {
   rand,
   shuffle,
 } from '@/games/shared/question-utils'
+import { pickUnseen } from '@/platform/progress'
 
 interface Thing {
   name: string
@@ -222,7 +223,7 @@ function sparkQuestion(id: number): SparkQuestion {
       explanation: '读题时要看清楚问的是什么。',
     },
   ]
-  const card = pick(cards)
+  const card = pickUnseen('shiliu:spark', cards, (c) => c.answer, 1)[0] ?? cards[0]
   return {
     id: `spark-${id}-${card.answer}`,
     kind: 'spark',
