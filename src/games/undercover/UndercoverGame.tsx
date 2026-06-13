@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Shuffle, UserRound, Users } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -31,10 +31,6 @@ type Round = {
 }
 
 const blankWord: WordItem = { text: '白板', pinyin: 'bai ban' }
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
 
 function getMaxSpies(players: number) {
   if (players <= 4) return 1
@@ -71,10 +67,8 @@ export function UndercoverGame() {
 
   const playerCount = rosterIds.length
   const maxSpies = useMemo(() => getMaxSpies(playerCount), [playerCount])
-
-  useEffect(() => {
-    setSpyCount((value) => clamp(value, 1, maxSpies))
-  }, [maxSpies])
+  // 人数变少时把卧底数收进上限——按需取值，不往 state 里塞（避免 effect 里 setState）
+  const effectiveSpyCount = Math.min(spyCount, maxSpies)
 
   const filteredBank = useMemo(() => {
     if (tagFilter === '全部') return wordBank
@@ -99,12 +93,12 @@ export function UndercoverGame() {
       word: civilianWord,
     }))
 
-    const spyIndices = shuffle([...roles.keys()]).slice(0, spyCount)
+    const spyIndices = shuffle([...roles.keys()]).slice(0, effectiveSpyCount)
     spyIndices.forEach((index) => {
       roles[index] = { ...roles[index], type: 'spy', word: spyWord }
     })
 
-    const eligibleCount = playerCount - spyCount
+    const eligibleCount = playerCount - effectiveSpyCount
     const maxBlanks =
       playerCount >= 5
         ? Math.min(
@@ -206,7 +200,7 @@ export function UndercoverGame() {
                 <select
                   id="spies"
                   className="h-11 w-full rounded-2xl border border-ink-200/80 bg-white px-3 text-sm text-ink-800 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink-500 focus-visible:ring-offset-2"
-                  value={spyCount}
+                  value={effectiveSpyCount}
                   onChange={(event) => setSpyCount(Number(event.target.value))}
                 >
                   {Array.from({ length: maxSpies }, (_, index) => index + 1).map((value) => (
