@@ -33,6 +33,10 @@ jobs:
       - name: Build
         env:
           BASE_URL: /${{ github.event.repository.name }}/
+          # 在仓库 Settings → Secrets 添加这两项，线上站点才会启用云端
+          # （设备解锁门 / 邀请码 / 个人进度同步 / 远程协作）。不加则线上为纯本地、零门槛。
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: npm run build
 
       - name: Setup Pages
