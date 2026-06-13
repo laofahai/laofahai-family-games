@@ -8,7 +8,9 @@ import type {
   TruthTopic,
 } from './types'
 import { getRosterIds, setRoster } from '@/platform/session'
+import { roomsAvailable } from '@/platform/rooms'
 import { pickTopic } from './utils/pickTopic'
+import { TruthLieRemote } from './TruthLieRemote'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
 import { TellStage } from './stages/TellStage'
@@ -105,6 +107,7 @@ function readIntroSeen(): boolean {
 
 export function TruthLieGame({ onExit }: TruthLieGameProps) {
   const [introSeen] = useState(readIntroSeen)
+  const [remote, setRemote] = useState(false)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     playerIds: getRosterIds(),
@@ -120,24 +123,39 @@ export function TruthLieGame({ onExit }: TruthLieGameProps) {
   const activePlayers = state.playerIds
   const voters = activePlayers.filter((p) => p !== teller)
 
+  if (remote) {
+    return <TruthLieRemote onBack={() => setRemote(false)} />
+  }
+
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
   }
 
   if (state.stage === 'setup') {
     return (
-      <SetupStage
-        selectedIds={state.playerIds}
-        roundsPerPlayer={state.roundsPerPlayer}
-        onChangePlayers={(ids) => dispatch({ type: 'SET_PLAYERS', value: ids })}
-        onChangeRounds={(n) => dispatch({ type: 'SET_ROUNDS', value: n })}
-        onStart={() => {
-          setRoster(state.playerIds)
-          const queue: PlayerId[] = []
-          for (let i = 0; i < state.roundsPerPlayer; i += 1) queue.push(...activePlayers)
-          dispatch({ type: 'START', queue, topic: pickTopic() })
-        }}
-      />
+      <div className="space-y-4">
+        {roomsAvailable() && (
+          <button
+            type="button"
+            onClick={() => setRemote(true)}
+            className="rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+          >
+            📱 各自用自己手机玩（远程）
+          </button>
+        )}
+        <SetupStage
+          selectedIds={state.playerIds}
+          roundsPerPlayer={state.roundsPerPlayer}
+          onChangePlayers={(ids) => dispatch({ type: 'SET_PLAYERS', value: ids })}
+          onChangeRounds={(n) => dispatch({ type: 'SET_ROUNDS', value: n })}
+          onStart={() => {
+            setRoster(state.playerIds)
+            const queue: PlayerId[] = []
+            for (let i = 0; i < state.roundsPerPlayer; i += 1) queue.push(...activePlayers)
+            dispatch({ type: 'START', queue, topic: pickTopic() })
+          }}
+        />
+      </div>
     )
   }
 

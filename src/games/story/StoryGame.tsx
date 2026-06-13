@@ -2,6 +2,8 @@ import { useReducer, useState } from 'react'
 import type { Duration, RoundResult, Stage, StoryCard, Theme } from './types'
 import { storyCards } from './data/story-cards'
 import { drawCards } from './utils/shuffle'
+import { roomsAvailable } from '@/platform/rooms'
+import { StoryRemote } from './StoryRemote'
 import { IntroStage } from './stages/IntroStage'
 import { SetupStage } from './stages/SetupStage'
 import { CountdownStage } from './stages/CountdownStage'
@@ -82,6 +84,7 @@ const INITIAL_THEMES: Set<Theme> = new Set<Theme>(['fairy', 'adventure', 'daily'
 
 export function StoryGame({ onExit }: StoryGameProps) {
   const [introSeen] = useState(readIntroSeen)
+  const [remote, setRemote] = useState(false)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     themes: INITIAL_THEMES,
@@ -95,24 +98,39 @@ export function StoryGame({ onExit }: StoryGameProps) {
     return drawCards(storyCards, state.themes, state.cardCount)
   }
 
+  if (remote) {
+    return <StoryRemote onBack={() => setRemote(false)} />
+  }
+
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
   }
 
   if (state.stage === 'setup') {
     return (
-      <SetupStage
-        themes={state.themes}
-        cardCount={state.cardCount}
-        durationSec={state.durationSec}
-        onToggleTheme={(t) => dispatch({ type: 'TOGGLE_THEME', value: t })}
-        onChangeCardCount={(n) => dispatch({ type: 'SET_CARD_COUNT', value: n })}
-        onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
-        onStart={() => {
-          const cards = makeCards()
-          dispatch({ type: 'START_COUNTDOWN', cards })
-        }}
-      />
+      <div className="space-y-4">
+        {roomsAvailable() && (
+          <button
+            type="button"
+            onClick={() => setRemote(true)}
+            className="rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+          >
+            📱 各自用自己手机玩（远程）
+          </button>
+        )}
+        <SetupStage
+          themes={state.themes}
+          cardCount={state.cardCount}
+          durationSec={state.durationSec}
+          onToggleTheme={(t) => dispatch({ type: 'TOGGLE_THEME', value: t })}
+          onChangeCardCount={(n) => dispatch({ type: 'SET_CARD_COUNT', value: n })}
+          onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
+          onStart={() => {
+            const cards = makeCards()
+            dispatch({ type: 'START_COUNTDOWN', cards })
+          }}
+        />
+      </div>
     )
   }
 

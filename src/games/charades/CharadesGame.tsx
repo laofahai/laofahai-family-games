@@ -1,7 +1,9 @@
 import { useEffect, useReducer, useState } from 'react'
 import { pickUnseen } from '@/platform/progress'
+import { roomsAvailable } from '@/platform/rooms'
 import type { Difficulty, Duration, RoundResult, Stage, WordEntry } from './types'
 import { charadesWords } from './data/charades-words'
+import { CharadesRemote } from './CharadesRemote'
 import { shuffledPool } from './utils/shuffle'
 
 // 一局最多 180 秒，正常翻牌速度下用不到这么多词；取一个足够大的批量，
@@ -93,6 +95,7 @@ const INITIAL_DIFFICULTIES: Set<Difficulty> = new Set<Difficulty>(['easy', 'medi
 
 export function CharadesGame({ onExit }: CharadesGameProps) {
   const [introSeen] = useState(readIntroSeen)
+  const [remote, setRemote] = useState(false)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     difficulties: INITIAL_DIFFICULTIES,
@@ -123,19 +126,34 @@ export function CharadesGame({ onExit }: CharadesGameProps) {
 
   const currentWord = state.pool[state.cursor]
 
+  if (remote) {
+    return <CharadesRemote onBack={() => setRemote(false)} />
+  }
+
   if (state.stage === 'intro') {
     return <IntroStage onContinue={() => dispatch({ type: 'GOTO_SETUP' })} />
   }
 
   if (state.stage === 'setup') {
     return (
-      <SetupStage
-        difficulties={state.difficulties}
-        durationSec={state.durationSec}
-        onToggleDifficulty={(d) => dispatch({ type: 'TOGGLE_DIFFICULTY', value: d })}
-        onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
-        onStart={() => dispatch({ type: 'START_COUNTDOWN' })}
-      />
+      <div className="space-y-4">
+        {roomsAvailable() && (
+          <button
+            type="button"
+            onClick={() => setRemote(true)}
+            className="rounded-full border border-orange-300 bg-orange-50 px-3 py-1.5 text-xs font-semibold text-orange-600 transition hover:bg-orange-100"
+          >
+            📱 各自用自己手机玩（远程）
+          </button>
+        )}
+        <SetupStage
+          difficulties={state.difficulties}
+          durationSec={state.durationSec}
+          onToggleDifficulty={(d) => dispatch({ type: 'TOGGLE_DIFFICULTY', value: d })}
+          onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
+          onStart={() => dispatch({ type: 'START_COUNTDOWN' })}
+        />
+      </div>
     )
   }
 
