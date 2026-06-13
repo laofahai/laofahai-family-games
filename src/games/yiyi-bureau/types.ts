@@ -22,4 +22,5 @@ export interface BureauQuestion {
 export interface BureauRecord {
   question: BureauQuestion
   correct: boolean
+  your?: string
 }

@@ -60,4 +60,5 @@ export interface AnswerRecord {
   clueCorrect?: boolean
   operationCorrect?: boolean
   answerCorrect: boolean
+  your?: string
 }

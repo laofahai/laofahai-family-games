@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useReducer, useState } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import {
   BadgeCheck,
   CheckCircle2,
   Compass,
   FolderSearch,
   HelpCircle,
+  LineChart,
   Play,
   Rocket,
   RotateCcw,
@@ -16,6 +17,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { GrowthReport } from '@/platform/GrowthReport'
+import { getMistakeQuestions, recordSession } from '@/platform/learning'
 import { buildBureauQuestions } from './data/questions'
 import type { BureauMode, BureauQuestion, BureauRecord } from './types'
 
@@ -107,7 +110,11 @@ function reducer(state: State, action: Action): State {
     }
     case 'NEXT': {
       const question = state.questions[state.index]
-      const record: BureauRecord = { question, correct: state.selected === question.answer }
+      const record: BureauRecord = {
+        question,
+        correct: state.selected === question.answer,
+        your: state.selected,
+      }
       const nextIndex = state.index + 1
       const done = nextIndex >= state.questions.length
       return {
@@ -139,12 +146,37 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
   })
   const [showHint, setShowHint] = useState(false)
   const [review, setReview] = useState(0)
+  const [showReport, setShowReport] = useState(false)
+  const recordedRef = useRef(false)
 
   useEffect(() => {
     if (review <= 0) return
     const timer = setTimeout(() => setReview((s) => s - 1), 1000)
     return () => clearTimeout(timer)
   }, [review])
+
+  // 一局结束时把成绩记进学习库（错题进错题本、对的清掉）；非答题（茶水间 spark）不计。
+  useEffect(() => {
+    if (state.stage === 'result' && !recordedRef.current) {
+      recordedRef.current = true
+      recordSession(
+        'yiyi',
+        state.records
+          .filter((r) => !isSpark(r.question))
+          .map((r) => ({ question: r.question, correct: r.correct, your: r.your }))
+      )
+    }
+    if (state.stage !== 'result') recordedRef.current = false
+  }, [state.stage, state.records])
+
+  const startRedo = () => {
+    const qs = getMistakeQuestions<BureauQuestion>('yiyi')
+    if (qs.length === 0) return
+    setShowReport(false)
+    setShowHint(false)
+    setReview(0)
+    dispatch({ type: 'START', questions: qs })
+  }
 
   const question = state.questions[state.index]
   const progress = state.questions.length ? ((state.index + 1) / state.questions.length) * 100 : 0
@@ -153,6 +185,10 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
 
   if (state.stage === 'setup') {
     return (
+      <>
+      {showReport && (
+        <GrowthReport game="yiyi" onClose={() => setShowReport(false)} onRedo={startRedo} />
+      )}
       <Card className="paper-grid">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
@@ -214,7 +250,7 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             每答对一个任务积 1 点行动力，中途偶尔有「茶水间」小卡，放松一下不计分。结束后按完成度解锁本局头衔。
           </div>
         </CardContent>
-        <div className="px-6 pb-6">
+        <div className="flex flex-col gap-2 px-6 pb-6">
           <Button
             onClick={() => {
               setShowHint(false)
@@ -225,13 +261,26 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             <Play className="h-5 w-5" />
             上岗接任务
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setShowReport(true)}
+            className="min-h-12 w-full gap-2"
+          >
+            <LineChart className="h-4 w-4" />
+            成长小报 · 错题本
+          </Button>
         </div>
       </Card>
+      </>
     )
   }
 
   if (state.stage === 'result') {
     return (
+      <>
+      {showReport && (
+        <GrowthReport game="yiyi" onClose={() => setShowReport(false)} onRedo={startRedo} />
+      )}
       <Card className="paper-grid">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
@@ -264,29 +313,40 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             )
           })}
         </CardContent>
-        <div className="flex flex-col gap-2 px-6 pb-6 sm:flex-row">
+        <div className="flex flex-col gap-2 px-6 pb-6">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              onClick={() => {
+                setShowHint(false)
+                dispatch({ type: 'START', questions: buildBureauQuestions(state.mode, state.count) })
+              }}
+              className="min-h-14 w-full shrink-0 gap-2 text-base sm:flex-1"
+            >
+              <RotateCcw className="h-4 w-4" />
+              再接一批
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => dispatch({ type: 'RESET' })}
+              className="min-h-14 w-full shrink-0 text-base sm:flex-1"
+            >
+              换玩法
+            </Button>
+            <Button variant="ghost" onClick={onExit} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
+              回首页
+            </Button>
+          </div>
           <Button
-            onClick={() => {
-              setShowHint(false)
-              dispatch({ type: 'START', questions: buildBureauQuestions(state.mode, state.count) })
-            }}
-            className="min-h-14 w-full shrink-0 gap-2 text-base sm:flex-1"
+            variant="ghost"
+            onClick={() => setShowReport(true)}
+            className="min-h-12 w-full gap-2"
           >
-            <RotateCcw className="h-4 w-4" />
-            再接一批
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => dispatch({ type: 'RESET' })}
-            className="min-h-14 w-full shrink-0 text-base sm:flex-1"
-          >
-            换玩法
-          </Button>
-          <Button variant="ghost" onClick={onExit} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
-            回首页
+            <LineChart className="h-4 w-4" />
+            看成长小报 · 错题本
           </Button>
         </div>
       </Card>
+      </>
     )
   }
 

@@ -1,9 +1,11 @@
-import { useMemo, useReducer, useState } from 'react'
-import { BadgeCheck, Brain, CheckCircle2, Coins, HelpCircle, Play, RotateCcw, Store, XCircle } from 'lucide-react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { BadgeCheck, Brain, CheckCircle2, Coins, HelpCircle, LineChart, Play, RotateCcw, Store, XCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { GrowthReport } from '@/platform/GrowthReport'
+import { getMistakeQuestions, recordSession } from '@/platform/learning'
 import { buildQuestions } from './data/questions'
 import type { AnswerRecord, TownMode, TownQuestion } from './types'
 
@@ -151,10 +153,12 @@ function reducer(state: State, action: Action): State {
               clueCorrect: sameSet(state.selectedClues, question.correctClueIds),
               operationCorrect: state.selectedOperation === question.operationAnswer,
               answerCorrect: isAnswerCorrect(question, state.selectedAnswer),
+              your: state.selectedAnswer,
             }
           : {
               question,
               answerCorrect: isAnswerCorrect(question, state.selectedAnswer),
+              your: state.selectedAnswer,
             }
 
       const nextIndex = state.index + 1
@@ -193,6 +197,30 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
     records: [],
   })
   const [showHint, setShowHint] = useState(false)
+  const [showReport, setShowReport] = useState(false)
+  const recordedRef = useRef(false)
+
+  // 一局结束记进学习库（错题进错题本、对的清掉）；「轻松一下」spark 卡不计分不入库。
+  useEffect(() => {
+    if (state.stage === 'result' && !recordedRef.current) {
+      recordedRef.current = true
+      recordSession(
+        'shiliu',
+        state.records
+          .filter((r) => r.question.kind !== 'spark')
+          .map((r) => ({ question: r.question, correct: r.answerCorrect, your: r.your }))
+      )
+    }
+    if (state.stage !== 'result') recordedRef.current = false
+  }, [state.stage, state.records])
+
+  const startRedo = () => {
+    const qs = getMistakeQuestions<TownQuestion>('shiliu')
+    if (qs.length === 0) return
+    setShowReport(false)
+    setShowHint(false)
+    dispatch({ type: 'START', questions: qs })
+  }
 
   const question = state.questions[state.index]
   const progress = state.questions.length ? ((state.index + 1) / state.questions.length) * 100 : 0
@@ -206,6 +234,10 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
 
   if (state.stage === 'setup') {
     return (
+      <>
+      {showReport && (
+        <GrowthReport game="shiliu" onClose={() => setShowReport(false)} onRedo={startRedo} />
+      )}
       <Card className="paper-grid">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
@@ -280,7 +312,7 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
             答对、找准线索、选对算式都会得到小镇能量，结束后解锁本局称号。
           </div>
         </CardContent>
-        <div className="px-6 pb-6">
+        <div className="flex flex-col gap-2 px-6 pb-6">
           <Button
             onClick={() => {
               setShowHint(false)
@@ -291,8 +323,17 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
             <Play className="h-5 w-5" />
             进小镇
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => setShowReport(true)}
+            className="min-h-12 w-full gap-2"
+          >
+            <LineChart className="h-4 w-4" />
+            成长小报 · 错题本
+          </Button>
         </div>
       </Card>
+      </>
     )
   }
 
@@ -301,6 +342,10 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
     const operationMiss = state.records.filter((r) => r.operationCorrect === false).length
     const answerMiss = state.records.filter((r) => !r.answerCorrect).length
     return (
+      <>
+      {showReport && (
+        <GrowthReport game="shiliu" onClose={() => setShowReport(false)} onRedo={startRedo} />
+      )}
       <Card className="paper-grid">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
@@ -336,26 +381,37 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
             ))}
           </div>
         </CardContent>
-        <div className="flex flex-col gap-2 px-6 pb-6 sm:flex-row">
+        <div className="flex flex-col gap-2 px-6 pb-6">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              onClick={() => dispatch({ type: 'START', questions: buildQuestions(state.mode, state.count) })}
+              className="min-h-14 w-full shrink-0 gap-2 text-base sm:flex-1"
+            >
+              <RotateCcw className="h-4 w-4" />
+              再来一局
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => dispatch({ type: 'RESET' })}
+              className="min-h-14 w-full shrink-0 text-base sm:flex-1"
+            >
+              换模式
+            </Button>
+            <Button variant="ghost" onClick={onExit} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
+              回首页
+            </Button>
+          </div>
           <Button
-            onClick={() => dispatch({ type: 'START', questions: buildQuestions(state.mode, state.count) })}
-            className="min-h-14 w-full shrink-0 gap-2 text-base sm:flex-1"
+            variant="ghost"
+            onClick={() => setShowReport(true)}
+            className="min-h-12 w-full gap-2"
           >
-            <RotateCcw className="h-4 w-4" />
-            再来一局
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => dispatch({ type: 'RESET' })}
-            className="min-h-14 w-full shrink-0 text-base sm:flex-1"
-          >
-            换模式
-          </Button>
-          <Button variant="ghost" onClick={onExit} className="min-h-14 w-full shrink-0 text-base sm:flex-1">
-            回首页
+            <LineChart className="h-4 w-4" />
+            看成长小报 · 错题本
           </Button>
         </div>
       </Card>
+      </>
     )
   }
 
