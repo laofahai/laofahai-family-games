@@ -15,6 +15,7 @@ import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
 import { isUnlocked } from '@/platform/access'
 import { UnlockGate } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
+import { WhoPlaying } from '@/platform/WhoPlaying'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer } from '@/platform/progress'
@@ -346,6 +347,7 @@ export default function App() {
                 小侦探先找线索，购物小掌柜再算钱。每局短一点，慢慢玩。
               </p>
             </div>
+            <WhoPlaying players={players} currentId={playerId} onPick={choosePlayer} />
             <ShiliuTownGame onExit={() => setScreen('home')} />
           </section>
         )}
@@ -363,6 +365,7 @@ export default function App() {
                 当策划人、队长和数据分析员，破解一个个任务。数学打头阵，语文英语科学随机混搭，每局都新。
               </p>
             </div>
+            <WhoPlaying players={players} currentId={playerId} onPick={choosePlayer} />
             <YiyiBureauGame onExit={() => setScreen('home')} />
           </section>
         )}
