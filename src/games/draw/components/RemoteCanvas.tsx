@@ -173,7 +173,8 @@ export const RemoteCanvas = forwardRef<RemoteCanvasHandle, { editable: boolean; 
           onPointerUp={handleUp}
           onPointerCancel={handleUp}
           className={cn(
-            'h-[50vh] w-full rounded-3xl border bg-white shadow-inner',
+            // 固定 4:3 宽高比：所有设备画板形状一致，归一化坐标映射过去不会被拉伸变形
+            'aspect-[4/3] w-full rounded-3xl border bg-white shadow-inner',
             editable ? 'touch-none border-melon-300' : 'pointer-events-none border-ink-200'
           )}
         />

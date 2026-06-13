@@ -170,7 +170,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
             或者加入别人的房
             <div className="h-px flex-1 bg-ink-100" />
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               inputMode="numeric"
               pattern="[0-9]*"
@@ -183,7 +183,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
               maxLength={6}
               className="h-12 flex-1 rounded-2xl border border-ink-200 px-3 text-center text-lg tracking-widest outline-none focus:border-melon-400"
             />
-            <Button onClick={join} disabled={busy} variant="outline" className="h-12 shrink-0">
+            <Button onClick={join} disabled={busy} variant="outline" className="h-12 w-full sm:w-auto">
               加入
             </Button>
           </div>
