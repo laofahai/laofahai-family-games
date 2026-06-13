@@ -21,6 +21,7 @@ import {
   subscribeRoom,
   type RoomSnapshot,
 } from '@/platform/rooms'
+import { contentFor } from '@/platform/content'
 import { priceItems } from './data/price-items'
 import type { PriceItem } from './types'
 
@@ -99,7 +100,9 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
     if (!code) return
     setBusy(true)
     await clearSubmissions(code)
-    const [picked = priceItems[0]] = pickUnseen('price', shuffle(priceItems), (it) => it.name, 1)
+    // 运行时读取云端/缓存内容，拿不到回退到打包副本。
+    const items = contentFor('price', priceItems)
+    const [picked = items[0]] = pickUnseen('price', shuffle(items), (it) => it.name, 1)
     setItem(picked)
     setRound(nextRound)
     await hostSet(code, {

@@ -1,4 +1,5 @@
 import { pickUnseen } from '@/platform/progress'
+import { contentFor } from '@/platform/content'
 import type { DrawDifficulty, DrawWord } from '../types'
 import { drawWords } from '../data/draw-words'
 
@@ -22,8 +23,9 @@ export function pickWord(
   difficulties: ReadonlySet<DrawDifficulty>,
   usedTexts: ReadonlySet<string>,
 ): DrawWord {
-  const pool = drawWords.filter((w) => difficulties.has(w.difficulty))
-  const source = pool.length > 0 ? pool : drawWords
+  const words = contentFor('draw', drawWords)
+  const pool = words.filter((w) => difficulties.has(w.difficulty))
+  const source = pool.length > 0 ? pool : words
   // 本局已出现过的优先排除；都用过了就回到完整难度池
   const fresh = source.filter((w) => !usedTexts.has(w.text))
   const candidates = fresh.length > 0 ? fresh : source

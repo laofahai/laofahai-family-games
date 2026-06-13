@@ -11,8 +11,9 @@ import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
+import { contentFor } from '@/platform/content'
 import { storyCards } from './data/story-cards'
-import { CATEGORY_LABEL, THEME_LABEL, type Category, type Theme } from './types'
+import { CATEGORY_LABEL, THEME_LABEL, type Category, type StoryCard, type Theme } from './types'
 import { drawCards } from './utils/shuffle'
 
 const ALL_THEMES: Set<Theme> = new Set(Object.keys(THEME_LABEL) as Theme[])
@@ -76,7 +77,7 @@ export function StoryRemote({ onBack }: { onBack: () => void }) {
   const drawRound = async (nextRound: number) => {
     if (!code) return
     setBusy(true)
-    const cards = drawCards(storyCards, ALL_THEMES, 4)
+    const cards = drawCards(contentFor<StoryCard>('story', storyCards), ALL_THEMES, 4)
     await hostSet(code, {
       state: 'playing',
       payload: {

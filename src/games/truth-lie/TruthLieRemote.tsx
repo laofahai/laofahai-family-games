@@ -8,6 +8,7 @@ import { Crown, Eye, LogOut, Vote } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
@@ -111,7 +112,7 @@ export function TruthLieRemote({ onBack }: { onBack: () => void }) {
     if (!code) return
     setBusy(true)
     await clearSubmissions(code)
-    const [topic] = pickUnseen('truthLie:topic', shuffle(truthTopics), (t) => t.text, 1)
+    const [topic] = pickUnseen('truthLie:topic', shuffle(contentFor('truth-lie', truthTopics)), (t) => t.text, 1)
     const who = members.find((m) => m.seat === seat)
     await hostSet(code, {
       state: 'tell',

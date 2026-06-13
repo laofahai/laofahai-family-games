@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { wordBank, type WordItem } from '@/data/word-bank'
+import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
@@ -93,7 +94,9 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
   const startGame = async () => {
     if (!code || members.length < 3) return
     setBusy(true)
-    const [pair = wordBank[0]] = pickUnseen('undercover', shuffle(wordBank), (p) => p.id, 1)
+    // 运行时取云端/缓存词库（拿不到回退打包副本）
+    const bank = contentFor('word-bank', wordBank)
+    const [pair = bank[0]] = pickUnseen('undercover', shuffle(bank), (p) => p.id, 1)
     const [w0, w1] = pair.words
     const spyWord = Math.random() > 0.5 ? w0 : w1
     const civWord = spyWord === w0 ? w1 : w0

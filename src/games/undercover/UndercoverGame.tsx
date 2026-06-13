@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { wordBank, wordTags, type WordItem, type WordPair } from '@/data/word-bank'
+import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { pickUnseen } from '@/platform/progress'
 import { RosterPicker } from '@/platform/RosterPicker'
@@ -71,13 +72,15 @@ export function UndercoverGame() {
   const effectiveSpyCount = Math.min(spyCount, maxSpies)
 
   const filteredBank = useMemo(() => {
-    if (tagFilter === '全部') return wordBank
-    return wordBank.filter((pair) => pair.tag === tagFilter)
+    // 运行时取云端/缓存词库（拿不到回退打包副本），useMemo 在渲染时求值属运行时
+    const bank = contentFor('word-bank', wordBank)
+    if (tagFilter === '全部') return bank
+    return bank.filter((pair) => pair.tag === tagFilter)
   }, [tagFilter])
 
 
   function handleStart() {
-    const pool = filteredBank.length ? filteredBank : wordBank
+    const pool = filteredBank.length ? filteredBank : contentFor('word-bank', wordBank)
     // 优先挑没玩过的词对：shuffle 后传入，pickUnseen 从「没见过」的里取第一个并自动标记已见；
     // 整库用过一轮后会自动回收重来。scope 固定为 'undercover'，idOf 用稳定的 pair.id。
     const [pair = pickRandom(pool)] = pickUnseen('undercover', shuffle(pool), (item) => item.id, 1)

@@ -4,6 +4,7 @@ import { isFamilyCard } from './types'
 import { knowQuestions } from './data/know-questions'
 import { familyCards } from './data/family'
 import { buildDeck } from './utils/buildDeck'
+import { contentFor } from '@/platform/content'
 import { roomsAvailable } from '@/platform/rooms'
 import { KnowYouRemote } from './KnowYouRemote'
 import { IntroStage } from './stages/IntroStage'
@@ -143,8 +144,8 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
 
   function makeDeck(): DeckCard[] {
     return buildDeck(
-      knowQuestions,
-      familyCards,
+      contentFor('know-you', knowQuestions),
+      contentFor('know-family', familyCards),
       [...state.players],
       state.perRole,
       state.withFamilyCards,

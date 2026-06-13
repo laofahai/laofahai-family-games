@@ -2,6 +2,7 @@ import { useReducer, useState } from 'react'
 import type { Duration, RoundResult, Stage, StoryCard, Theme } from './types'
 import { storyCards } from './data/story-cards'
 import { drawCards } from './utils/shuffle'
+import { contentFor } from '@/platform/content'
 import { roomsAvailable } from '@/platform/rooms'
 import { StoryRemote } from './StoryRemote'
 import { IntroStage } from './stages/IntroStage'
@@ -95,7 +96,7 @@ export function StoryGame({ onExit }: StoryGameProps) {
   })
 
   function makeCards(): StoryCard[] {
-    return drawCards(storyCards, state.themes, state.cardCount)
+    return drawCards(contentFor<StoryCard>('story', storyCards), state.themes, state.cardCount)
   }
 
   if (remote) {

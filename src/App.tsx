@@ -19,6 +19,7 @@ import { WhoPlaying } from '@/platform/WhoPlaying'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer } from '@/platform/progress'
+import { refreshContent } from '@/platform/content'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
 
@@ -76,8 +77,10 @@ export default function App() {
     void hydratePlayer(id) // 连了同步码的人，切到 TA 就先把云端进度拉回合并
   }
 
-  // 进场时把当前玩家的云端进度拉回来（没连码的人是无操作）
+  // 进场时：① 把云端最新题库拉回来缓存（离线/未配置则沿用缓存或打包副本）
+  //        ② 把当前玩家的云端进度拉回来（没连码的人是无操作）
   useEffect(() => {
+    void refreshContent()
     void hydratePlayer(playerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

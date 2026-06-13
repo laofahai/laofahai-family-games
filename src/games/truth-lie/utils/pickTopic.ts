@@ -1,3 +1,4 @@
+import { contentFor } from '@/platform/content'
 import { pickUnseen } from '@/platform/progress'
 import type { TruthTopic } from '../types'
 import { truthTopics } from '../data/truth-topics'
@@ -20,7 +21,8 @@ function shuffle<T>(items: readonly T[]): T[] {
  * exclude：当前话题，换一个时排除它，避免抽到同一个。
  */
 export function pickTopic(exclude?: TruthTopic): TruthTopic {
-  const pool = exclude ? truthTopics.filter((t) => t !== exclude) : truthTopics
+  const topics = contentFor('truth-lie', truthTopics)
+  const pool = exclude ? topics.filter((t) => t !== exclude) : topics
   const [picked] = pickUnseen('truth-lie', shuffle(pool), topicId, 1)
   return picked
 }

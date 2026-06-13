@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useState } from 'react'
+import { contentFor } from '@/platform/content'
 import { pickUnseen } from '@/platform/progress'
 import { roomsAvailable } from '@/platform/rooms'
 import type { Difficulty, Duration, RoundResult, Stage, WordEntry } from './types'
@@ -120,7 +121,7 @@ export function CharadesGame({ onExit }: CharadesGameProps) {
     // 先按所选难度过滤并打乱，再用共享「已见库」优先挑没玩过的词；
     // 整批用完才回收，避免玩过的词下一局又立刻冒出来。scope 固定 'charades'，
     // 用词文本（WordEntry.text）作稳定 id。
-    const filtered = shuffledPool(charadesWords, state.difficulties)
+    const filtered = shuffledPool(contentFor('charades', charadesWords), state.difficulties)
     return pickUnseen('charades', filtered, (word) => word.text, ROUND_BATCH)
   }
 

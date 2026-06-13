@@ -24,6 +24,7 @@ import {
   type RoomSnapshot,
 } from '@/platform/rooms'
 import { knowQuestions } from './data/know-questions'
+import { contentFor } from '@/platform/content'
 import { ROLE_MAP } from './types'
 import type { KnowQuestion } from './types'
 
@@ -35,8 +36,6 @@ function shuffle<T>(items: T[]) {
   }
   return next
 }
-
-const triviaQuestions = knowQuestions.filter((q) => q.kind === 'trivia' && q.answer)
 
 interface RevealPayload {
   text?: string
@@ -109,6 +108,9 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
     if (!code) return
     setBusy(true)
     await clearSubmissions(code)
+    const triviaQuestions = contentFor('know-you', knowQuestions).filter(
+      (q) => q.kind === 'trivia' && q.answer,
+    )
     const [picked = triviaQuestions[0]] = pickUnseen('knowYou:remote', shuffle(triviaQuestions), (q) => q.text, 1)
     setQuestion(picked)
     setRound(nextRound)
