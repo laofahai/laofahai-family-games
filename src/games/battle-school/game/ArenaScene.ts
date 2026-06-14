@@ -18,7 +18,24 @@ import { type GameBridge, type GameControls, type MoveDir, type SkillKind, type 
 import { preloadSprites, registerAnims, pickClassmateKey, TEACHER_KEY } from './assets'
 import { Hero } from './Hero'
 import { Enemy } from './Enemy'
+import { FloatingQuiz } from './FloatingQuiz'
 import { themeForLevel, type Theme } from './themes'
+
+/** 学科 → 冲击波/光效配色（答对按科目配色）。 */
+const SUBJECT_COLOR: Record<string, number> = {
+  math: 0x4f9eff,
+  chinese: 0xff7a59,
+  english: 0x9b7cff,
+  science: 0x35d6a4,
+  sports: 0xffb020,
+  life: 0x6fd36f,
+  social: 0xff8fc7,
+  interest: 0xffd23f,
+  funny: 0xff5a8a,
+}
+function subjectColor(subject: string): number {
+  return SUBJECT_COLOR[subject] ?? 0x7cc0ff
+}
 
 const WORLD_W = 3600 // 世界宽（比屏宽，相机横向滚动）
 const GROUND_RATIO = 0.82 // 地面线在视口高度的占比
@@ -39,6 +56,7 @@ export class ArenaScene extends Phaser.Scene {
   private band!: Band
   private bosses: BossDef[] = []
   private mobNames: string[] = []
+  private playerName = ''
   private totalLevels = 1
 
   private W = 800
@@ -66,10 +84,12 @@ export class ArenaScene extends Phaser.Scene {
   private skill: SkillKind = 'nova'
   private theme!: Theme
   private boss?: Enemy
-  private pending: Pending | null = null // 当前挂起的答题
+  private pending: Pending | null = null // 当前挂起的答题（boss=React 卡片 / skill=Phaser 飘题）
+  private floatingQuiz?: FloatingQuiz // 学霸大招的轻量飘浮快题（Phaser 原生）
   private quizTimer?: Phaser.Time.TimerEvent
   private bossQuizCdUntil = 0 // BOSS 答题闸冷却（避免连弹）
   private frozenUntil = 0 // hitstop：全局冻结到此刻
+  private slowmoUntil = 0 // 微慢镜结束时刻（大招/重击）
   private over = false
   private hudThrottleAt = 0 // 下次允许推 HUD 的时刻（节流，避免每帧推）
   private weatherParticles: Phaser.GameObjects.Rectangle[] = []
@@ -88,15 +108,19 @@ export class ArenaScene extends Phaser.Scene {
     const roster = rosterFor(cfg.player)
     this.bosses = roster.bosses
     this.mobNames = roster.mobs
+    this.playerName = roster.player
     this.totalLevels = roster.bosses.length
     this.level = Phaser.Math.Clamp(cfg.startLevel, 0, this.totalLevels - 1)
     // 重置每局状态（场景可能被 restart 复用）。
     this.over = false
     this.pending = null
+    this.floatingQuiz?.dismiss()
+    this.floatingQuiz = undefined
     this.energy = 0
     this.combo = 0
     this.skill = 'nova'
     this.boss = undefined
+    this.slowmoUntil = 0
     this.weatherParticles = []
   }
 
@@ -120,8 +144,9 @@ export class ArenaScene extends Phaser.Scene {
     this.platforms = this.physics.add.staticGroup()
     this.buildLevelWorld()
 
-    // 主角。
-    this.hero = new Hero(this, 200, this.groundY)
+    // 主角（头顶挂玩家名）。
+    // TODO 性别区分待女版 Kenney 素材：现在不按性别换精灵，主角统一用 hero。
+    this.hero = new Hero(this, 200, this.groundY, this.playerName)
     this.physics.add.collider(this.hero, this.platforms)
 
     // 敌人组。
@@ -403,6 +428,7 @@ export class ArenaScene extends Phaser.Scene {
     const def = this.bosses[this.level]
     const camW = this.cameras.main.width || this.W
     const x = Math.min(WORLD_W - 80, this.hero.x + Math.max(camW * 0.65, 480))
+    // TODO 性别区分待女版 Kenney 素材：老师 Boss 统一用 teacher 精灵。
     const e = new Enemy(this, x, this.groundY, { charKey: TEACHER_KEY, name: def.name, isBoss: true, hp: def.hp, speed: 70 })
     this.enemies.add(e)
     this.physics.add.collider(e, this.platforms)
@@ -443,13 +469,58 @@ export class ArenaScene extends Phaser.Scene {
       this.floatText(this.hero.x, this.hero.y - 150, '能量不足', '#9aa6b2', 18)
       return
     }
-    // 大招要先答一道随机学科题（学霸大招）。
+    // 大招要先答一道随机学科题（学霸大招）—— 用轻量飘浮快题（不卡屏卡片）。
     const q = drawQuestions({ band: this.band, count: 1, learnRatio: 1 })[0]
     if (!q) {
       this.floatText(this.hero.x, this.hero.y - 150, '题库加载中…', '#9aa6b2', 18)
       return
     }
-    this.openQuiz('skill', q)
+    this.castAura(subjectColor(q.subject))
+    this.openSkillQuiz(q)
+  }
+
+  /** 技能起手光环：主角脚下涌起一圈能量环 + 上升粒子。 */
+  private castAura(color: number): void {
+    playSfx('skill')
+    const cx = this.hero.x
+    const cy = this.hero.y - this.hero.displayHeight * 0.4
+    const ring = this.add.circle(cx, this.hero.y - 6, 10, color, 0.0).setDepth(48)
+    ring.setStrokeStyle(4, color, 0.9)
+    this.tweens.add({ targets: ring, radius: this.hero.displayHeight * 0.9, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() })
+    // 上升的光点。
+    for (let i = 0; i < 12; i++) {
+      const px = cx + Phaser.Math.Between(-40, 40)
+      const p = this.add.circle(px, this.hero.y, Phaser.Math.Between(2, 5), color, 0.9).setDepth(49)
+      this.tweens.add({ targets: p, y: cy - Phaser.Math.Between(40, 110), alpha: 0, duration: Phaser.Math.Between(380, 680), ease: 'Quad.easeOut', onComplete: () => p.destroy() })
+    }
+    this.hero.setTint(color)
+    this.time.delayedCall(260, () => this.hero.clearTint())
+  }
+
+  /** 打开学霸大招的飘浮快题（Phaser 原生，自动收起）。 */
+  private openSkillQuiz(question: BattleQuestion): void {
+    this.pending = { source: 'skill', question, resolved: false }
+    playSfx('tap')
+    const qx = Phaser.Math.Clamp(this.hero.x, this.cameras.main.scrollX + 200, this.cameras.main.scrollX + this.W - 200)
+    const qy = this.hero.y - this.hero.displayHeight - 70
+    this.floatingQuiz = new FloatingQuiz(
+      this,
+      question,
+      { x: qx, y: qy, subjectLabel: subjectLabel(question.subject), accent: subjectColor(question.subject), seconds: QUIZ_SECONDS },
+      (id) => this.resolveSkillFromFloating(id),
+    )
+    this.pushHud()
+  }
+
+  private resolveSkillFromFloating(choiceId: string | null): void {
+    const p = this.pending
+    if (!p || p.resolved || p.source !== 'skill') return
+    p.resolved = true
+    this.pending = null
+    this.floatingQuiz = undefined
+    const correct = choiceId != null && choiceId === p.question.answer
+    this.resolveSkillQuiz(correct, p.question.subject)
+    this.pushHud()
   }
 
   // ── 近战命中（主角命中区 vs 敌人）──────────────────────────────────────
@@ -466,15 +537,20 @@ export class ArenaScene extends Phaser.Scene {
       playSfx('hit')
       return
     }
-    // 命中表演：hitstop + 抖屏 + 伤害数字 + 冒星。
+    // 真理巴掌命中表演：hitstop + 抖屏 + 伤害数字 + 火花 + 冲击点 + slap 音。
     this.combo += 1
     const crit = this.combo > 0 && this.combo % 3 === 0
     this.gainEnergy(ENERGY_PER_HIT)
-    this.hitstop(crit ? 90 : 55)
-    this.cameras.main.shake(crit ? 160 : 90, crit ? 0.008 : 0.004)
-    this.floatText(enemy.x, enemy.y - enemy.displayHeight - 6, crit ? `暴击 ${HERO_MELEE_DMG * 2}!` : `-${HERO_MELEE_DMG}`, crit ? '#ffd23f' : '#ffffff', crit ? 26 : 20)
-    this.spawnBurst(enemy.x, enemy.y - enemy.displayHeight * 0.6, crit ? 0xffd23f : 0xffffff, crit ? 14 : 8)
-    playSfx(crit ? 'crit' : 'hit')
+    this.hitstop(crit ? 95 : 60)
+    if (crit) this.slowmo(120, 0.5)
+    this.cameras.main.shake(crit ? 170 : 95, crit ? 0.009 : 0.0045)
+    const hitX = enemy.x
+    const hitY = enemy.y - enemy.displayHeight * 0.55
+    this.slapImpact(hitX, hitY, crit)
+    this.comboGlow()
+    this.floatText(enemy.x, enemy.y - enemy.displayHeight - 6, crit ? `👋暴击 ${HERO_MELEE_DMG * 2}!` : `-${HERO_MELEE_DMG}`, crit ? '#ffd23f' : '#ffffff', crit ? 26 : 20)
+    this.spawnBurst(hitX, hitY, crit ? 0xffd23f : 0xffffff, crit ? 14 : 8)
+    playSfx(crit ? 'crit' : 'slap')
     if (crit) {
       this.cameras.main.flash(120, 255, 220, 120)
       const cry = battleCry('crit', this.band)
@@ -488,6 +564,12 @@ export class ArenaScene extends Phaser.Scene {
     if (this.frozen || enemy.dead) return
     const now = this.time.now
     if (!enemy.isLunging(now)) return // 只有在攻击窗口才造成伤害
+    // 跳跃可躲：敌人攻击在身体/地面高度，主角跳起来（脚底高过攻击线）就越过这一击。
+    if (!enemy.lungeHitsAt(this.hero.y)) {
+      enemy.lungeHitDone = true // 消耗这次扑击（落空）
+      this.floatText(this.hero.x, this.hero.y - this.hero.displayHeight - 20, '闪避!', '#9fe0ff', 18)
+      return
+    }
     enemy.lungeHitDone = true
     const dmg = enemy.isBoss ? BOSS_HIT_DMG : MOB_HIT_DMG
     const hurt = this.hero.takeHit(dmg, enemy.x)
@@ -522,14 +604,15 @@ export class ArenaScene extends Phaser.Scene {
     const q = drawBySubject(def.subject, this.band, 1)[0] ?? drawQuestions({ band: this.band, count: 1 })[0]
     if (!q) return
     this.bossQuizCdUntil = now + 4000 // 答题闸冷却：两次知识闸之间留出战斗/喘息窗口（非常驻弹窗）
-    this.openQuiz('boss', q)
+    this.openBossQuiz(q)
   }
 
-  private openQuiz(source: 'boss' | 'skill', question: BattleQuestion): void {
-    this.pending = { source, question, resolved: false }
+  /** Boss 知识闸：用 React 卡片（更清晰的提示），但答完/超时即自动收起。 */
+  private openBossQuiz(question: BattleQuestion): void {
+    this.pending = { source: 'boss', question, resolved: false }
     this.bridge.emit('quiz:open', {
       question,
-      source,
+      source: 'boss',
       seconds: QUIZ_SECONDS,
       subjectLabel: subjectLabel(question.subject),
     })
@@ -543,6 +626,8 @@ export class ArenaScene extends Phaser.Scene {
   private resolveQuiz(choiceId: string | null): void {
     const p = this.pending
     if (!p || p.resolved) return
+    // skill 飘题走 resolveSkillFromFloating；这里只处理 React 卡片（boss）。
+    if (p.source === 'skill') return
     p.resolved = true
     this.quizTimer?.remove()
     this.quizTimer = undefined
@@ -550,8 +635,7 @@ export class ArenaScene extends Phaser.Scene {
     this.bridge.emit('quiz:close', undefined)
 
     const correct = choiceId != null && choiceId === p.question.answer
-    if (p.source === 'boss') this.resolveBossQuiz(correct)
-    else this.resolveSkillQuiz(correct)
+    this.resolveBossQuiz(correct)
     this.pushHud()
   }
 
@@ -561,14 +645,18 @@ export class ArenaScene extends Phaser.Scene {
     if (!boss || boss.dead) return
     if (correct) {
       const res = boss.knowledgeHit(BOSS_KNOWLEDGE_DMG, this.hero.x)
-      this.hitstop(110)
-      this.cameras.main.shake(220, 0.01)
+      const color = subjectColor(def.subject)
+      this.hitstop(120)
+      this.slowmo(160, 0.45) // 重创老师：微慢镜
+      this.cameras.main.shake(240, 0.011)
       this.cameras.main.flash(180, 180, 230, 255)
-      this.spawnBurst(boss.x, boss.y - boss.displayHeight * 0.6, 0x7cc0ff, 22)
+      this.shockwave(boss.x, boss.y - boss.displayHeight * 0.5, color) // 答对按科目配色冲击波
+      this.spawnBurst(boss.x, boss.y - boss.displayHeight * 0.6, color, 24)
       this.floatText(boss.x, boss.y - boss.displayHeight - 10, `知识·重创 -${BOSS_KNOWLEDGE_DMG}!`, '#7cc0ff', 24)
       const cry = skillCry(def.subject, this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 170, cry, '#ffd23f', 24)
       playSfx('skill')
+      playSfx('correct')
       this.bridge.emit('result', { ok: true, crit: true, title: '答对！知识重创老师', detail: cry ?? undefined })
       if (res === 'dead') this.onBossDefeated()
     } else {
@@ -595,9 +683,11 @@ export class ArenaScene extends Phaser.Scene {
     return e.x >= this.hero.x ? 1 : -1
   }
 
-  private resolveSkillQuiz(correct: boolean): void {
+  private resolveSkillQuiz(correct: boolean, subject: string): void {
     if (correct) {
       this.energy = 0
+      playSfx('correct')
+      this.shockwave(this.hero.x, this.hero.y - this.hero.displayHeight * 0.5, subjectColor(subject))
       if (this.skill === 'heal') {
         this.hero.heal(2)
         this.cameras.main.flash(200, 140, 255, 180)
@@ -621,12 +711,30 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private castNova(): void {
-    this.cameras.main.flash(300, 255, 240, 160)
-    this.cameras.main.shake(360, 0.014)
+    this.cameras.main.flash(320, 255, 240, 160)
+    this.cameras.main.shake(420, 0.016)
+    this.slowmo(260, 0.35) // 大招定格般的微慢镜
     playSfx('nova')
-    // 全屏冲击波。
-    const ring = this.add.circle(this.hero.x, this.hero.y - 60, 20, 0xffe08a, 0.5).setDepth(80)
-    this.tweens.add({ targets: ring, radius: this.W, alpha: 0, duration: 520, onComplete: () => ring.destroy() })
+    const cx = this.hero.x
+    const cy = this.hero.y - this.hero.displayHeight * 0.5
+    // 全屏 nova 爆发：双层扩张光环（外亮内白）。
+    const ringA = this.add.circle(cx, cy, 20, 0xffe08a, 0.55).setDepth(80)
+    ringA.setStrokeStyle(10, 0xfff3c0, 0.9)
+    this.tweens.add({ targets: ringA, radius: this.W * 1.1, alpha: 0, duration: 560, ease: 'Cubic.easeOut', onComplete: () => ringA.destroy() })
+    const ringB = this.add.circle(cx, cy, 10, 0xffffff, 0.0).setDepth(81)
+    ringB.setStrokeStyle(6, 0xffffff, 0.95)
+    this.tweens.add({ targets: ringB, radius: this.W * 0.7, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => ringB.destroy() })
+    // 满屏白闪（贴相机，瞬亮即收）。
+    const flash = this.add.rectangle(this.cameras.main.scrollX + this.W / 2, this.H / 2, this.W, this.H, 0xffffff, 0.5)
+      .setScrollFactor(0).setDepth(82)
+    this.tweens.add({ targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy() })
+    // 放射火星。
+    for (let i = 0; i < 22; i++) {
+      const ang = (i / 22) * Math.PI * 2
+      const spd = Phaser.Math.Between(220, 420)
+      const p = this.add.circle(cx, cy, Phaser.Math.Between(4, 8), 0xffe08a, 1).setDepth(83)
+      this.tweens.add({ targets: p, x: cx + Math.cos(ang) * spd, y: cy + Math.sin(ang) * spd, alpha: 0, scale: 0.2, duration: 540, ease: 'Quad.easeOut', onComplete: () => p.destroy() })
+    }
     // 清掉屏上所有小怪，并对 BOSS 知识重创 2。
     ;(this.enemies.getChildren() as Enemy[]).slice().forEach((e) => {
       if (e.dead) return
@@ -664,6 +772,7 @@ export class ArenaScene extends Phaser.Scene {
   private win(): void {
     if (this.over) return
     this.over = true
+    this.cleanupTransient()
     playSfx('win')
     this.bridge.emit('gameover', 'won')
   }
@@ -671,12 +780,28 @@ export class ArenaScene extends Phaser.Scene {
   private lose(): void {
     if (this.over) return
     this.over = true
+    this.cleanupTransient()
     playSfx('lose')
     this.bridge.emit('gameover', 'lost')
   }
 
+  /** 收尾：收起飘题、恢复时间缩放、关掉残留的答题卡片（避免胜负后还卡着）。 */
+  private cleanupTransient(): void {
+    this.floatingQuiz?.dismiss()
+    this.floatingQuiz = undefined
+    this.restoreTimeScale()
+    this.slowmoUntil = 0
+    if (this.pending) {
+      this.pending = null
+      this.quizTimer?.remove()
+      this.quizTimer = undefined
+      this.bridge.emit('quiz:close', undefined)
+    }
+  }
+
   private restartLevel(): void {
-    // 用场景重启从当前关重开（init 会重置状态）。
+    // 用场景重启从当前关重开（init 会重置状态）。先恢复时间缩放，避免慢镜带进新局。
+    this.cleanupTransient()
     this.scene.restart({ ...this.cfg, startLevel: this.level } as SceneConfig)
   }
 
@@ -712,6 +837,55 @@ export class ArenaScene extends Phaser.Scene {
         onComplete: () => p.destroy(),
       })
     }
+  }
+
+  /** 真理巴掌命中点：白色冲击星 + 四射火花线（巴掌感）。 */
+  private slapImpact(x: number, y: number, crit: boolean): void {
+    const color = crit ? 0xffd23f : 0xffffff
+    // 冲击星（快速放大淡出）。
+    const star = this.add.star(x, y, crit ? 6 : 5, 6, crit ? 22 : 16, color, 0.95).setDepth(96)
+    this.tweens.add({ targets: star, scale: crit ? 2.4 : 1.8, alpha: 0, angle: 60, duration: 220, ease: 'Quad.easeOut', onComplete: () => star.destroy() })
+    // 火花线（一字排开向命中方向飞）。
+    const dir = this.hero.facing
+    for (let i = 0; i < (crit ? 6 : 4); i++) {
+      const ang = (dir > 0 ? 0 : Math.PI) + Phaser.Math.FloatBetween(-0.6, 0.6)
+      const len = Phaser.Math.Between(18, 34)
+      const spark = this.add.rectangle(x, y, len, 3, color, 1).setDepth(96).setRotation(ang)
+      const spd = Phaser.Math.Between(120, 240)
+      this.tweens.add({ targets: spark, x: x + Math.cos(ang) * spd, y: y + Math.sin(ang) * spd, alpha: 0, duration: 240, ease: 'Quad.easeOut', onComplete: () => spark.destroy() })
+    }
+  }
+
+  /** 连击发光：连击越高，主角身上的光晕越亮越大（逐级升）。 */
+  private comboGlow(): void {
+    if (this.combo < 2) return
+    const tier = Math.min(this.combo, 12)
+    const color = this.combo >= 9 ? 0xff5a8a : this.combo >= 5 ? 0xffd23f : 0x9fe0ff
+    const glow = this.add.circle(this.hero.x, this.hero.y - this.hero.displayHeight * 0.5, 24 + tier * 4, color, 0.5).setDepth(48)
+    this.tweens.add({ targets: glow, scale: 1.8, alpha: 0, duration: 300, ease: 'Quad.easeOut', onComplete: () => glow.destroy() })
+  }
+
+  /** 答对冲击波：按科目配色的扩张光环（短促有力）。 */
+  private shockwave(x: number, y: number, color: number): void {
+    const ring = this.add.circle(x, y, 16, color, 0.0).setDepth(82)
+    ring.setStrokeStyle(8, color, 0.85)
+    this.tweens.add({ targets: ring, radius: 260, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() })
+  }
+
+  /** 微慢镜：把物理/动画时间缩放压低一小段后自动恢复（大招/重击的「定格感」）。 */
+  private slowmo(ms: number, scale: number): void {
+    this.slowmoUntil = Math.max(this.slowmoUntil, this.time.now + ms)
+    this.time.timeScale = scale
+    this.physics.world.timeScale = 1 / scale // arcade 的 timeScale 是倒数语义（越大越慢）
+    this.tweens.timeScale = scale
+    this.anims.globalTimeScale = scale
+  }
+
+  private restoreTimeScale(): void {
+    this.time.timeScale = 1
+    this.physics.world.timeScale = 1
+    this.tweens.timeScale = 1
+    this.anims.globalTimeScale = 1
   }
 
   // ── HUD 推送 ─────────────────────────────────────────────────────────
@@ -754,6 +928,18 @@ export class ArenaScene extends Phaser.Scene {
     if (this.over) return
     const dt = delta / 1000
     this.updateWeather(dt)
+
+    // 微慢镜到时恢复。
+    if (this.slowmoUntil && this.time.now >= this.slowmoUntil) {
+      this.slowmoUntil = 0
+      this.restoreTimeScale()
+    }
+
+    // 学霸大招飘题跟随主角头顶。
+    if (this.floatingQuiz && !this.floatingQuiz.isResolved) {
+      const qx = Phaser.Math.Clamp(this.hero.x, this.cameras.main.scrollX + 200, this.cameras.main.scrollX + this.W - 200)
+      this.floatingQuiz.follow(qx, this.hero.y - this.hero.displayHeight - 70)
+    }
 
     const frozen = this.frozen
 

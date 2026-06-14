@@ -53,44 +53,51 @@ export function QuizModal({
   }
 
   const danger = left <= 5
-  const isBoss = payload.source === 'boss'
+
+  // Boss 知识闸：紧凑的顶部飘浮卡片（不全屏压黑、不卡屏），答完/超时即自动收起。
+  // 限时条画在卡片顶部，随剩余秒收缩。
+  const pct = Math.max(0, Math.round((left / payload.seconds) * 100))
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-30 flex items-end justify-center bg-black/45 p-3 backdrop-blur-sm sm:items-center">
-      <div className="bs-pop w-full max-w-lg rounded-3xl border-2 border-white/30 bg-white/95 p-5 shadow-2xl">
-        <div className="mb-2 flex items-center justify-between">
-          <span
-            className={cn(
-              'rounded-full px-3 py-1 text-xs font-bold',
-              isBoss ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700',
-            )}
-          >
-            {isBoss ? `🎓 知识破防 · ${payload.subjectLabel}` : `⚡ 学霸大招 · ${payload.subjectLabel}`}
-          </span>
-          <span className={cn('text-lg font-bold tabular-nums', danger ? 'bs-timer-danger' : 'text-ink-700')}>
-            ⏳ {left}s
-          </span>
+    <div className="pointer-events-none absolute inset-x-0 top-14 z-30 flex justify-center px-3 sm:top-16">
+      <div className="bs-pop pointer-events-auto w-full max-w-md overflow-hidden rounded-3xl border-2 border-rose-300/70 bg-white/95 shadow-2xl backdrop-blur">
+        {/* 顶部限时进度条 */}
+        <div className="h-1.5 w-full bg-rose-100">
+          <div
+            className={cn('h-full transition-[width] duration-1000 ease-linear', danger ? 'bg-rose-500' : 'bg-rose-400')}
+            style={{ width: `${pct}%` }}
+          />
         </div>
+        <div className="p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
+              🎓 领主弱点 · {payload.subjectLabel}
+            </span>
+            <span className={cn('text-base font-bold tabular-nums', danger ? 'bs-timer-danger' : 'text-ink-700')}>
+              ⏳ {left}s
+            </span>
+          </div>
 
-        <h3 className="mb-4 text-lg font-bold leading-snug text-ink-900">{payload.question.prompt}</h3>
+          <h3 className="mb-3 text-base font-bold leading-snug text-ink-900">{payload.question.prompt}</h3>
 
-        <div className="grid gap-2.5">
-          {payload.question.choices.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              disabled={picked != null}
-              onClick={() => choose(c.id)}
-              className={cn(
-                'min-h-12 rounded-2xl border-2 px-4 py-3 text-left text-base font-medium transition',
-                picked === c.id
-                  ? 'border-melon-500 bg-melon-50 text-melon-700'
-                  : 'border-ink-200 bg-white text-ink-800 hover:border-melon-400 hover:bg-melon-50/50 active:scale-[0.99]',
-              )}
-            >
-              {c.text}
-            </button>
-          ))}
+          <div className="grid gap-2">
+            {payload.question.choices.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                disabled={picked != null}
+                onClick={() => choose(c.id)}
+                className={cn(
+                  'min-h-11 rounded-2xl border-2 px-4 py-2.5 text-left text-base font-medium transition',
+                  picked === c.id
+                    ? 'border-melon-500 bg-melon-50 text-melon-700'
+                    : 'border-ink-200 bg-white text-ink-800 hover:border-melon-400 hover:bg-melon-50/50 active:scale-[0.99]',
+                )}
+              >
+                {c.text}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

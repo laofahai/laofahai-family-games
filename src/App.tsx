@@ -25,6 +25,7 @@ import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '
 import { hydrateBadges, recordPlayed, type BadgeDef } from '@/platform/badges'
 import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { contentReady, refreshContent } from '@/platform/content'
+import { loadRoster } from '@/platform/cloudRoster'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
 
@@ -120,6 +121,7 @@ export default function App() {
     refreshContent()
       .then(() => setContentLoaded(contentReady()))
       .catch(() => {})
+    void loadRoster() // 战斗名册（打老师/课间大乱斗用）：启动拉一次缓存到本机
     void hydratePlayer(playerId)
     void hydrateBadges(playerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps

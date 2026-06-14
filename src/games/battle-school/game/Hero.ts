@@ -1,23 +1,30 @@
-// 主角：Arcade Physics 精灵。左右跑、跳（重力）、近战攻击（前方短命中区）。
+// 主角：Arcade Physics 精灵。左右跑、跳（重力 + 起跳无敌帧）、近战「真理巴掌」（前方短命中区）。
 // 动画：移动=走路循环、静止=idle、空中=jump 帧、攻击=attack2 姿势、受击=hurt 闪红。
 // 朝向跟随移动翻转。挤压拉伸（squash-stretch）在起跳/落地由场景调用。
+// 头顶名字牌 + 血条由 Nameplate 负责（场景每帧调 syncPlate）。
 // 不含游戏规则（伤害数值、波次）——那些在 ArenaScene 里；本类只管「这一个角色怎么动怎么演」。
+// 美术沿用 Kenney「Toon Characters 1」：精灵 key 恒为 hero、攻击帧名 attack2。
+// TODO 性别区分待女版 Kenney 素材：现在不按性别换精灵，主角统一用 hero。
 
 import Phaser from 'phaser'
-import { HERO_KEY, texKey, walkAnimKey, SPRITE_SRC_H } from './assets'
+import { HERO_KEY, texKey, walkAnimKey } from './assets'
+import { Nameplate } from './Nameplate'
 
-const DISPLAY_H = 130 // 主角显示高（px）
+const DISPLAY_H = 138 // 主角显示高（px），脚底锚点
 const RUN_SPEED = 300 // 跑速 px/s
-const JUMP_V = 760 // 起跳初速度
+const JUMP_V = 780 // 起跳初速度
 export const HERO_MAX_HP = 6
-const ATTACK_MS = 260 // 一次攻击动作时长
+const ATTACK_MS = 280 // 一次攻击动作时长
 const HURT_MS = 280 // 受击硬直/闪红时长
 const INVULN_MS = 600 // 受击后短暂无敌
+const JUMP_IFRAME_MS = 360 // 起跳上升段无敌帧（用于跳跃躲攻击）
 
 export class Hero extends Phaser.Physics.Arcade.Sprite {
   hp = HERO_MAX_HP
   maxHp = HERO_MAX_HP
   facing: 1 | -1 = 1
+  readonly displayName: string
+  plate: Nameplate
   private attacking = false
   private hurtUntil = 0 // 闪红/硬直结束时间戳
   invulnUntil = 0 // 无敌结束时间戳
@@ -28,33 +35,39 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
   /** 攻击命中窗口是否开启。 */
   swingActive = false
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, displayName: string) {
     super(scene, x, y, texKey(HERO_KEY, 'idle'))
+    this.displayName = displayName
     scene.add.existing(this)
     scene.physics.add.existing(this)
 
-    const scale = DISPLAY_H / SPRITE_SRC_H
+    // 按【该纹理真实高】缩放到统一显示高（Kenney 帧高一致，行为与常量相同，更稳妥）。
+    const scale = DISPLAY_H / this.height
     this.setScale(scale)
     this.setOrigin(0.5, 1) // 脚底为锚点，落在地面上
     const body = this.body as Phaser.Physics.Arcade.Body
     body.setCollideWorldBounds(true)
     // 物理体收窄到角色躯干（精灵有透明留白），避免「隔空挨打」。
-    const bw = this.displayWidth * 0.42
-    const bh = this.displayHeight * 0.82
+    const bw = this.displayWidth * 0.40
+    const bh = this.displayHeight * 0.84
     body.setSize(bw / scale, bh / scale)
     body.setOffset((this.width - bw / scale) / 2, this.height - bh / scale)
     this.setDepth(50)
 
-    // 攻击命中区（Zone + Arcade body），平时禁用、攻击窗口才启用。宽松些（更好打中）。
-    const zone = scene.add.zone(x, y, DISPLAY_H * 0.95, DISPLAY_H * 0.95)
+    // 攻击命中区（Zone + Arcade body），平时禁用、攻击窗口才启用。
+    // 高度收窄、贴身体中段：让跳跃能躲过地面攻击的同时巴掌仍好打。
+    const zone = scene.add.zone(x, y, DISPLAY_H * 0.95, DISPLAY_H * 0.7)
     scene.physics.add.existing(zone)
     const zb = zone.body as Phaser.Physics.Arcade.Body
     zb.setAllowGravity(false)
     zb.enable = false
     this.hitbox = zone as Hero['hitbox']
+
+    // 头顶名字牌 + 血条（主角名牌用淡蓝主色）。
+    this.plate = new Nameplate(scene, displayName, 0x7cc0ff, 56)
   }
 
-  /** 每帧由场景调用：根据移动意图驱动速度、动画、朝向。 */
+  /** 每帧由场景调用：根据移动意图驱动速度、动画、朝向，并同步名牌。 */
   drive(dir: -1 | 0 | 1, frozen: boolean): void {
     const body = this.body as Phaser.Physics.Arcade.Body
     const onGround = body.blocked.down || body.touching.down
@@ -73,13 +86,19 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
 
     this.flipX = this.facing === -1
 
-    // 攻击命中区贴在身体前方，跟随位置。
+    // 攻击命中区贴在身体前方，跟随位置（窄高度、贴身体中段，让跳跃能躲过地面攻击的同时巴掌仍好打）。
     const hb = this.hitbox.body
     const ahead = this.facing * this.displayWidth * 0.55
-    this.hitbox.setPosition(this.x + ahead, this.y - this.displayHeight * 0.5)
-    hb.reset(this.x + ahead - hb.halfWidth, this.y - this.displayHeight * 0.5 - hb.halfHeight)
+    const cy = this.y - this.displayHeight * 0.5
+    hb.reset(this.x + ahead - hb.halfWidth, cy - hb.halfHeight)
 
     this.updateAnim(dir, onGround)
+    this.syncPlate()
+  }
+
+  /** 同步头顶名牌/血条到当前位置与血量。 */
+  syncPlate(): void {
+    this.plate.update(this.x, this.y - this.displayHeight, this.hp / this.maxHp)
   }
 
   private updateAnim(dir: -1 | 0 | 1, onGround: boolean): void {
@@ -115,21 +134,25 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
   jump(): void {
     if (!this.canJump()) return
     ;(this.body as Phaser.Physics.Arcade.Body).setVelocityY(-JUMP_V)
+    // 起跳给一段无敌帧：上升段可越过地面攻击（不覆盖更长的受击无敌）。
+    this.invulnUntil = Math.max(this.invulnUntil, this.scene.time.now + JUMP_IFRAME_MS)
     // 起跳挤压拉伸（果冻感）。
     this.scene.tweens.add({ targets: this, scaleY: this.scaleY * 1.12, scaleX: this.scaleX * 0.9, duration: 90, yoyo: true })
   }
 
-  /** 触发一次攻击：开启命中窗口（场景在 overlap 里判敌）。返回是否真的挥出。 */
+  /** 触发一次攻击（真理巴掌）：开启命中窗口（场景在 overlap 里判敌）。返回是否真的挥出。 */
   startAttack(): boolean {
     if (this.attacking || this.scene.time.now < this.hurtUntil) return false
     this.attacking = true
     this.hitThisSwing.clear()
+    // 巴掌起手：精灵 scale-pop（更有挥击感）。
+    this.scene.tweens.add({ targets: this, scaleX: this.scaleX * 1.12, scaleY: this.scaleY * 0.94, duration: 80, yoyo: true })
     // 命中窗口在动作中段开启（提前蓄、收招前关）。
     this.scene.time.delayedCall(70, () => {
       this.swingActive = true
       this.hitbox.body.enable = true
     })
-    this.scene.time.delayedCall(70 + 130, () => {
+    this.scene.time.delayedCall(70 + 140, () => {
       this.swingActive = false
       this.hitbox.body.enable = false
     })
@@ -137,7 +160,7 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
       this.attacking = false
     })
     // 挥拳前冲一点。
-    ;(this.body as Phaser.Physics.Arcade.Body).setVelocityX(this.facing * RUN_SPEED * 0.5)
+    ;(this.body as Phaser.Physics.Arcade.Body).setVelocityX(this.facing * RUN_SPEED * 0.55)
     return true
   }
 
@@ -173,5 +196,10 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
 
   isDead(): boolean {
     return this.hp <= 0
+  }
+
+  destroy(fromScene?: boolean): void {
+    this.plate?.destroy()
+    super.destroy(fromScene)
   }
 }

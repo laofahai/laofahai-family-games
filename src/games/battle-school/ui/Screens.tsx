@@ -20,12 +20,13 @@ export function StartScreen({
   return (
     <Center>
       <div className="text-6xl">🥊</div>
-      <h2 className="font-display text-3xl text-white">课间大乱斗</h2>
+      <h2 className="font-display text-3xl text-white">觉醒者</h2>
+      <p className="text-xs uppercase tracking-widest text-white/50">课间大乱斗</p>
       <p className="max-w-sm text-sm text-white/80">
-        揍翻拦路同学，闯过 {totalLevels} 关。关底老师有「学霸护盾」，得靠 <b>答题</b> 才能打破！
-        能量满了按技能放 <b>学霸大招</b>。
+        全校都被「虚空·愚昧」格式化成只会发呆的空壳。只有你——觉醒者 <b>{playerName}</b>——还在思考。
+        用「<b>真理巴掌</b>」把同学一个个唤醒，闯过 {totalLevels} 关。关底老师有「学霸护盾」，只有 <b>答对题</b> 才能破防！
       </p>
-      <p className="text-sm text-white/70">主角：{playerName}</p>
+      <p className="text-sm text-white/70">觉醒者：{playerName}</p>
       <div className="mt-2 flex flex-col items-stretch gap-2">
         {canContinue && (
           <Button onClick={onContinue} size="lg" className="min-w-56">
@@ -37,7 +38,7 @@ export function StartScreen({
         </Button>
       </div>
       <p className="mt-2 text-xs text-white/60">
-        键盘：A/D 或 ←/→ 移动，W/↑/空格 跳，J 攻击，K 大招，L 切换技能。手机用屏幕按钮。
+        键盘：A/D 或 ←/→ 移动，W/↑/空格 跳（可躲攻击），J 真理巴掌，K 大招，L 切换技能。手机用左摇杆 + 右按钮。
       </p>
     </Center>
   )

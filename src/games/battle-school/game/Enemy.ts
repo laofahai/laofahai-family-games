@@ -1,14 +1,19 @@
 // 敌人：同学小怪 + 老师 BOSS，都是 Arcade Physics 精灵，带真 AI。
 //   · 小怪：朝主角走，贴近就发起攻击（lunge + 冷却 ~1s）主动揍主角；被主角命中区打到→击退+闪红+扣血，死则倒地淡出。
-//   · BOSS：teacher 精灵更大 + 教鞭/眼镜道具 + 皇冠；对普通近战免疫（学霸护盾，命中只弹开冒「免疫」），
+//   · BOSS：teacher 精灵更大 + 皇冠 + 护盾光环；对普通近战免疫（学霸护盾，命中只弹开冒「免疫」），
 //     只能靠答题（知识）扣血。BOSS 也会主动逼近并周期性攻击主角。
+//   · 所有敌人头顶有名字牌 + 血条（Nameplate）。
+//   · lunge 命中区在身体/地面高度，跳跃可越过（命中判定见 lungeHitsAt）。
 // 本类只管单体行为与表演；波次/数值/答题闸在 ArenaScene。
+// 美术沿用 Kenney「Toon Characters 1」：精灵 key=kidA–D / teacher，攻击帧名 attack2。
+// TODO 性别区分待女版 Kenney 素材：现在不按性别换精灵。
 
 import Phaser from 'phaser'
-import { texKey, walkAnimKey, SPRITE_SRC_H } from './assets'
+import { texKey, walkAnimKey } from './assets'
+import { Nameplate } from './Nameplate'
 
-const MOB_DISPLAY_H = 122
-const BOSS_DISPLAY_H = 186
+const MOB_DISPLAY_H = 128
+const BOSS_DISPLAY_H = 188
 const MOB_SPEED = 90 // 小怪基础移动速度（每个体略随机）
 const BOSS_SPEED = 70
 const ATTACK_RANGE = 96 // 进入该距离就尝试攻击主角
@@ -27,18 +32,18 @@ export interface EnemyOpts {
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   readonly isBoss: boolean
   readonly enemyName: string
+  readonly charKey: string
   hp: number
   maxHp: number
   facing: 1 | -1 = -1
   dead = false
+  plate: Nameplate
   private speed: number
   private nextAttackAt = 0
   private lungeUntil = 0 // lunge 攻击命中窗口结束
   private hurtUntil = 0
   /** 本次 lunge 是否已经打到过主角（避免一次扑击连扣）。 */
   lungeHitDone = false
-  /** BOSS 专属道具（眼镜+教鞭），跟随翻转/位置。 */
-  prop?: Phaser.GameObjects.Graphics
   crown?: Phaser.GameObjects.Text
   shield?: Phaser.GameObjects.Arc // BOSS 护盾光环
 
@@ -48,25 +53,31 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this)
     this.isBoss = opts.isBoss
     this.enemyName = opts.name
+    this.charKey = opts.charKey
     this.hp = opts.hp
     this.maxHp = opts.hp
     this.speed = opts.speed ?? (opts.isBoss ? BOSS_SPEED : MOB_SPEED)
 
     const displayH = opts.isBoss ? BOSS_DISPLAY_H : MOB_DISPLAY_H
-    const scale = displayH / SPRITE_SRC_H
+    // 按【该纹理真实高】缩放到目标显示高（Kenney 帧高一致，行为与常量相同，更稳妥）。
+    const scale = displayH / this.height
     this.setScale(scale)
     this.setOrigin(0.5, 1)
     const body = this.body as Phaser.Physics.Arcade.Body
     body.setCollideWorldBounds(true)
-    const bw = this.displayWidth * 0.42
-    const bh = this.displayHeight * 0.82
+    const bw = this.displayWidth * 0.40
+    const bh = this.displayHeight * 0.84
     body.setSize(bw / scale, bh / scale)
     body.setOffset((this.width - bw / scale) / 2, this.height - bh / scale)
     this.setDepth(opts.isBoss ? 45 : 40)
     this.setData('ref', this) // 便于从 overlap 的 GameObject 反查实例
 
+    // 名牌：小怪暖橙、Boss 红 + 更宽更大字。
+    this.plate = opts.isBoss
+      ? new Nameplate(scene, opts.name, 0xff6b6b, 110, 18)
+      : new Nameplate(scene, opts.name, 0xffb347, 48, 13)
+
     if (opts.isBoss) {
-      this.prop = scene.add.graphics().setDepth(46)
       this.crown = scene.add.text(x, y, '👑', { fontSize: '34px' }).setOrigin(0.5, 1).setDepth(47)
       this.shield = scene.add.circle(x, y - displayH * 0.5, displayH * 0.62, 0x7cc0ff, 0.14).setDepth(44)
       this.shield.setStrokeStyle(3, 0x9fd0ff, 0.5)
@@ -107,6 +118,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     this.updateAnim(now, body, inLunge)
     this.syncProps()
+    // 名牌跟随头顶。
+    this.plate.update(this.x, this.y - this.displayHeight, this.hp / this.maxHp)
   }
 
   private startLunge(now: number): void {
@@ -114,27 +127,27 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.nextAttackAt = now + (this.isBoss ? BOSS_ATTACK_CD : MOB_ATTACK_CD)
     this.lungeHitDone = false
     // 攻击姿势 + 前探一下（手感）。
-    this.setTexture(texKey(this.texKeyBase(), 'attack2'))
+    this.setTexture(texKey(this.charKey, 'attack2'))
     this.scene.tweens.add({ targets: this, scaleY: this.scaleY * 0.92, scaleX: this.scaleX * 1.08, duration: 90, yoyo: true })
   }
 
   private updateAnim(now: number, body: Phaser.Physics.Arcade.Body, inLunge: boolean): void {
     if (now < this.hurtUntil) {
       this.anims.stop()
-      this.setTexture(texKey(this.texKeyBase(), 'hurt'))
+      this.setTexture(texKey(this.charKey, 'hurt'))
       return
     }
     if (inLunge) {
       this.anims.stop()
-      this.setTexture(texKey(this.texKeyBase(), 'attack2'))
+      this.setTexture(texKey(this.charKey, 'attack2'))
       return
     }
     if (Math.abs(body.velocity.x) > 5) {
-      const key = walkAnimKey(this.texKeyBase())
+      const key = walkAnimKey(this.charKey)
       if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.anims.play(key, true)
     } else {
       this.anims.stop()
-      this.setTexture(texKey(this.texKeyBase(), 'idle'))
+      this.setTexture(texKey(this.charKey, 'idle'))
     }
   }
 
@@ -143,12 +156,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return now < this.lungeUntil && !this.lungeHitDone
   }
 
-  /** 从纹理 key 还原角色款式前缀（hero_idle → hero）。 */
-  private texKeyBase(): string {
-    // 构造时 setTexture 用的是 `${charKey}_idle`，这里反推 charKey。
-    const k = this.texture.key
-    const us = k.lastIndexOf('_')
-    return us > 0 ? k.slice(0, us) : k
+  /**
+   * lunge 攻击是否能打到处于 heroFootY 高度的主角：
+   * 攻击在身体/地面高度，主角脚底高于敌人攻击线（即跳起来了）就躲过。
+   * @param heroFootY 主角脚底 y（origin 在脚）
+   */
+  lungeHitsAt(heroFootY: number): boolean {
+    // 敌人攻击线大致在它身体下半段；主角脚底比这条线还高出一截 = 跳过去了。
+    const attackLine = this.y - this.displayHeight * 0.35
+    return heroFootY >= attackLine
   }
 
   private syncProps(): void {
@@ -156,26 +172,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const topY = this.y - this.displayHeight
     if (this.crown) this.crown.setPosition(this.x, topY + 14)
     if (this.shield) this.shield.setPosition(this.x, this.y - this.displayHeight * 0.5)
-    if (this.prop) {
-      // 重画教鞭+眼镜，跟随朝向。
-      const g = this.prop
-      g.clear()
-      const cx = this.x
-      const eyeY = this.y - this.displayHeight * 0.72
-      const dir = this.facing
-      // 眼镜
-      g.lineStyle(3, 0x222222, 1)
-      g.strokeCircle(cx - 11 * dir, eyeY, 9)
-      g.strokeCircle(cx + 11 * dir, eyeY, 9)
-      g.lineBetween(cx - 2 * dir, eyeY, cx + 2 * dir, eyeY)
-      // 教鞭（手里斜指）
-      const handX = cx + dir * this.displayWidth * 0.28
-      const handY = this.y - this.displayHeight * 0.42
-      g.lineStyle(5, 0x8a5a2b, 1)
-      g.lineBetween(handX, handY, handX + dir * 56, handY - 40)
-      g.fillStyle(0xffe08a, 1)
-      g.fillCircle(handX + dir * 56, handY - 40, 5)
-    }
   }
 
   /** 受近战命中：小怪扣血+击退+闪红；BOSS 免疫（返回 'immune'）。返回结果给场景做表演。 */
@@ -220,7 +216,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dead = true
     const body = this.body as Phaser.Physics.Arcade.Body
     body.enable = false
-    this.setTexture(texKey(this.texKeyBase(), 'hurt'))
+    this.setTexture(texKey(this.charKey, 'hurt'))
+    this.plate.setVisible(false)
     this.scene.tweens.add({
       targets: this,
       angle: this.facing === 1 ? -90 : 90,
@@ -232,13 +229,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     })
     if (this.crown) this.scene.tweens.add({ targets: this.crown, alpha: 0, y: this.crown.y - 30, duration: 460 })
     if (this.shield) this.scene.tweens.add({ targets: this.shield, alpha: 0, duration: 300 })
-    if (this.prop) this.scene.tweens.add({ targets: this.prop, alpha: 0, duration: 300 })
   }
 
   private cleanup(): void {
     this.crown?.destroy()
     this.shield?.destroy()
-    this.prop?.destroy()
+    this.plate.destroy()
     this.destroy()
   }
 }
