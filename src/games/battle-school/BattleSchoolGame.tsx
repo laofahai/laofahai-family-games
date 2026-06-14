@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react'
 import './anim.css'
 import { rosterFor } from '@/games/_battle/roster'
 import { contentFor } from '@/platform/content'
+import { LevelBadge } from '@/platform/LevelBadge'
+import type { LevelUp } from '@/platform/progression'
 import { initSfx } from '@/games/shared/sound'
 import { loadSavedLevel } from './storage'
 import { createGame } from './game/createGame'
@@ -37,6 +39,14 @@ export function BattleSchoolGame({ onExit, player }: { onExit: () => void; playe
   const [savedLevel] = useState<number | null>(() => loadSavedLevel(player))
   // 每次开局 +1，强制重挂 Phaser 容器（彻底重置场景）。
   const [runKey, setRunKey] = useState(0)
+  // 升级提示：拿到 LevelUp 回执就弹一下「叮——升级！」。现在没人触发（加经验需 ArenaScene，
+  // 由另一位负责战斗的 agent 接），先把 UI 接好，trigger 留作后续传入 PlayRun 的回调。
+  const [levelUp, setLevelUp] = useState<LevelUp | null>(null)
+  // 战斗端将来用：把这个回调喂给 PlayRun / 桥接，命中升级时调用即弹层。当前为预留出口。
+  const handleLevelUp = (info: LevelUp) => {
+    if (info.leveledUp) setLevelUp(info)
+  }
+  void handleLevelUp // 预留：尚无消费者（战斗经验由 ArenaScene 那边接入）
 
   // 内容只在 DB：题库没拉到就别进对局（App 已有内容门，这里再兜一层）。
   const hasQuestions = contentFor('battle-questions', []).length > 0
@@ -81,6 +91,45 @@ export function BattleSchoolGame({ onExit, player }: { onExit: () => void; playe
 
       {phase === 'won' && <WinScreen onAgain={() => begin(0)} onExit={onExit} />}
       {phase === 'lost' && <LoseScreen onRetry={() => begin(startLevel)} onExit={onExit} />}
+
+      {/* 成长牌：开始页 / 胜利页右上角浮一张当前玩家的等级·称号·金币牌（盖在 Screen 浮层之上）。 */}
+      {(phase === 'start' || phase === 'won') && (
+        <div className="pointer-events-none absolute right-3 top-3 z-[60]">
+          <LevelBadge playerId={player} compact />
+        </div>
+      )}
+
+      {/* 升级提示浮层：现在没人触发（trigger 预留），有数据时自动弹出并几秒后消失。 */}
+      <LevelUpToast levelUp={levelUp} onDone={() => setLevelUp(null)} />
+    </div>
+  )
+}
+
+/**
+ * 升级提示：传入非空 LevelUp 即弹一张「叮——升级！」小卡，几秒后自动消失。
+ * 纯展示浮层，不读写进度——触发权在父组件（战斗端将来命中升级时 setLevelUp）。
+ */
+function LevelUpToast({ levelUp, onDone }: { levelUp: LevelUp | null; onDone: () => void }) {
+  useEffect(() => {
+    if (!levelUp) return
+    const t = setTimeout(onDone, 2600)
+    return () => clearTimeout(t)
+    // onDone 由父组件每次渲染重建但只用于清场，无需进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelUp])
+
+  if (!levelUp) return null
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-16 z-[70] flex justify-center">
+      <div className="bs-cap-toss flex items-center gap-3 rounded-2xl border border-melon-300 bg-white/95 px-5 py-3 shadow-xl">
+        <span className="text-2xl" aria-hidden>
+          ⬆️
+        </span>
+        <div className="text-left">
+          <div className="font-display text-lg text-ink-900">升级啦！Lv.{levelUp.level}</div>
+          <div className="text-xs text-melon-700">新称号 · {levelUp.title}</div>
+        </div>
+      </div>
     </div>
   )
 }

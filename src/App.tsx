@@ -23,6 +23,8 @@ import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
 import { hydrateBadges, recordPlayed, type BadgeDef } from '@/platform/badges'
+import { hydrateProgress } from '@/platform/progression'
+import { LevelBadge } from '@/platform/LevelBadge'
 import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { contentReady, refreshContent } from '@/platform/content'
 import { loadRoster } from '@/platform/cloudRoster'
@@ -85,6 +87,9 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>(getPlayers)
   const [playerId, setPlayerId] = useState<string>(getCurrentPlayer)
   const [newBadges, setNewBadges] = useState<BadgeDef[]>([])
+  // 进度（等级/称号/金币）是 localStorage 同步读的；hydrateProgress 异步合并完云端后
+  // 改本地缓存，需要 bump 这个版本号触发顶栏等级牌重读最新数据。
+  const [progressVersion, setProgressVersion] = useState(0)
   // 内容只在数据库：首次进入若本机还没缓存，先拦一道「加载中」门，拉到再放行
   const [contentLoaded, setContentLoaded] = useState(contentReady)
   const currentPlayer = players.find((p) => p.id === playerId)
@@ -106,6 +111,7 @@ export default function App() {
     setCurrentPlayer(id)
     void hydratePlayer(id) // 连了同步码的人，切到 TA 就先把云端进度拉回合并
     void hydrateBadges(id) // 勋章也跟着拉回来
+    void hydrateProgress(id).then(() => setProgressVersion((v) => v + 1)) // 成长（等级/金币）也拉回，拉完刷新顶栏牌
   }
 
   // 进一个游戏：记「这个人玩过它」（探索勋章用），顺手评出新勋章弹庆祝
@@ -124,6 +130,7 @@ export default function App() {
     void loadRoster() // 战斗名册（打老师/课间大乱斗用）：启动拉一次缓存到本机
     void hydratePlayer(playerId)
     void hydrateBadges(playerId)
+    void hydrateProgress(playerId).then(() => setProgressVersion((v) => v + 1))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -218,17 +225,21 @@ export default function App() {
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowMe(true)}
-              className="flex items-center gap-2 self-start rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
-            >
-              <UserRound className="h-4 w-4 text-melon-600" />
-              <span className="text-ink-400">我</span>
-              <span>{currentPlayer?.emoji ?? '🙂'}</span>
-              <span>{currentPlayer?.name ?? '选一个'}</span>
-              <span className="text-ink-400">▾</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 self-start">
+              {/* 顶栏成长牌：当前玩家在《觉醒者》里的等级 / 中二称号 / 金币 */}
+              <LevelBadge key={`${playerId}:${progressVersion}`} playerId={playerId} compact />
+              <button
+                type="button"
+                onClick={() => setShowMe(true)}
+                className="flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
+              >
+                <UserRound className="h-4 w-4 text-melon-600" />
+                <span className="text-ink-400">我</span>
+                <span>{currentPlayer?.emoji ?? '🙂'}</span>
+                <span>{currentPlayer?.name ?? '选一个'}</span>
+                <span className="text-ink-400">▾</span>
+              </button>
+            </div>
           </header>
         )}
 
