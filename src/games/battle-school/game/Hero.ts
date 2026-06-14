@@ -1,0 +1,177 @@
+// 主角：Arcade Physics 精灵。左右跑、跳（重力）、近战攻击（前方短命中区）。
+// 动画：移动=走路循环、静止=idle、空中=jump 帧、攻击=attack2 姿势、受击=hurt 闪红。
+// 朝向跟随移动翻转。挤压拉伸（squash-stretch）在起跳/落地由场景调用。
+// 不含游戏规则（伤害数值、波次）——那些在 ArenaScene 里；本类只管「这一个角色怎么动怎么演」。
+
+import Phaser from 'phaser'
+import { HERO_KEY, texKey, walkAnimKey, SPRITE_SRC_H } from './assets'
+
+const DISPLAY_H = 130 // 主角显示高（px）
+const RUN_SPEED = 300 // 跑速 px/s
+const JUMP_V = 760 // 起跳初速度
+export const HERO_MAX_HP = 6
+const ATTACK_MS = 260 // 一次攻击动作时长
+const HURT_MS = 280 // 受击硬直/闪红时长
+const INVULN_MS = 600 // 受击后短暂无敌
+
+export class Hero extends Phaser.Physics.Arcade.Sprite {
+  hp = HERO_MAX_HP
+  maxHp = HERO_MAX_HP
+  facing: 1 | -1 = 1
+  private attacking = false
+  private hurtUntil = 0 // 闪红/硬直结束时间戳
+  invulnUntil = 0 // 无敌结束时间戳
+  /** 攻击命中区（前方的不可见矩形，仅在攻击窗口内启用）。 */
+  hitbox!: Phaser.GameObjects.Zone & { body: Phaser.Physics.Arcade.Body }
+  /** 命中过的敌人（一次挥击只打一次同一个目标）。 */
+  hitThisSwing = new Set<Phaser.GameObjects.GameObject>()
+  /** 攻击命中窗口是否开启。 */
+  swingActive = false
+
+  constructor(scene: Phaser.Scene, x: number, y: number) {
+    super(scene, x, y, texKey(HERO_KEY, 'idle'))
+    scene.add.existing(this)
+    scene.physics.add.existing(this)
+
+    const scale = DISPLAY_H / SPRITE_SRC_H
+    this.setScale(scale)
+    this.setOrigin(0.5, 1) // 脚底为锚点，落在地面上
+    const body = this.body as Phaser.Physics.Arcade.Body
+    body.setCollideWorldBounds(true)
+    // 物理体收窄到角色躯干（精灵有透明留白），避免「隔空挨打」。
+    const bw = this.displayWidth * 0.42
+    const bh = this.displayHeight * 0.82
+    body.setSize(bw / scale, bh / scale)
+    body.setOffset((this.width - bw / scale) / 2, this.height - bh / scale)
+    this.setDepth(50)
+
+    // 攻击命中区（Zone + Arcade body），平时禁用、攻击窗口才启用。宽松些（更好打中）。
+    const zone = scene.add.zone(x, y, DISPLAY_H * 0.95, DISPLAY_H * 0.95)
+    scene.physics.add.existing(zone)
+    const zb = zone.body as Phaser.Physics.Arcade.Body
+    zb.setAllowGravity(false)
+    zb.enable = false
+    this.hitbox = zone as Hero['hitbox']
+  }
+
+  /** 每帧由场景调用：根据移动意图驱动速度、动画、朝向。 */
+  drive(dir: -1 | 0 | 1, frozen: boolean): void {
+    const body = this.body as Phaser.Physics.Arcade.Body
+    const onGround = body.blocked.down || body.touching.down
+
+    if (frozen) {
+      body.setVelocityX(0)
+    } else if (!this.attacking) {
+      body.setVelocityX(dir * RUN_SPEED)
+      if (dir !== 0) {
+        this.facing = dir
+      }
+    } else {
+      // 攻击时小幅向前冲（手感），但不接受新方向。
+      body.setVelocityX(body.velocity.x * 0.8)
+    }
+
+    this.flipX = this.facing === -1
+
+    // 攻击命中区贴在身体前方，跟随位置。
+    const hb = this.hitbox.body
+    const ahead = this.facing * this.displayWidth * 0.55
+    this.hitbox.setPosition(this.x + ahead, this.y - this.displayHeight * 0.5)
+    hb.reset(this.x + ahead - hb.halfWidth, this.y - this.displayHeight * 0.5 - hb.halfHeight)
+
+    this.updateAnim(dir, onGround)
+  }
+
+  private updateAnim(dir: -1 | 0 | 1, onGround: boolean): void {
+    if (this.attacking) {
+      this.anims.stop()
+      this.setTexture(texKey(HERO_KEY, 'attack2'))
+      return
+    }
+    if (this.scene.time.now < this.hurtUntil) {
+      this.anims.stop()
+      this.setTexture(texKey(HERO_KEY, 'hurt'))
+      return
+    }
+    if (!onGround) {
+      this.anims.stop()
+      this.setTexture(texKey(HERO_KEY, 'jump'))
+      return
+    }
+    if (dir !== 0) {
+      const key = walkAnimKey(HERO_KEY)
+      if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.anims.play(key, true)
+    } else {
+      this.anims.stop()
+      this.setTexture(texKey(HERO_KEY, 'idle'))
+    }
+  }
+
+  canJump(): boolean {
+    const body = this.body as Phaser.Physics.Arcade.Body
+    return (body.blocked.down || body.touching.down) && !this.attacking
+  }
+
+  jump(): void {
+    if (!this.canJump()) return
+    ;(this.body as Phaser.Physics.Arcade.Body).setVelocityY(-JUMP_V)
+    // 起跳挤压拉伸（果冻感）。
+    this.scene.tweens.add({ targets: this, scaleY: this.scaleY * 1.12, scaleX: this.scaleX * 0.9, duration: 90, yoyo: true })
+  }
+
+  /** 触发一次攻击：开启命中窗口（场景在 overlap 里判敌）。返回是否真的挥出。 */
+  startAttack(): boolean {
+    if (this.attacking || this.scene.time.now < this.hurtUntil) return false
+    this.attacking = true
+    this.hitThisSwing.clear()
+    // 命中窗口在动作中段开启（提前蓄、收招前关）。
+    this.scene.time.delayedCall(70, () => {
+      this.swingActive = true
+      this.hitbox.body.enable = true
+    })
+    this.scene.time.delayedCall(70 + 130, () => {
+      this.swingActive = false
+      this.hitbox.body.enable = false
+    })
+    this.scene.time.delayedCall(ATTACK_MS, () => {
+      this.attacking = false
+    })
+    // 挥拳前冲一点。
+    ;(this.body as Phaser.Physics.Arcade.Body).setVelocityX(this.facing * RUN_SPEED * 0.5)
+    return true
+  }
+
+  isAttacking(): boolean {
+    return this.attacking
+  }
+
+  /** 受击：扣血、闪红、短无敌、击退。返回是否真的受伤（无敌期内不受）。 */
+  takeHit(dmg: number, fromX: number): boolean {
+    const now = this.scene.time.now
+    if (now < this.invulnUntil) return false
+    this.hp = Math.max(0, this.hp - dmg)
+    this.hurtUntil = now + HURT_MS
+    this.invulnUntil = now + INVULN_MS
+    this.attacking = false
+    this.swingActive = false
+    this.hitbox.body.enable = false
+    // 受击闪红 + 击退。
+    this.setTint(0xff5a5a)
+    this.scene.time.delayedCall(HURT_MS, () => this.clearTint())
+    const dir = this.x < fromX ? -1 : 1
+    ;(this.body as Phaser.Physics.Arcade.Body).setVelocity(dir * 280, -260)
+    // 受击闪烁（无敌提示）。
+    this.scene.tweens.add({ targets: this, alpha: 0.35, duration: 80, yoyo: true, repeat: 3, onComplete: () => this.setAlpha(1) })
+    return true
+  }
+
+  heal(n: number): void {
+    this.hp = Math.min(this.maxHp, this.hp + n)
+    this.setTint(0x7CFFB0)
+    this.scene.time.delayedCall(220, () => this.clearTint())
+  }
+
+  isDead(): boolean {
+    return this.hp <= 0
+  }
+}

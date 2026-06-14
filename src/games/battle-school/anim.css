@@ -19,27 +19,9 @@
 }
 .bs-timer-danger { animation: bs-timer-pulse 0.7s ease-in-out infinite; color: #f43f5e; }
 
-@keyframes bs-confetti-fall {
-  0% { transform: translateY(-20px) rotate(0); opacity: 1; }
-  100% { transform: translateY(120vh) rotate(720deg); opacity: 0.2; }
-}
-.bs-confetti {
-  position: absolute;
-  top: 0;
-  font-size: 22px;
-  animation: bs-confetti-fall linear forwards;
-}
-
 @keyframes bs-cap-toss {
   0% { transform: translateY(0) rotate(0); }
   40% { transform: translateY(-60px) rotate(180deg); }
   100% { transform: translateY(0) rotate(360deg); }
 }
 .bs-cap-toss { animation: bs-cap-toss 1.6s ease-in-out infinite; display: inline-block; }
-
-@keyframes bs-firework {
-  0% { transform: scale(0.2); opacity: 0; }
-  30% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
-.bs-firework { animation: bs-firework 1.4s ease-out infinite; display: inline-block; }
