@@ -71,7 +71,14 @@ export class ArenaScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private keys!: Record<string, Phaser.Input.Keyboard.Key>
   private touchDir: MoveDir = 0 // 触屏方向意图（叠加键盘）
-  private allKeys: Phaser.Input.Keyboard.Key[] = [] // 所有移动相关键（弹窗时统一清栓锁用）
+  // 移动方向走 window 级 DOM 事件（capture 阶段）追踪：React 弹窗抢焦点时也能收到 keyup，
+  // 按住的键不丢、松开必清——不再用 Phaser isDown/Key.reset()（reset 会把按住的键清成松开，
+  // 导致「按反方向无反应、必须重按原方向」#23）。
+  private heldLeft = false
+  private heldRight = false
+  private domKeyDown?: (e: KeyboardEvent) => void
+  private domKeyUp?: (e: KeyboardEvent) => void
+  private domBlur?: () => void
 
   // 局面状态（场景持有，唯一事实来源）
   private level = 0 // 0-based
@@ -175,6 +182,9 @@ export class ArenaScene extends Phaser.Scene {
     this.scale.on('resize', this.onResize, this)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.onResize, this)
+      if (this.domKeyDown) window.removeEventListener('keydown', this.domKeyDown, true)
+      if (this.domKeyUp) window.removeEventListener('keyup', this.domKeyUp, true)
+      if (this.domBlur) window.removeEventListener('blur', this.domBlur)
     })
   }
 
@@ -331,8 +341,20 @@ export class ArenaScene extends Phaser.Scene {
     const kb = this.input.keyboard!
     this.cursors = kb.createCursorKeys()
     this.keys = kb.addKeys('W,A,S,D,J,K,L,SPACE') as Record<string, Phaser.Input.Keyboard.Key>
-    // 移动相关键集合（含方向键），弹窗打开时统一清「按下栓锁」。
-    this.allKeys = [this.keys.A, this.keys.D, this.cursors.left, this.cursors.right]
+    // 移动方向用 window 级 DOM 事件追踪（capture：先于任何 stopPropagation；React 弹窗有焦点也收得到）。
+    // 按物理键码（KeyA/KeyD/Arrow*）判定，与键盘布局无关。
+    this.domKeyDown = (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.heldLeft = true
+      else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.heldRight = true
+    }
+    this.domKeyUp = (e) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.heldLeft = false
+      else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.heldRight = false
+    }
+    this.domBlur = () => { this.heldLeft = false; this.heldRight = false } // 切走窗口/失焦：别卡住方向
+    window.addEventListener('keydown', this.domKeyDown, true)
+    window.addEventListener('keyup', this.domKeyUp, true)
+    window.addEventListener('blur', this.domBlur)
     // 离散动作用 keydown 事件（避免每帧重复触发）。
     this.keys.J.on('down', () => this.doAttack())
     this.keys.K.on('down', () => this.doSkill())
@@ -346,15 +368,11 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   /**
-   * 清掉所有「移动方向」栓锁：触屏意图清零 + 重置 Phaser 键的 isDown 状态。
-   * 弹窗（答题卡片/飘题）打开时调用，避免暂停期间松/换键后仍按旧方向自动走，
-   * 也避免「按反方向无反应、必须重按同方向才解开」的卡死。弹窗关闭后下一帧重读实时输入。
+   * 清触屏方向意图（弹窗打开时调用，避免摇杆栓锁）。键盘方向不在这里处理——
+   * 它由 window 级 DOM keydown/keyup 实时反映真实按键，弹窗期间松键也收得到，无需 reset。
    */
   private clearMovementInput(): void {
     this.touchDir = 0
-    // Phaser 的 Key.reset() 会清掉 isDown/_justDown 等内部状态；DOM 仍持有真实按键，
-    // 玩家下次按下/松开会重新触发事件刷新状态，所以这里清掉旧栓锁是安全的。
-    for (const k of this.allKeys) k?.reset()
   }
 
   /** 把控制接口回填给 React 宿主（触屏按钮/答题/静音）。 */
@@ -1071,8 +1089,8 @@ export class ArenaScene extends Phaser.Scene {
     // 主角移动意图：键盘（A/D/←/→）叠加触屏。
     let dir: MoveDir = this.touchDir
     if (!frozen) {
-      const left = this.cursors.left.isDown || this.keys.A.isDown
-      const right = this.cursors.right.isDown || this.keys.D.isDown
+      const left = this.heldLeft
+      const right = this.heldRight
       if (left && !right) dir = -1
       else if (right && !left) dir = 1
       else if (this.touchDir !== 0) dir = this.touchDir
