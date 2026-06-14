@@ -9,6 +9,7 @@ import type { BattleQuestion } from '@/games/_battle/core'
 import { drawQuestions } from '@/games/_battle/questions'
 import type { DuelConfig, DuelState, Strike } from './types'
 import { topicToDrawArgs, QUESTION_BATCH } from './constants'
+import { randomAttackKind } from './duelTypes'
 
 export type DuelAction =
   | { type: 'START'; config: DuelConfig }
@@ -40,6 +41,8 @@ export function initDuel(config: DuelConfig): DuelState {
     lastStrike: null,
     winner: null,
     log: [],
+    fxSeq: 0,
+    battleId: 1,
   }
 }
 
@@ -68,6 +71,8 @@ export function duelReducer(state: DuelState, action: DuelAction): DuelState {
         lastStrike: null,
         winner: null,
         log: [],
+        fxSeq: state.fxSeq + 1,
+        battleId: state.battleId + 1, // 舞台据此复位双方
       }
 
     case 'BEGIN':
@@ -94,6 +99,7 @@ export function duelReducer(state: DuelState, action: DuelAction): DuelState {
           ...state.streak,
           [attacker]: correct ? streakBefore + 1 : 0,
         },
+        fxSeq: state.fxSeq + 1,
       } as DuelState
 
       const strike: Strike = {
@@ -104,6 +110,9 @@ export function duelReducer(state: DuelState, action: DuelAction): DuelState {
         target: res.target,
         victim,
         chosen: action.choiceId,
+        subject: state.current.subject,
+        kind: randomAttackKind(),
+        victimHpAfter: updatedVictim.hp,
       }
       next.lastStrike = strike
 

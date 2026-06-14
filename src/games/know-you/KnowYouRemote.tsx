@@ -23,7 +23,6 @@ import {
   type CollectedSubmission,
   type RoomSnapshot,
 } from '@/platform/rooms'
-import { knowQuestions } from './data/know-questions'
 import { contentFor } from '@/platform/content'
 import { ROLE_MAP } from './types'
 import type { KnowQuestion } from './types'
@@ -108,7 +107,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
     if (!code) return
     setBusy(true)
     await clearSubmissions(code)
-    const triviaQuestions = contentFor('know-you', knowQuestions).filter(
+    const triviaQuestions = contentFor<KnowQuestion>('know-you', []).filter(
       (q) => q.kind === 'trivia' && q.answer,
     )
     const [picked = triviaQuestions[0]] = pickUnseen('knowYou:remote', shuffle(triviaQuestions), (q) => q.text, 1)

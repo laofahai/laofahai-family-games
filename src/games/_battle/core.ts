@@ -73,8 +73,11 @@ export const SUBJECT_META: Record<string, { label: string; emoji: string }> = {
   chinese: { label: '语文', emoji: '📖' },
   english: { label: '英语', emoji: '🔤' },
   science: { label: '科学', emoji: '🔬' },
+  sports: { label: '体育', emoji: '🏃' },
   life: { label: '生活技能', emoji: '🧩' },
+  social: { label: '同学社交', emoji: '🤝' },
   interest: { label: '兴趣', emoji: '⭐' },
+  funny: { label: '搞笑', emoji: '😂' },
 }
 
 export function subjectLabel(subject: string): string {

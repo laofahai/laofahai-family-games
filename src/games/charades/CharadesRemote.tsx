@@ -14,7 +14,7 @@ import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
 import { contentFor } from '@/platform/content'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
-import { charadesWords } from './data/charades-words'
+import type { WordEntry } from './types'
 
 function shuffle<T>(items: T[]) {
   const next = [...items]
@@ -73,7 +73,7 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
   const dealWord = async (guesserSeat: number, r: number) => {
     if (!code) return
     setBusy(true)
-    const words = contentFor('charades', charadesWords)
+    const words = contentFor<WordEntry>('charades', [])
     const [word = words[0]] = pickUnseen('charades', shuffle(words), (w) => w.text, 1)
     const guesserName = members.find((m) => m.seat === guesserSeat)?.name ?? `${guesserSeat}号`
     await hostSet(code, {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { Gamepad2, Ghost, Sparkles, UserRound } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -7,7 +7,6 @@ import { CharadesGame } from '@/games/charades/CharadesGame'
 import { DiceGame } from '@/games/dice/DiceGame'
 import { DrawGame } from '@/games/draw/DrawGame'
 import { KnowYouGame } from '@/games/know-you/KnowYouGame'
-import { KnowledgeDuelGame } from '@/games/knowledge-duel/KnowledgeDuelGame'
 import { MemoryGame } from '@/games/memory/MemoryGame'
 import { PriceGame } from '@/games/price/PriceGame'
 import { SoundGame } from '@/games/sound/SoundGame'
@@ -25,9 +24,17 @@ import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/pla
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
 import { hydrateBadges, recordPlayed, type BadgeDef } from '@/platform/badges'
 import { BadgeUnlock } from '@/platform/BadgeUnlock'
-import { refreshContent } from '@/platform/content'
+import { contentReady, refreshContent } from '@/platform/content'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
+
+// Phaser 引擎游戏懒加载：把引擎挡在主包外，进到该游戏时再按需拉取
+const KnowledgeDuelGame = lazy(() =>
+  import('@/games/knowledge-duel/KnowledgeDuelGame').then((m) => ({ default: m.KnowledgeDuelGame }))
+)
+const BattleSchoolGame = lazy(() =>
+  import('@/games/battle-school/BattleSchoolGame').then((m) => ({ default: m.BattleSchoolGame }))
+)
 
 type Screen =
   | 'home'
@@ -44,6 +51,7 @@ type Screen =
   | 'sound'
   | 'memory'
   | 'knowledgeDuel'
+  | 'battleSchool'
 
 const games = GAMES
 const ACTIVE_GAMES = ACTIVE_GAME_IDS
@@ -76,6 +84,8 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>(getPlayers)
   const [playerId, setPlayerId] = useState<string>(getCurrentPlayer)
   const [newBadges, setNewBadges] = useState<BadgeDef[]>([])
+  // 内容只在数据库：首次进入若本机还没缓存，先拦一道「加载中」门，拉到再放行
+  const [contentLoaded, setContentLoaded] = useState(contentReady)
   const currentPlayer = players.find((p) => p.id === playerId)
 
   // 大人（爸妈/管理员）能看到所有游戏；孩子只看到「自己的」私人游戏（owner），看不到兄弟姐妹的
@@ -107,11 +117,17 @@ export default function App() {
   // 进场时：① 把云端最新题库拉回来缓存（离线/未配置则沿用缓存或打包副本）
   //        ② 把当前玩家的云端进度拉回来（没连码的人是无操作）
   useEffect(() => {
-    void refreshContent()
+    refreshContent()
+      .then(() => setContentLoaded(contentReady()))
+      .catch(() => {})
     void hydratePlayer(playerId)
     void hydrateBadges(playerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const retryContent = () => {
+    void refreshContent().then(() => setContentLoaded(contentReady()))
+  }
 
   const handleAddPlayer = (name: string) => {
     const p = addPlayer(name)
@@ -156,6 +172,18 @@ export default function App() {
 
   if (!unlocked) {
     return <UnlockGate onUnlocked={handleUnlocked} />
+  }
+
+  if (!contentLoaded) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="animate-pulse text-lg font-semibold text-ink-700">正在加载游戏内容…</div>
+        <p className="text-sm text-ink-500">首次进入需要联网拉取题库，请稍候</p>
+        <Button variant="outline" onClick={retryContent}>
+          重试
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -498,7 +526,28 @@ export default function App() {
               <h2 className="font-display text-3xl text-ink-900">我要用知识打败你</h2>
               <p className="text-sm text-ink-600">回合制答题对战：答对揍对方、连对暴击，血先空的输。两人传手机或对电脑。</p>
             </div>
-            <KnowledgeDuelGame onExit={() => setScreen('home')} />
+            <Suspense fallback={<div className="py-16 text-center text-sm text-ink-500">游戏加载中…</div>}>
+              <KnowledgeDuelGame onExit={() => setScreen('home')} />
+            </Suspense>
+          </section>
+        )}
+
+        {screen === 'battleSchool' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">横版打老师</h2>
+              <p className="text-sm text-ink-600">
+                答题往右闯关：同学是小怪、老师是 Boss。答对揍他，答错或超时挨揍。可邀同学一起合作打。
+              </p>
+            </div>
+            <Suspense fallback={<div className="py-16 text-center text-sm text-ink-500">游戏加载中…</div>}>
+              <BattleSchoolGame player={playerId} onExit={() => setScreen('home')} />
+            </Suspense>
           </section>
         )}
       </div>

@@ -1,17 +1,22 @@
+import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { battleCry } from '@/games/_battle/cries'
+import type { Band } from '@/games/_battle/core'
 import type { DuelState } from '../types'
 
 interface ResultScreenProps {
   state: DuelState
+  band: Band
   onRestart: () => void
   onNewSetup: () => void
   onExit: () => void
 }
 
-export function ResultScreen({ state, onRestart, onNewSetup, onExit }: ResultScreenProps) {
+export function ResultScreen({ state, band, onRestart, onNewSetup, onExit }: ResultScreenProps) {
   const winner = state.winner ? state[state.winner] : null
   const loser = state.winner ? state[state.winner === 'left' ? 'right' : 'left'] : null
+  const finishCry = useMemo(() => battleCry('finish', band), [band])
 
   return (
     <div className="space-y-4">
@@ -23,6 +28,11 @@ export function ResultScreen({ state, onRestart, onNewSetup, onExit }: ResultScr
             <span className="mr-1.5">{winner?.emoji}</span>
             {winner?.name}
           </div>
+          {finishCry && (
+            <div className="kd-banner mt-3 inline-block rounded-2xl bg-ink-900 px-4 py-1.5 font-display text-base font-black text-amber-300 shadow-lg">
+              {finishCry}
+            </div>
+          )}
           {loser && (
             <div className="mt-2 text-sm text-ink-500">
               {loser.emoji} {loser.name} 也很棒，下次再来！

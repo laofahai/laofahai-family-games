@@ -1,19 +1,19 @@
 // 战斗题库（两个战斗游戏共用）：学习 + 好玩 各占一半（learnRatio 可调）。
-// 内容**不硬编码**：运行时经 contentFor 优先读数据库（game_content 的 'battle-questions'），
-// 读不到再回退到打包聚合的 RAW_QUESTIONS（离线/未配置照玩）。题库内容在数据库里维护。
+// 内容**只在数据库**：运行时经 contentFor 读 game_content 的 'battle-questions'，
+// 首次联网拉取后缓存到 localStorage（之后离线走缓存）。**不打包兜底**——题库文件
+// （banks/）只作灌库种子，不进运行包。未拉到内容时抽不出题，由调用方显示「加载中」。
 
 import type { Band, BattleQuestion } from './core'
 import { contentFor } from '@/platform/content'
-import { RAW_QUESTIONS } from './banks'
 
 export type { Band }
 
 export const LEARN_KINDS = ['math', 'chinese', 'english', 'science', 'sports'] as const
 export const FUN_KINDS = ['life', 'social', 'interest', 'funny'] as const
 
-/** 题库（扁平数组）：DB 优先、回退打包聚合。绝不在模块顶层取（会被冻结成回退副本）。 */
+/** 题库（扁平数组）：只读数据库（contentFor 经 localStorage 缓存）。未拉到则为空，调用方显示「加载中」。绝不在模块顶层取。 */
 function bank(): BattleQuestion[] {
-  return contentFor<BattleQuestion>('battle-questions', RAW_QUESTIONS)
+  return contentFor<BattleQuestion>('battle-questions', [])
 }
 
 function byBand(band: Band): BattleQuestion[] {

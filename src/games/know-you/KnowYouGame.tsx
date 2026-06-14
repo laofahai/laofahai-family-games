@@ -1,8 +1,6 @@
 import { useEffect, useReducer, useState } from 'react'
-import type { DeckCard, QuestionsPerRole, RoleId, RoundRecord, Stage } from './types'
+import type { DeckCard, FamilyCard, KnowQuestion, QuestionsPerRole, RoleId, RoundRecord, Stage } from './types'
 import { isFamilyCard } from './types'
-import { knowQuestions } from './data/know-questions'
-import { familyCards } from './data/family'
 import { buildDeck } from './utils/buildDeck'
 import { contentFor } from '@/platform/content'
 import { roomsAvailable } from '@/platform/rooms'
@@ -144,8 +142,8 @@ export function KnowYouGame({ onExit }: KnowYouGameProps) {
 
   function makeDeck(): DeckCard[] {
     return buildDeck(
-      contentFor('know-you', knowQuestions),
-      contentFor('know-family', familyCards),
+      contentFor<KnowQuestion>('know-you', []),
+      contentFor<FamilyCard>('know-family', []),
       [...state.players],
       state.perRole,
       state.withFamilyCards,

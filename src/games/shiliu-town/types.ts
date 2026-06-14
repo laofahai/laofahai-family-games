@@ -26,6 +26,12 @@ export interface DetectiveQuestion extends BaseQuestion {
   operationAnswer: string
 }
 
+export interface Thing {
+  name: string
+  unit: string
+  emoji?: string
+}
+
 export interface ShopItem {
   name: string
   price: number

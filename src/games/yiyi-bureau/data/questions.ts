@@ -2,9 +2,8 @@ import { c, pick, rand, shuffle } from '@/games/shared/question-utils'
 import { contentFor } from '@/platform/content'
 import { pickUnseen } from '@/platform/progress'
 
-import type { BureauMode, BureauQuestion, Choice } from '../types'
-import { CHINESE_TEACHER, CLASSMATES, HEAD_TEACHER, MATH_TEACHER, PLAYER } from './people'
-import { FUN_CARDS, TRUE_FALSE } from './spark'
+import type { BureauMode, BureauQuestion, Choice, SparkFunCard, SparkTrueFalse } from '../types'
+import { CHINESE_TEACHER, HEAD_TEACHER, MATH_TEACHER, PLAYER } from './people'
 
 type Maker = (id: number) => BureauQuestion
 
@@ -21,11 +20,11 @@ function freshPick<T>(scope: string, cards: readonly T[]): T {
 }
 
 function mate(): string {
-  return pick(contentFor('roster-yiyi', CLASSMATES))
+  return pick(contentFor<string>('roster-yiyi', []))
 }
 
 function twoMates(): [string, string] {
-  const [a, b] = shuffle(contentFor('roster-yiyi', CLASSMATES))
+  const [a, b] = shuffle(contentFor<string>('roster-yiyi', []))
   return [a, b]
 }
 
@@ -1191,7 +1190,7 @@ const SPARK_INTROS = [
 const sparkQuestion: Maker = (id) => {
   const [a, b] = twoMates()
   if (Math.random() < 0.6) {
-    const card = freshPick('spark-tf', contentFor('yiyi-truefalse', TRUE_FALSE))
+    const card = freshPick('spark-tf', contentFor<SparkTrueFalse>('yiyi-truefalse', []))
     const intro = pick(SPARK_INTROS)
     const right = card.real ? '真的' : '假的'
     const built = textChoices(right, [card.real ? '假的' : '真的', card.joke])
@@ -1207,7 +1206,7 @@ const sparkQuestion: Maker = (id) => {
       explanation: card.why,
     }
   }
-  const card = freshPick('spark-fun', contentFor('yiyi-funcards', FUN_CARDS))
+  const card = freshPick('spark-fun', contentFor<SparkFunCard>('yiyi-funcards', []))
   const built = textChoices(card.right, card.wrongs)
   return {
     id: `spark-${id}`,

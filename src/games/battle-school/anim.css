@@ -1,0 +1,45 @@
+/* 打老师·浮层动画。纯 CSS keyframes；Phaser 舞台里的动画在 scene.ts 用 tween。 */
+
+@keyframes bs-pop {
+  0% { transform: scale(0.8) translateY(8px); opacity: 0; }
+  60% { transform: scale(1.04) translateY(0); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.bs-pop { animation: bs-pop 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+
+@keyframes bs-result-in {
+  0% { transform: scale(0.6) rotate(-6deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+.bs-result-in { animation: bs-result-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.5); }
+
+@keyframes bs-timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+.bs-timer-danger { animation: bs-timer-pulse 0.7s ease-in-out infinite; color: #f43f5e; }
+
+@keyframes bs-confetti-fall {
+  0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+  100% { transform: translateY(120vh) rotate(720deg); opacity: 0.2; }
+}
+.bs-confetti {
+  position: absolute;
+  top: 0;
+  font-size: 22px;
+  animation: bs-confetti-fall linear forwards;
+}
+
+@keyframes bs-cap-toss {
+  0% { transform: translateY(0) rotate(0); }
+  40% { transform: translateY(-60px) rotate(180deg); }
+  100% { transform: translateY(0) rotate(360deg); }
+}
+.bs-cap-toss { animation: bs-cap-toss 1.6s ease-in-out infinite; display: inline-block; }
+
+@keyframes bs-firework {
+  0% { transform: scale(0.2); opacity: 0; }
+  30% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.bs-firework { animation: bs-firework 1.4s ease-out infinite; display: inline-block; }

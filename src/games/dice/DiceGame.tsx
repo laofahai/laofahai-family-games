@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { cn } from '@/lib/utils'
 import { contentFor } from '@/platform/content'
 import { pickUnseen } from '@/platform/progress'
-import { diceTasks, type DiceTask } from './data/dice-tasks'
+import type { DiceTask } from './types'
 
 interface DiceGameProps {
   onExit: () => void
@@ -55,7 +55,7 @@ export function DiceGame({ onExit }: DiceGameProps) {
 
   function drawTask(): DiceTask | null {
     // 运行时取云端/缓存内容，回退打包副本；从池里抽一个「没见过」的，避免短期重复。
-    const pool = contentFor<DiceTask>('dice', diceTasks)
+    const pool = contentFor<DiceTask>('dice', [])
     const [picked] = pickUnseen('dice', shuffle(pool), (t) => t.text, 1)
     return picked ?? null
   }

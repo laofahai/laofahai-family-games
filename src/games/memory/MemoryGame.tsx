@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { cn } from '@/lib/utils'
 import { contentFor } from '@/platform/content'
 import { pickUnseen } from '@/platform/progress'
-import { memoryCards, type MemoryCard } from './data/memory-cards'
+import type { MemoryCard } from './types'
 
 interface MemoryGameProps {
   onExit: () => void
@@ -45,7 +45,7 @@ function shuffle<T>(items: readonly T[]): T[] {
 
 // 取内容 → 挑 pairs 张不重复的卡 → 复制成对 → 洗牌成 2×pairs 张牌。
 function buildTiles(pairs: number): Tile[] {
-  const pool = contentFor<MemoryCard>('memory', memoryCards)
+  const pool = contentFor<MemoryCard>('memory', [])
   const picked = pickUnseen('memory', shuffle(pool), (c) => c.label, pairs)
   const tiles: Tile[] = []
   picked.forEach((card, index) => {

@@ -32,6 +32,7 @@ export const GAMES: GameMeta[] = [
   { id: 'sound', name: '声音模仿', desc: '学个声音，大家来猜', status: 'hot', age: { min: 6, max: 99 }, audience: '全家' },
   { id: 'memory', name: '记忆翻牌', desc: '翻牌配对，考考记性', status: 'hot', age: { min: 5, max: 99 }, audience: '全家' },
   { id: 'knowledgeDuel', name: '我要用知识打败你', desc: '回合制答题对战，俩人对轰', status: 'hot', age: { min: 6, max: 99 }, audience: '对战' },
+  { id: 'battleSchool', name: '横版打老师', desc: '答题闯关揍老师，可邀同学合作', status: 'hot', age: { min: 6, max: 99 }, audience: '闯关·多人' },
 ]
 
 export const ACTIVE_GAME_IDS = new Set(

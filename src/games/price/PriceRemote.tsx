@@ -22,7 +22,6 @@ import {
   type RoomSnapshot,
 } from '@/platform/rooms'
 import { contentFor } from '@/platform/content'
-import { priceItems } from './data/price-items'
 import type { PriceItem } from './types'
 
 function shuffle<T>(items: T[]) {
@@ -101,7 +100,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
     setBusy(true)
     await clearSubmissions(code)
     // 运行时读取云端/缓存内容，拿不到回退到打包副本。
-    const items = contentFor('price', priceItems)
+    const items = contentFor<PriceItem>('price', [])
     const [picked = items[0]] = pickUnseen('price', shuffle(items), (it) => it.name, 1)
     setItem(picked)
     setRound(nextRound)

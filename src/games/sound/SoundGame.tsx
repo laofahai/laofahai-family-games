@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { contentFor } from '@/platform/content'
 import { pickUnseen } from '@/platform/progress'
 import { shuffle } from '@/games/shared/question-utils'
-import { soundPrompts, type SoundPrompt } from './data/sound-prompts'
+import type { SoundPrompt } from './types'
 
 type Stage = 'setup' | 'playing'
 
@@ -21,10 +21,10 @@ export function SoundGame({ onExit }: { onExit: () => void }) {
   const [secondsLeft, setSecondsLeft] = useState(ROUND_SECONDS)
 
   // 运行时取云端 / 缓存 / 打包副本，再洗牌、按「已见库」挑没玩过的一张
-  function drawNext(): SoundPrompt {
-    const pool = contentFor('sound', soundPrompts)
+  function drawNext(): SoundPrompt | null {
+    const pool = contentFor<SoundPrompt>('sound', [])
     const [picked] = pickUnseen('sound', shuffle(pool), (p) => p.text, 1)
-    return picked ?? soundPrompts[0]
+    return picked ?? null
   }
 
   function startGame() {

@@ -3,6 +3,7 @@ import type {
   ShopItem,
   ShopQuestion,
   SparkQuestion,
+  Thing,
   TownMode,
   TownQuestion,
   VerticalQuestion,
@@ -24,17 +25,14 @@ import {
   CHINESE_TEACHER_NAME,
   MATH_TEACHER_NAME,
   PLAYER_NAME,
-  classmates,
   missingScenes,
-  shopCatalog,
   shopPlaces,
-  things,
   twoStepScenes,
 } from './roster'
 
 // 同学名单（单一可编辑源）：运行时从云端 'roster-shiliu' 取，拉不到回退打包名单。
 function roster(): string[] {
-  return contentFor('roster-shiliu', classmates)
+  return contentFor<string>('roster-shiliu', [])
 }
 
 // people / buyerNames 不再各存一份静态数组，运行时从单一名单 roster() 实时拼。
@@ -172,7 +170,7 @@ function verticalQuestion(id: number): VerticalQuestion {
 }
 
 function detectiveTakeAway(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const scene = pick(takeAwayScenes())
   const start = rand(8, 20)
   const away = rand(2, start - 2)
@@ -202,7 +200,7 @@ function detectiveTakeAway(id: number): DetectiveQuestion {
 }
 
 function detectiveJoin(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const scene = pick(joinScenes())
   const first = rand(3, 12)
   const second = rand(2, 9)
@@ -232,7 +230,7 @@ function detectiveJoin(id: number): DetectiveQuestion {
 }
 
 function detectiveCompare(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const small = rand(3, 12)
   const diff = rand(2, 8)
   const big = small + diff
@@ -265,7 +263,7 @@ function detectiveCompare(id: number): DetectiveQuestion {
 }
 
 function detectiveMissing(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const scene = pick(missingScenes)
   const target = rand(10, 25)
   const done = rand(3, target - 3)
@@ -324,7 +322,7 @@ function detectiveLine(id: number): DetectiveQuestion {
 }
 
 function detectiveTwoStep(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const scene = pick(twoStepScenes)
   const start = rand(8, 16)
   const more = rand(2, 7)
@@ -355,7 +353,7 @@ function detectiveTwoStep(id: number): DetectiveQuestion {
 }
 
 function detectiveRelation(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const base = rand(4, 14)
   const diff = rand(2, 7)
   const more = Math.random() > 0.5
@@ -386,7 +384,7 @@ function detectiveRelation(id: number): DetectiveQuestion {
 }
 
 function detectiveOriginal(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const change = rand(3, 9)
   const now = rand(6, 16)
   const gaveAway = Math.random() > 0.5
@@ -419,7 +417,7 @@ function detectiveOriginal(id: number): DetectiveQuestion {
 }
 
 function detectivePairChange(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const [p1, p2] = shuffle(peoplePool()).slice(0, 2)
   const a = rand(4, 12)
   const b = rand(3, 10)
@@ -450,7 +448,7 @@ function detectivePairChange(id: number): DetectiveQuestion {
 }
 
 function detectiveRepeated(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const groupCount = pick([2, 3, 4])
   const each = rand(2, 6)
   const answer = groupCount * each
@@ -480,7 +478,7 @@ function detectiveRepeated(id: number): DetectiveQuestion {
 }
 
 function detectiveIrrelevant(id: number): DetectiveQuestion {
-  const nouns = contentFor('nouns', things)
+  const nouns = contentFor<Thing>('nouns', [])
   const main = pick(nouns)
   const noise = pick(nouns.filter((item) => item.name !== main.name))
   const start = rand(10, 24)
@@ -513,7 +511,7 @@ function detectiveIrrelevant(id: number): DetectiveQuestion {
 }
 
 function detectiveAskOnePart(id: number): DetectiveQuestion {
-  const thing = pick(contentFor('nouns', things))
+  const thing = pick(contentFor<Thing>('nouns', []))
   const total = rand(12, 28)
   const known = rand(4, total - 4)
   const answer = total - known
@@ -558,7 +556,7 @@ const detectiveFactories = [
 ]
 
 function chooseShopItems(count: number): ShopItem[] {
-  return shuffle(contentFor('shiliu-shop', shopCatalog)).slice(0, count)
+  return shuffle(contentFor<ShopItem>('shiliu-shop', [])).slice(0, count)
 }
 
 function shopTotal(id: number): ShopQuestion {
@@ -584,7 +582,7 @@ function shopTotal(id: number): ShopQuestion {
 }
 
 function shopTwoSame(id: number): ShopQuestion {
-  const item = pick(contentFor('shiliu-shop', shopCatalog).filter((x) => x.price <= 10))
+  const item = pick(contentFor<ShopItem>('shiliu-shop', []).filter((x) => x.price <= 10))
   const buyer = pick(buyerPool())
   const count = pick([2, 3])
   const answer = item.price * count
@@ -682,7 +680,7 @@ function shopEnough(id: number): ShopQuestion {
 }
 
 function shopCompare(id: number): ShopQuestion {
-  const catalog = contentFor('shiliu-shop', shopCatalog)
+  const catalog = contentFor<ShopItem>('shiliu-shop', [])
   const a = pick(catalog)
   const b = pick(catalog.filter((item) => item.price !== a.price))
   const expensive = a.price >= b.price ? a : b
@@ -706,7 +704,7 @@ function shopCompare(id: number): ShopQuestion {
 }
 
 function shopNeedMore(id: number): ShopQuestion {
-  const item = pick(contentFor('shiliu-shop', shopCatalog).filter((x) => x.price >= 5))
+  const item = pick(contentFor<ShopItem>('shiliu-shop', []).filter((x) => x.price >= 5))
   const buyer = pick(buyerPool())
   const budget = rand(1, item.price - 1)
   const answer = item.price - budget

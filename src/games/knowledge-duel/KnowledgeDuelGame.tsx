@@ -5,14 +5,14 @@ import type { DuelConfig, DuelState } from './types'
 import { SetupScreen } from './components/SetupScreen'
 import { BattleScreen } from './components/BattleScreen'
 import { ResultScreen } from './components/ResultScreen'
+import { OnlineDuelScreen } from './components/OnlineDuelScreen'
 
-// 在线 PvP（stretch / TODO）：
-//   复用 @/platform/cloud 现成 RPC（createRoomRpc/joinRoomRpc/hostSetRpc/
-//   roomSnapshotRpc/memberSubmitRpc/collectSubmissionsRpc/clearSubmissionsRpc/
-//   leaveRoomRpc），参考 src/games/price/PriceRemote.tsx 的房间轮询/提交模式。
-//   绝不新增数据库迁移。本次优先做扎实热座 + 人机，在线暂留 TODO。
+// 三种模式：
+//   · hotseat / cpu —— 同屏，React 跑 reducer（engine.ts），Phaser 舞台只动画。
+//   · online       —— 各用各的手机，连 duel:<code> Realtime 频道；各答各的题，
+//                     广播结果同步双屏血量（见 components/OnlineDuelScreen + online/）。
 
-type Screen = 'setup' | 'battle'
+type Screen = 'setup' | 'battle' | 'online'
 
 export function KnowledgeDuelGame({ onExit }: { onExit: () => void }) {
   const [screen, setScreen] = useState<Screen>('setup')
@@ -36,9 +36,17 @@ export function KnowledgeDuelGame({ onExit }: { onExit: () => void }) {
   )
 
   function handleStart(cfg: DuelConfig) {
+    if (cfg.mode === 'online') {
+      setScreen('online')
+      return
+    }
     setConfig(cfg)
     dispatch({ type: 'START', config: cfg })
     setScreen('battle')
+  }
+
+  if (screen === 'online') {
+    return <OnlineDuelScreen onExit={() => setScreen('setup')} />
   }
 
   if (screen === 'setup' || !config) {
@@ -68,6 +76,7 @@ export function KnowledgeDuelGame({ onExit }: { onExit: () => void }) {
     return (
       <ResultScreen
         state={state}
+        band={config.band}
         onRestart={() => dispatch({ type: 'RESTART' })}
         onNewSetup={() => {
           setScreen('setup')

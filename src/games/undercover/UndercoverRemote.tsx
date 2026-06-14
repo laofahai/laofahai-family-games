@@ -8,7 +8,7 @@ import { Crown, Eye, EyeOff, LogOut, Shuffle, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { wordBank, type WordItem } from '@/data/word-bank'
+import type { WordItem, WordPair } from './types'
 import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
@@ -95,7 +95,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
     if (!code || members.length < 3) return
     setBusy(true)
     // 运行时取云端/缓存词库（拿不到回退打包副本）
-    const bank = contentFor('word-bank', wordBank)
+    const bank = contentFor<WordPair>('word-bank', [])
     const [pair = bank[0]] = pickUnseen('undercover', shuffle(bank), (p) => p.id, 1)
     const [w0, w1] = pair.words
     const spyWord = Math.random() > 0.5 ? w0 : w1

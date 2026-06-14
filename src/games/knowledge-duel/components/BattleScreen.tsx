@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { subjectEmoji, subjectLabel } from '@/games/_battle/core'
+import { battleCry, skillCry } from '@/games/_battle/cries'
 import type { DuelAction } from '../engine'
 import { CPU_ACCURACY } from '../constants'
 import type { DuelConfig, DuelState } from '../types'
+import { strikeToFx } from '../stageFx'
 import { FighterCard } from './FighterCard'
+import { DuelStage, type StageFx } from './DuelStage'
 
 interface BattleScreenProps {
   state: DuelState
@@ -96,6 +99,15 @@ export function BattleScreen({ state, config, dispatch, onExit }: BattleScreenPr
   const q = state.current
   const strike = state.lastStrike
 
+  // 中二台词：每次出招（fxSeq 变）才重取一次，避免 resolving 期间重渲染抖动。
+  const cryText = useMemo(() => {
+    if (!strike) return null
+    if (strike.crit) return battleCry('crit', config.band) ?? skillCry(strike.subject, config.band)
+    if (strike.correct) return skillCry(strike.subject, config.band)
+    return null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.fxSeq])
+
   // 每方动画状态。
   function animFor(side: 'left' | 'right'): 'idle' | 'attack' | 'hit' | 'crit' | 'down' {
     if (state.phase === 'resolving' && strike) {
@@ -119,6 +131,26 @@ export function BattleScreen({ state, config, dispatch, onExit }: BattleScreenPr
   const nextName = state[state.turn].name
   const showQuestion = state.phase === 'asking' || state.phase === 'resolving'
 
+  // Phaser 舞台：spawnKey 随 battleId（开局/再来一局）变化触发复位；fx 由 lastStrike 派生。
+  const stageFx: StageFx | null = strike ? strikeToFx(strike, state.winner) : null
+  const spawnKey = String(state.battleId)
+
+  // 题库该年龄段/题型为空时，别卡在空棋盘（答题机器会空转）；给个友好提示。
+  if (!state.current && state.phase !== 'over') {
+    return (
+      <div className="space-y-4">
+        <div>
+          <Button variant="outline" size="sm" onClick={onExit} className="gap-1">
+            ← 返回
+          </Button>
+        </div>
+        <div className="rounded-2xl border border-dashed border-ink-200 p-8 text-center text-sm text-ink-500">
+          这个年龄段 / 题型暂时没有题目，换个设置再来。
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -130,7 +162,43 @@ export function BattleScreen({ state, config, dispatch, onExit }: BattleScreenPr
         </span>
       </div>
 
-      {/* 竞技场 */}
+      {/* Phaser 可视化舞台：两名角色面对面对轰 */}
+      <div className="relative">
+        <DuelStage
+          spawnKey={spawnKey}
+          left={{
+            emoji: state.left.emoji,
+            name: state.left.name,
+            maxHp: state.left.maxHp,
+            hp: state.left.hp,
+          }}
+          right={{
+            emoji: state.right.emoji,
+            name: state.right.name,
+            maxHp: state.right.maxHp,
+            hp: state.right.hp,
+          }}
+          fxSeq={state.fxSeq}
+          fx={stageFx}
+        />
+        {/* 中二招式横幅：出招瞬间按学科喊招式名 / 暴击战吼 */}
+        {state.phase === 'resolving' && cryText && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-2">
+            <div
+              className={[
+                'kd-banner rounded-2xl px-4 py-1.5 text-center font-display font-black shadow-xl',
+                strike?.crit
+                  ? 'bg-amber-400 text-ink-900 text-lg sm:text-2xl'
+                  : 'bg-melon-600 text-white text-base sm:text-xl',
+              ].join(' ')}
+            >
+              {cryText}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 竞技场信息条（回合/连击/血量数字） */}
       <div className="relative rounded-3xl bg-gradient-to-b from-melon-50 to-sky-50 p-3 ring-1 ring-ink-100 sm:p-5">
         <div className="flex items-stretch gap-2 sm:gap-4">
           <FighterCard

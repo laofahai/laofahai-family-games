@@ -4,13 +4,13 @@ import { Shuffle, UserRound, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
-import { wordBank, wordTags, type WordItem, type WordPair } from '@/data/word-bank'
 import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { pickUnseen } from '@/platform/progress'
 import { RosterPicker } from '@/platform/RosterPicker'
 import { roomsAvailable } from '@/platform/rooms'
 import { getRosterIds, setRoster } from '@/platform/session'
+import type { WordItem, WordPair } from './types'
 import { UndercoverRemote } from './UndercoverRemote'
 
 type Phase = 'setup' | 'reveal' | 'done'
@@ -71,16 +71,22 @@ export function UndercoverGame() {
   // 人数变少时把卧底数收进上限——按需取值，不往 state 里塞（避免 effect 里 setState）
   const effectiveSpyCount = Math.min(spyCount, maxSpies)
 
+  // 运行时取云端/缓存词库（启动门已保证内容加载完成），从中派生主题标签
+  const wordTags = useMemo(
+    () => Array.from(new Set(contentFor<WordPair>('word-bank', []).map((pair) => pair.tag))),
+    []
+  )
+
   const filteredBank = useMemo(() => {
-    // 运行时取云端/缓存词库（拿不到回退打包副本），useMemo 在渲染时求值属运行时
-    const bank = contentFor('word-bank', wordBank)
+    // 运行时取云端/缓存词库，useMemo 在渲染时求值属运行时
+    const bank = contentFor<WordPair>('word-bank', [])
     if (tagFilter === '全部') return bank
     return bank.filter((pair) => pair.tag === tagFilter)
   }, [tagFilter])
 
 
   function handleStart() {
-    const pool = filteredBank.length ? filteredBank : contentFor('word-bank', wordBank)
+    const pool = filteredBank.length ? filteredBank : contentFor<WordPair>('word-bank', [])
     // 优先挑没玩过的词对：shuffle 后传入，pickUnseen 从「没见过」的里取第一个并自动标记已见；
     // 整库用过一轮后会自动回收重来。scope 固定为 'undercover'，idOf 用稳定的 pair.id。
     const [pair = pickRandom(pool)] = pickUnseen('undercover', shuffle(pool), (item) => item.id, 1)

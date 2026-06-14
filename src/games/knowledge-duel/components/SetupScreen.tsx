@@ -130,7 +130,9 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
     mode === 'cpu' ? { name: CPU_SETUP.name, emoji: CPU_SETUP.emoji } : right
 
   const leftName = left.name.trim() || '玩家一'
-  const canStart = leftName.length > 0 && (mode === 'cpu' || (right.name.trim().length > 0))
+  const canStart =
+    mode === 'online' ||
+    (leftName.length > 0 && (mode === 'cpu' || right.name.trim().length > 0))
 
   function handleStart() {
     onStart({
@@ -154,22 +156,28 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
           <CardTitle>选择对战模式</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <Pill active={mode === 'hotseat'} onClick={() => setMode('hotseat')}>
               👬 双人热座
             </Pill>
             <Pill active={mode === 'cpu'} onClick={() => setMode('cpu')}>
               🤖 人机对战
             </Pill>
+            <Pill active={mode === 'online'} onClick={() => setMode('online')}>
+              🌐 在线对战
+            </Pill>
           </div>
           <p className="text-xs text-ink-500">
             {mode === 'hotseat'
               ? '同一台手机轮流答题，传着玩。'
-              : '你 vs 电脑，电脑会按难度自动作答。'}
+              : mode === 'cpu'
+                ? '你 vs 电脑，电脑会按难度自动作答。'
+                : '各用各的手机，连同一个房号在线对轰（下一步建房/输房号）。'}
           </p>
         </CardContent>
       </Card>
 
+      {mode !== 'online' && (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>对战双方</CardTitle>
@@ -201,7 +209,9 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
           )}
         </CardContent>
       </Card>
+      )}
 
+      {mode !== 'online' && (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>难度与题型</CardTitle>
@@ -243,6 +253,7 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
           )}
         </CardContent>
       </Card>
+      )}
 
       <Button
         size="lg"
@@ -250,7 +261,7 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
         disabled={!canStart}
         onClick={handleStart}
       >
-        ⚔️ 开始对战
+        {mode === 'online' ? '🌐 进入在线对战' : '⚔️ 开始对战'}
       </Button>
     </div>
   )

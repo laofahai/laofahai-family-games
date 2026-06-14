@@ -23,7 +23,7 @@ import {
   subscribeRoom,
   type RoomSnapshot,
 } from '@/platform/rooms'
-import { truthTopics } from './data/truth-topics'
+import type { TruthTopic } from './types'
 
 function shuffle<T>(items: readonly T[]) {
   const next = [...items]
@@ -112,7 +112,7 @@ export function TruthLieRemote({ onBack }: { onBack: () => void }) {
     if (!code) return
     setBusy(true)
     await clearSubmissions(code)
-    const [topic] = pickUnseen('truthLie:topic', shuffle(contentFor('truth-lie', truthTopics)), (t) => t.text, 1)
+    const [topic] = pickUnseen('truthLie:topic', shuffle(contentFor<TruthTopic>('truth-lie', [])), (t) => t.text, 1)
     const who = members.find((m) => m.seat === seat)
     await hostSet(code, {
       state: 'tell',

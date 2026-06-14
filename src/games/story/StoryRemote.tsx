@@ -12,7 +12,6 @@ import { getCurrentPlayer } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
 import { contentFor } from '@/platform/content'
-import { storyCards } from './data/story-cards'
 import { CATEGORY_LABEL, THEME_LABEL, type Category, type StoryCard, type Theme } from './types'
 import { drawCards } from './utils/shuffle'
 
@@ -77,7 +76,7 @@ export function StoryRemote({ onBack }: { onBack: () => void }) {
   const drawRound = async (nextRound: number) => {
     if (!code) return
     setBusy(true)
-    const cards = drawCards(contentFor<StoryCard>('story', storyCards), ALL_THEMES, 4)
+    const cards = drawCards(contentFor<StoryCard>('story', []), ALL_THEMES, 4)
     await hostSet(code, {
       state: 'playing',
       payload: {
