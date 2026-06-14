@@ -15,6 +15,10 @@ import { wordBank } from '../src/data/word-bank'
 import { things, classmates, shopCatalog } from '../src/games/shiliu-town/data/roster'
 import { CLASSMATES as yiyiClassmates } from '../src/games/yiyi-bureau/data/people'
 import { TRUE_FALSE, FUN_CARDS } from '../src/games/yiyi-bureau/data/spark'
+// 新游戏内容
+import { memoryCards } from '../src/games/memory/data/memory-cards'
+import { diceTasks } from '../src/games/dice/data/dice-tasks'
+import { soundPrompts } from '../src/games/sound/data/sound-prompts'
 
 const banks: Record<string, readonly unknown[]> = {
   charades: charadesWords,
@@ -35,6 +39,10 @@ const banks: Record<string, readonly unknown[]> = {
   // 一依局 spark 静态卡
   'yiyi-truefalse': TRUE_FALSE,
   'yiyi-funcards': FUN_CARDS,
+  // 新游戏
+  memory: memoryCards,
+  dice: diceTasks,
+  sound: soundPrompts,
 }
 
 const out: string[] = []

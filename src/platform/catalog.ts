@@ -26,9 +26,9 @@ export const GAMES: GameMeta[] = [
   { id: 'shiliuTown', name: '闫顺儿小镇', desc: '读题破案，购物算钱', status: 'hot', age: { min: 6, max: 9 }, audience: '一二年级' },
   { id: 'yiyiBureau', name: '闫一依任务局', desc: '当策划队长，破任务闯关', status: 'hot', age: { min: 11, max: 13 }, audience: '小升初' },
   { id: 'truthLie', name: '两真一假', desc: '拆穿家人的小谎话', status: 'hot', age: { min: 8, max: 99 }, audience: '全家' },
-  { id: 'dice', name: '骰子任务', desc: '敬请期待', status: 'soon', age: { min: 6, max: 99 }, audience: '全家' },
-  { id: 'sound', name: '声音模仿', desc: '敬请期待', status: 'soon', age: { min: 6, max: 99 }, audience: '全家' },
-  { id: 'memory', name: '记忆翻牌', desc: '敬请期待', status: 'soon', age: { min: 5, max: 99 }, audience: '全家' },
+  { id: 'dice', name: '骰子任务', desc: '掷骰子，抽任务全家做', status: 'hot', age: { min: 6, max: 99 }, audience: '全家' },
+  { id: 'sound', name: '声音模仿', desc: '学个声音，大家来猜', status: 'hot', age: { min: 6, max: 99 }, audience: '全家' },
+  { id: 'memory', name: '记忆翻牌', desc: '翻牌配对，考考记性', status: 'hot', age: { min: 5, max: 99 }, audience: '全家' },
 ]
 
 export const ACTIVE_GAME_IDS = new Set(

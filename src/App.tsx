@@ -4,9 +4,12 @@ import { Gamepad2, Ghost, Sparkles, UserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { CharadesGame } from '@/games/charades/CharadesGame'
+import { DiceGame } from '@/games/dice/DiceGame'
 import { DrawGame } from '@/games/draw/DrawGame'
 import { KnowYouGame } from '@/games/know-you/KnowYouGame'
+import { MemoryGame } from '@/games/memory/MemoryGame'
 import { PriceGame } from '@/games/price/PriceGame'
+import { SoundGame } from '@/games/sound/SoundGame'
 import { ShiliuTownGame } from '@/games/shiliu-town/ShiliuTownGame'
 import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
@@ -34,6 +37,9 @@ type Screen =
   | 'truthLie'
   | 'shiliuTown'
   | 'yiyiBureau'
+  | 'dice'
+  | 'sound'
+  | 'memory'
 
 const games = GAMES
 const ACTIVE_GAMES = ACTIVE_GAME_IDS
@@ -202,6 +208,9 @@ export default function App() {
                       else if (game.id === 'shiliuTown') setScreen('shiliuTown')
                       else if (game.id === 'yiyiBureau') setScreen('yiyiBureau')
                       else if (game.id === 'truthLie') setScreen('truthLie')
+                      else if (game.id === 'dice') setScreen('dice')
+                      else if (game.id === 'sound') setScreen('sound')
+                      else if (game.id === 'memory') setScreen('memory')
                     }}
                     className={cn(
                       'group flex min-h-[150px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md',
@@ -242,9 +251,9 @@ export default function App() {
             </CardContent>
             <CardFooter className="justify-between">
               <div className="text-xs text-ink-500">
-                已上线：谁是卧底、你来比划、编故事、我知道你不知道、你画我猜、猜价格、闫顺儿小镇、闫一依任务局、两真一假。
+                已上线 {ACTIVE_GAMES.size} 个游戏：聚会同乐 + 学习闯关，全家老小都能玩。
               </div>
-              <div className="text-xs text-ink-500">更多游戏正在路上。</div>
+              <div className="text-xs text-ink-500">新上线：骰子任务、声音模仿、记忆翻牌 🎉</div>
             </CardFooter>
           </Card>
         )}
@@ -403,6 +412,51 @@ export default function App() {
               </p>
             </div>
             <StoryGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'dice' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">骰子任务</h2>
+              <p className="text-sm text-ink-600">掷一下骰子，抽到什么任务全家轮流做，活跃气氛。</p>
+            </div>
+            <DiceGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'sound' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">声音模仿</h2>
+              <p className="text-sm text-ink-600">抽一张卡，按提示学个声音，其他人来猜或打分，再传给下一位。</p>
+            </div>
+            <SoundGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'memory' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">记忆翻牌</h2>
+              <p className="text-sm text-ink-600">翻开两张找一样的，全配上就赢，考考记性。</p>
+            </div>
+            <MemoryGame onExit={() => setScreen('home')} />
           </section>
         )}
       </div>
