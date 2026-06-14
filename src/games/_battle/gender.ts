@@ -1,28 +1,10 @@
-// 性别契约：游戏按性别选男/女精灵、配名字用。两路 agent 共用——
-//   · G(游戏) 只 import，不改本文件。
-//   · P(平台) 可改本实现（比如把性别真值接到 profiles/people），但**保持下面两个导出的签名不变**。
-// 现策略：家人/老师显式表 + 中文名用字启发式 + 名字哈希兜底。保证「同名稳定 + 整班男女混合」。
+// 性别契约：从云端名册（数据库 profiles，见 platform/cloudRoster）读取——是「数据」，
+// 不再是代码里硬编码的判断表/启发式。名册里没有该名字时（如临时访客）才用名字哈希兜底，
+// 保证同名恒定、整班男女混合。导出签名保持稳定，游戏侧（assets/sprite 选择）直接调。
 
-export type Gender = 'male' | 'female'
+import { rosterByName, rosterById, type Gender } from '@/platform/cloudRoster'
 
-/** 显式覆盖（启发式难判或须确定的）：家人 + 已知老师。 */
-const OVERRIDE_BY_NAME: Record<string, Gender> = {
-  闫一依: 'female', 闫顺儿: 'female', 妈妈: 'female', 爸爸: 'male',
-  张超越: 'male', 郑老师: 'female', 台老师: 'female', 朱老师: 'female', 陈老师: 'female', 科学老师: 'male',
-}
-
-/** 按玩家 id 的显式性别（决定主角用男/女精灵）。 */
-const OVERRIDE_BY_ID: Record<string, Gender> = {
-  yiyi: 'female', shuner: 'female', mom: 'female', dad: 'male',
-}
-
-// 偏女 / 偏男 的常见用字（取强信号字，模糊的留给哈希）。
-const FEMALE_CHARS = new Set(
-  '美晴怡语欣宣潼月淇韵蓉若悦清澄菲静茹依彤馨瑾萱桐雯凤妍颖玥婷雅琳娜蕊媛钰丽娟瑶璐茜薇可'.split(''),
-)
-const MALE_CHARS = new Set(
-  '皓凯越凡轩昊聪辰骏哲浩坤睿洋博柏旋杰锋鹏豪航铭润强伟磊勇刚帆翔泽栋'.split(''),
-)
+export type { Gender }
 
 function hashStr(s: string): number {
   let h = 2166136261
@@ -33,21 +15,16 @@ function hashStr(s: string): number {
   return Math.abs(h)
 }
 
-/** 按名字判性别：显式表 → 用字启发式 → 哈希兜底（同名恒定，整班混合）。 */
+/** 按名字取性别：优先读数据库名册，没有则名字哈希兜底（同名恒定）。 */
 export function genderOf(name: string): Gender {
-  const o = OVERRIDE_BY_NAME[name]
-  if (o) return o
-  let f = 0
-  let m = 0
-  for (const ch of name) {
-    if (FEMALE_CHARS.has(ch)) f++
-    if (MALE_CHARS.has(ch)) m++
-  }
-  if (f !== m) return f > m ? 'female' : 'male'
+  const g = rosterByName(name)?.gender
+  if (g === 'male' || g === 'female') return g
   return hashStr(name) % 2 === 0 ? 'female' : 'male'
 }
 
-/** 按玩家 id 判性别（主角精灵用）：显式表优先，未知按名字/哈希。 */
+/** 按玩家 id 取性别（主角形象用）：优先读数据库名册（按 id 或名字），否则按名字判定。 */
 export function playerGenderOf(playerId: string, playerName?: string): Gender {
-  return OVERRIDE_BY_ID[playerId] ?? (playerName ? genderOf(playerName) : 'male')
+  const g = rosterById(playerId)?.gender ?? (playerName ? rosterByName(playerName)?.gender : undefined)
+  if (g === 'male' || g === 'female') return g
+  return playerName ? genderOf(playerName) : 'male'
 }
