@@ -199,6 +199,10 @@ export class ArenaScene extends Phaser.Scene {
     this.bgNear.removeAll(true)
     this.bgSky.clear()
     const t = this.theme
+    // 背景元素位置用「按关卡定种子」的确定性随机：同一关每次重画都生成一致布局，
+    // 即便 onResize/换关重画，树/云/星也不会瞬移乱跳（修复「背景所有元素无规律地动」）。
+    const rng = new Phaser.Math.RandomDataGenerator(['bg', String(this.level)])
+    const rnd = () => rng.frac()
     // 天空渐变（固定层，用横向条带从上到下插值堆出来，铺满视口）。
     const steps = 24
     for (let i = 0; i < steps; i++) {
@@ -214,7 +218,7 @@ export class ArenaScene extends Phaser.Scene {
     // 夜晚：月亮 + 星星。
     if (t.night) {
       for (let i = 0; i < 40; i++) {
-        const star = this.add.circle(Math.random() * WORLD_W, Math.random() * this.H * 0.6, Math.random() * 1.6 + 0.6, 0xffffff, 0.9)
+        const star = this.add.circle(rnd() * WORLD_W, rnd() * this.H * 0.6, rnd() * 1.6 + 0.6, 0xffffff, 0.9)
         star.setScrollFactor(0.2)
         this.bgFar.add(star)
       }
@@ -224,9 +228,9 @@ export class ArenaScene extends Phaser.Scene {
     // 云/雾。
     if (t.cloud) {
       for (let i = 0; i < 7; i++) {
-        const cx = Math.random() * WORLD_W
-        const cy = this.H * (0.1 + Math.random() * 0.28)
-        const cloud = this.add.ellipse(cx, cy, 120 + Math.random() * 120, 44 + Math.random() * 30, t.cloud, 0.55)
+        const cx = rnd() * WORLD_W
+        const cy = this.H * (0.1 + rnd() * 0.28)
+        const cloud = this.add.ellipse(cx, cy, 120 + rnd() * 120, 44 + rnd() * 30, t.cloud, 0.55)
         cloud.setScrollFactor(0.35)
         this.bgFar.add(cloud)
       }
@@ -234,13 +238,13 @@ export class ArenaScene extends Phaser.Scene {
     // 远景剪影（按地形铺一排）。
     const horizon = this.groundY
     for (let x = -100; x < WORLD_W + 100; x += 220) {
-      const far = this.drawDeco(x + Math.random() * 80, horizon, t.decoFar, 0.7, t)
+      const far = this.drawDeco(x + rnd() * 80, horizon, t.decoFar, 0.7, t)
       far.setScrollFactor(0.5)
       this.bgFar.add(far)
     }
     // 近景装饰（更大、更靠下、视差更快）。
     for (let x = 0; x < WORLD_W; x += 360) {
-      const near = this.drawDeco(x + Math.random() * 120, horizon, t.decoNear, 1.15, t)
+      const near = this.drawDeco(x + rnd() * 120, horizon, t.decoNear, 1.15, t)
       near.setScrollFactor(0.9)
       this.bgNear.add(near)
     }
@@ -1031,8 +1035,13 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private onResize(): void {
-    this.W = this.scale.width
-    this.H = this.scale.height
+    const w = this.scale.width
+    const h = this.scale.height
+    // Scale.RESIZE 模式会在尺寸「其实没变」时也反复派发 resize；尺寸没变就直接返回，
+    // 否则每次都重画背景（重铺天空/天气）→ 背景一直在抖。只有真变化才重铺。
+    if (w === this.W && h === this.H) return
+    this.W = w
+    this.H = h
     this.cameras.main.setDeadzone(this.W * 0.3, this.H)
     // 天空层与天气按新视口重铺（地面线 groundY 不随窗口高变，保持世界一致）。
     this.drawBackground()
