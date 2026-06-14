@@ -18,6 +18,9 @@ export function QuizModal({
 }) {
   const [left, setLeft] = useState(payload.seconds)
   const [picked, setPicked] = useState<string | null>(null)
+  // done：一旦提交（点选/超时）立刻把卡片本地隐藏，不等场景回推 quiz:close，
+  // 杜绝「答完卡片还卡在顶部」的残留（场景端的 quiz:close 仍会卸载本组件，双保险）。
+  const [done, setDone] = useState(false)
   // submitted 用 ref 防止超时与点击重复提交（场景端也有 resolved 兜底）。
   const submitted = useRef(false)
   // 用 ref 持有最新 onSubmit，避免它进 effect 依赖导致倒计时重启（ref 只在 effect 里写）。
@@ -34,6 +37,7 @@ export function QuizModal({
           window.clearInterval(id)
           if (!submitted.current) {
             submitted.current = true
+            setDone(true) // 超时也立刻收起卡片
             submitRef.current(null)
           }
           return 0
@@ -49,8 +53,13 @@ export function QuizModal({
     submitted.current = true
     setPicked(id)
     playSfx('tap')
+    // 立刻收起：先本地隐藏卡片，再把答案喂回场景（场景会做对错表演 + 推 quiz:close）。
+    setDone(true)
     submitRef.current(id)
   }
+
+  // 提交后立刻不渲染（卡片即时消失，场景的 quiz:close 兜底卸载本组件）。
+  if (done) return null
 
   const danger = left <= 5
 

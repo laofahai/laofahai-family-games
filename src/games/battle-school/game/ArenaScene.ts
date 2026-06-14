@@ -42,7 +42,10 @@ const GROUND_RATIO = 0.82 // 地面线在视口高度的占比
 const HERO_MELEE_DMG = 1
 const MOB_HIT_DMG = 1 // 小怪打主角的伤害
 const BOSS_HIT_DMG = 1
-const BOSS_KNOWLEDGE_DMG = 1 // 答对一题扣 BOSS 1 血
+const BOSS_KNOWLEDGE_DMG = 1 // 答对一题（直接知识重创）扣 BOSS 1 血
+const BOSS_HP_MULT = 2.5 // BOSS 血量放大系数（让关底更有分量，配合破盾→普攻循环）
+const BOSS_HP_MIN = 10 // BOSS 最低有效血（避免 DB 配 1–2 血秒杀）
+const SHIELD_BREAK_MS = 4500 // 答对后破盾窗口：这段时间内普攻可打 BOSS
 const ENERGY_PER_KILL = 0.34 // 每杀一个小怪涨多少能量
 const ENERGY_PER_HIT = 0.08 // 每命中一次涨多少
 const QUIZ_SECONDS = 15
@@ -428,8 +431,11 @@ export class ArenaScene extends Phaser.Scene {
     const def = this.bosses[this.level]
     const camW = this.cameras.main.width || this.W
     const x = Math.min(WORLD_W - 80, this.hero.x + Math.max(camW * 0.65, 480))
+    // BOSS 血放大：DB/默认配置普遍只有 3–4 血，按系数放大并设下限，
+    // 让一场 BOSS 需要数轮「答题破盾→普攻输出」才打得倒（有分量但不磨叽）。
+    const bossHp = Math.max(BOSS_HP_MIN, Math.round(def.hp * BOSS_HP_MULT))
     // TODO 性别区分待女版 Kenney 素材：老师 Boss 统一用 teacher 精灵。
-    const e = new Enemy(this, x, this.groundY, { charKey: TEACHER_KEY, name: def.name, isBoss: true, hp: def.hp, speed: 70 })
+    const e = new Enemy(this, x, this.groundY, { charKey: TEACHER_KEY, name: def.name, isBoss: true, hp: bossHp, speed: 70 })
     this.enemies.add(e)
     this.physics.add.collider(e, this.platforms)
     this.boss = e
@@ -537,6 +543,7 @@ export class ArenaScene extends Phaser.Scene {
       playSfx('hit')
       return
     }
+    const killedBoss = enemy.isBoss && result === 'dead'
     // 真理巴掌命中表演：hitstop + 抖屏 + 伤害数字 + 火花 + 冲击点 + slap 音。
     this.combo += 1
     const crit = this.combo > 0 && this.combo % 3 === 0
@@ -556,7 +563,8 @@ export class ArenaScene extends Phaser.Scene {
       const cry = battleCry('crit', this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 160, cry, '#ffd23f', 22)
     }
-    if (result === 'dead') this.onEnemyKilled(enemy)
+    if (killedBoss) this.onBossDefeated()
+    else if (result === 'dead') this.onEnemyKilled(enemy)
     this.pushHud()
   }
 
@@ -595,6 +603,8 @@ export class ArenaScene extends Phaser.Scene {
   // ── BOSS 知识闸 + 答题结算 ───────────────────────────────────────────
   private maybeBossQuiz(): void {
     if (!this.boss || this.boss.dead || this.pending || this.frozen) return
+    // 护盾已破（破盾窗口内）：让主角专心普攻输出，不再弹题打断节奏；护盾再生后才会再弹。
+    if (!this.boss.isShielded) return
     const now = this.time.now
     if (now < this.bossQuizCdUntil) return
     // BOSS 逼近主角（攻击距离内）时触发知识闸。
@@ -657,7 +667,12 @@ export class ArenaScene extends Phaser.Scene {
       if (cry) this.floatText(this.hero.x, this.hero.y - 170, cry, '#ffd23f', 24)
       playSfx('skill')
       playSfx('correct')
-      this.bridge.emit('result', { ok: true, crit: true, title: '答对！知识重创老师', detail: cry ?? undefined })
+      // 破盾！窗口内普攻可揍老师，到时护盾再生。提示「护盾破了，快用普攻!」。
+      if (res !== 'dead') {
+        boss.breakShield(SHIELD_BREAK_MS)
+        this.floatText(boss.x, boss.y - boss.displayHeight - 40, '🛡 护盾破了·快普攻!', '#ffd23f', 22)
+      }
+      this.bridge.emit('result', { ok: true, crit: true, title: '答对！护盾破了，快用普攻!', detail: cry ?? undefined })
       if (res === 'dead') this.onBossDefeated()
     } else {
       // 答错：BOSS 反打主角。

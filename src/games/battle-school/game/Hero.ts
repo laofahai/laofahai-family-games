@@ -34,6 +34,8 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
   hitThisSwing = new Set<Phaser.GameObjects.GameObject>()
   /** 攻击命中窗口是否开启。 */
   swingActive = false
+  /** 当前静态姿势纹理 key（idle/attack2/hurt/jump）；只在变化时换贴图，避免每帧 setTexture 闪烁。 */
+  private poseKey = ''
 
   constructor(scene: Phaser.Scene, x: number, y: number, displayName: string) {
     super(scene, x, y, texKey(HERO_KEY, 'idle'))
@@ -103,27 +105,32 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
 
   private updateAnim(dir: -1 | 0 | 1, onGround: boolean): void {
     if (this.attacking) {
-      this.anims.stop()
-      this.setTexture(texKey(HERO_KEY, 'attack2'))
+      this.setPose('attack2')
       return
     }
     if (this.scene.time.now < this.hurtUntil) {
-      this.anims.stop()
-      this.setTexture(texKey(HERO_KEY, 'hurt'))
+      this.setPose('hurt')
       return
     }
     if (!onGround) {
-      this.anims.stop()
-      this.setTexture(texKey(HERO_KEY, 'jump'))
+      this.setPose('jump')
       return
     }
     if (dir !== 0) {
       const key = walkAnimKey(HERO_KEY)
       if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.anims.play(key, true)
+      this.poseKey = '' // 走路时清空静态姿势记号，下次进入静止会重新贴图
     } else {
-      this.anims.stop()
-      this.setTexture(texKey(HERO_KEY, 'idle'))
+      this.setPose('idle')
     }
+  }
+
+  /** 切到一个静态姿势贴图：只在姿势变化时 stop+setTexture，避免每帧重置导致 1 帧空白闪烁。 */
+  private setPose(frame: 'idle' | 'attack2' | 'hurt' | 'jump'): void {
+    if (this.poseKey === frame) return
+    this.poseKey = frame
+    this.anims.stop()
+    this.setTexture(texKey(HERO_KEY, frame))
   }
 
   canJump(): boolean {
