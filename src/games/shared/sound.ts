@@ -2,6 +2,11 @@
 // - 懒初始化 AudioContext（首个用户手势后才创建，满足浏览器自动播放策略）。
 // - 全局静音开关持久化到 localStorage('fg:muted')，两个引擎游戏（打老师 / 知识对战）共用。
 // - 全部音色由振荡器 + 噪声 + 增益包络现场合成，零体积、零网络、零资源加载。
+// - 升级：playSfx 现在优先播放真实 CC0 采样（见 ./sfx-samples），仅在缺采样时回落到合成。
+//   循环依赖说明：sfx-samples 反向 import 本模块的 isMuted —— 两边都只在函数体内使用，
+//   不在模块顶层求值，因此 ES Module 的循环引用是安全的。
+
+import { playSample, preloadSamples } from './sfx-samples'
 
 export type Sfx =
   | 'tap' // UI 点按
@@ -18,6 +23,11 @@ export type Sfx =
   | 'lose' // 失败（沮丧下行）
   | 'correct' // 答对叮咚
   | 'wrong' // 答错嗡鸣
+  // —— 招式音（优先用 public/assets/battle-sfx 采样，缺采样回落下方合成）——
+  | 'slap' // 大耳刮子 / 真理巴掌（脆响一巴掌）
+  | 'kick' // 踹 / 回旋踢（重击）
+  | 'spit' // 呸 / 唾沫（短促）
+  | 'taunt' // 毒舌 / 嘲讽（挑衅 sting）
 
 const STORAGE_KEY = 'fg:muted'
 
@@ -118,9 +128,15 @@ function burst(
   src.stop(now + dur + 0.02)
 }
 
-/** 播一个音效。静音时静默返回；未解锁的 AudioContext 会在此尝试 resume。 */
+/**
+ * 播一个音效。
+ * 优先用真实采样（playSample）；该名字没有可用采样（或尚未解码完成）时回落到下方合成。
+ * 静音时静默返回；未解锁的 AudioContext 会在此尝试 resume。
+ */
 export function playSfx(name: Sfx): void {
   if (muted) return
+  // 优先采样：命中即返回，未命中回落合成
+  if (playSample(name)) return
   const c = ac()
   if (!c) return
 
@@ -178,6 +194,26 @@ export function playSfx(name: Sfx): void {
       tone(c, { type: 'sawtooth', from: 200, to: 120, t0: 0, dur: 0.26, gain: 0.22 })
       tone(c, { type: 'square', from: 160, to: 90, t0: 0, dur: 0.26, gain: 0.16 })
       break
+    case 'slap':
+      // 大耳刮子：极短高频脆响 + 一点低频体感
+      burst(c, { t0: 0, dur: 0.05, gain: 0.5, cutoff: 6000 })
+      tone(c, { type: 'sine', from: 220, to: 90, t0: 0, dur: 0.07, gain: 0.22 })
+      break
+    case 'kick':
+      // 踹：比 punch 更沉更狠
+      burst(c, { t0: 0, dur: 0.16, gain: 0.5, cutoff: 900 })
+      tone(c, { type: 'sine', from: 130, to: 45, t0: 0, dur: 0.2, gain: 0.36 })
+      break
+    case 'spit':
+      // 呸：短促的高通噪声「噗」
+      burst(c, { t0: 0, dur: 0.08, gain: 0.3, cutoff: 5000 })
+      tone(c, { type: 'triangle', from: 480, to: 240, t0: 0, dur: 0.08, gain: 0.1 })
+      break
+    case 'taunt':
+      // 嘲讽 sting：滑稽上挑的两声
+      tone(c, { type: 'square', from: 300, to: 520, t0: 0, dur: 0.1, gain: 0.16 })
+      tone(c, { type: 'square', from: 520, to: 360, t0: 0.1, dur: 0.14, gain: 0.16 })
+      break
     case 'win': {
       const notes = [523, 659, 784, 1047, 1319] // C E G C E 号角
       notes.forEach((f, i) => tone(c, { type: 'triangle', from: f, t0: i * 0.12, dur: 0.3, gain: 0.22 }))
@@ -194,6 +230,16 @@ export function playSfx(name: Sfx): void {
 /** 在首个用户手势里调用，解锁/恢复音频上下文（iOS/Safari 必需）。 */
 export function unlockAudio(): void {
   ac()
+}
+
+/**
+ * 在首个用户手势里调用：解锁音频上下文并开始预加载真实采样。
+ * 是 unlockAudio 的超集，调用方可二选一（推荐在打老师/知识对战的首次交互里调它）。
+ * 幂等、可安全多次调用。
+ */
+export function initSfx(): void {
+  ac()
+  preloadSamples()
 }
 
 export function isMuted(): boolean {

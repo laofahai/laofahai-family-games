@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import './anim.css'
 import { rosterFor } from '@/games/_battle/roster'
 import { contentFor } from '@/platform/content'
-import { unlockAudio } from '@/games/shared/sound'
+import { initSfx } from '@/games/shared/sound'
 import { loadSavedLevel } from './storage'
 import { createGame } from './game/createGame'
 import {
@@ -42,7 +42,7 @@ export function BattleSchoolGame({ onExit, player }: { onExit: () => void; playe
   const hasQuestions = contentFor('battle-questions', []).length > 0
 
   function begin(level: number) {
-    unlockAudio()
+    initSfx()
     setStartLevel(level)
     setRunKey((k) => k + 1)
     setPhase('playing')
