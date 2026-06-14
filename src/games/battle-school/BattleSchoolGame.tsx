@@ -159,6 +159,7 @@ function PlayRun({
           controls={c}
           skill={hud.skill}
           energyFull={hud.energy >= 1}
+          paused={quiz != null}
           onSwitchSkill={() => c.switchSkill()}
         />
       )}

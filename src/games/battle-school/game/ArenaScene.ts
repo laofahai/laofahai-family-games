@@ -15,8 +15,8 @@ import { subjectLabel, type BattleQuestion, type Band } from '@/games/_battle/co
 import { playSfx, isMuted, toggleMuted, unlockAudio } from '@/games/shared/sound'
 import { saveLevel } from '../storage'
 import { type GameBridge, type GameControls, type MoveDir, type SkillKind, type SceneConfig, type HudState } from './bridge'
-import { preloadSprites, registerAnims, pickClassmateKey, TEACHER_KEY } from './assets'
-import { Hero } from './Hero'
+import { preloadSprites, registerAnims, pickClassmateKey, pickHeroKey, pickTeacherKey } from './assets'
+import { Hero, COMBO_MOVES, type MoveSpec } from './Hero'
 import { Enemy } from './Enemy'
 import { FloatingQuiz } from './FloatingQuiz'
 import { themeForLevel, type Theme } from './themes'
@@ -42,10 +42,7 @@ const GROUND_RATIO = 0.82 // 地面线在视口高度的占比
 const HERO_MELEE_DMG = 1
 const MOB_HIT_DMG = 1 // 小怪打主角的伤害
 const BOSS_HIT_DMG = 1
-const BOSS_KNOWLEDGE_DMG = 1 // 答对一题（直接知识重创）扣 BOSS 1 血
-const BOSS_HP_MULT = 2.5 // BOSS 血量放大系数（让关底更有分量，配合破盾→普攻循环）
-const BOSS_HP_MIN = 10 // BOSS 最低有效血（避免 DB 配 1–2 血秒杀）
-const SHIELD_BREAK_MS = 4500 // 答对后破盾窗口：这段时间内普攻可打 BOSS
+const BOSS_KNOWLEDGE_DMG = 1 // 答对一题扣 BOSS 1 血
 const ENERGY_PER_KILL = 0.34 // 每杀一个小怪涨多少能量
 const ENERGY_PER_HIT = 0.08 // 每命中一次涨多少
 const QUIZ_SECONDS = 15
@@ -74,6 +71,7 @@ export class ArenaScene extends Phaser.Scene {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
   private keys!: Record<string, Phaser.Input.Keyboard.Key>
   private touchDir: MoveDir = 0 // 触屏方向意图（叠加键盘）
+  private allKeys: Phaser.Input.Keyboard.Key[] = [] // 所有移动相关键（弹窗时统一清栓锁用）
 
   // 局面状态（场景持有，唯一事实来源）
   private level = 0 // 0-based
@@ -147,9 +145,8 @@ export class ArenaScene extends Phaser.Scene {
     this.platforms = this.physics.add.staticGroup()
     this.buildLevelWorld()
 
-    // 主角（头顶挂玩家名）。
-    // TODO 性别区分待女版 Kenney 素材：现在不按性别换精灵，主角统一用 hero。
-    this.hero = new Hero(this, 200, this.groundY, this.playerName)
+    // 主角（头顶挂玩家名）。按玩家性别选精灵（女=herog / 男=hero）。
+    this.hero = new Hero(this, 200, this.groundY, this.playerName, pickHeroKey(this.cfg.player, this.playerName))
     this.physics.add.collider(this.hero, this.platforms)
 
     // 敌人组。
@@ -330,6 +327,8 @@ export class ArenaScene extends Phaser.Scene {
     const kb = this.input.keyboard!
     this.cursors = kb.createCursorKeys()
     this.keys = kb.addKeys('W,A,S,D,J,K,L,SPACE') as Record<string, Phaser.Input.Keyboard.Key>
+    // 移动相关键集合（含方向键），弹窗打开时统一清「按下栓锁」。
+    this.allKeys = [this.keys.A, this.keys.D, this.cursors.left, this.cursors.right]
     // 离散动作用 keydown 事件（避免每帧重复触发）。
     this.keys.J.on('down', () => this.doAttack())
     this.keys.K.on('down', () => this.doSkill())
@@ -340,6 +339,18 @@ export class ArenaScene extends Phaser.Scene {
     this.cursors.up.on('down', jump)
     // 首次任意键解锁音频。
     kb.on('keydown', () => unlockAudio(), this)
+  }
+
+  /**
+   * 清掉所有「移动方向」栓锁：触屏意图清零 + 重置 Phaser 键的 isDown 状态。
+   * 弹窗（答题卡片/飘题）打开时调用，避免暂停期间松/换键后仍按旧方向自动走，
+   * 也避免「按反方向无反应、必须重按同方向才解开」的卡死。弹窗关闭后下一帧重读实时输入。
+   */
+  private clearMovementInput(): void {
+    this.touchDir = 0
+    // Phaser 的 Key.reset() 会清掉 isDown/_justDown 等内部状态；DOM 仍持有真实按键，
+    // 玩家下次按下/松开会重新触发事件刷新状态，所以这里清掉旧栓锁是安全的。
+    for (const k of this.allKeys) k?.reset()
   }
 
   /** 把控制接口回填给 React 宿主（触屏按钮/答题/静音）。 */
@@ -431,11 +442,8 @@ export class ArenaScene extends Phaser.Scene {
     const def = this.bosses[this.level]
     const camW = this.cameras.main.width || this.W
     const x = Math.min(WORLD_W - 80, this.hero.x + Math.max(camW * 0.65, 480))
-    // BOSS 血放大：DB/默认配置普遍只有 3–4 血，按系数放大并设下限，
-    // 让一场 BOSS 需要数轮「答题破盾→普攻输出」才打得倒（有分量但不磨叽）。
-    const bossHp = Math.max(BOSS_HP_MIN, Math.round(def.hp * BOSS_HP_MULT))
-    // TODO 性别区分待女版 Kenney 素材：老师 Boss 统一用 teacher 精灵。
-    const e = new Enemy(this, x, this.groundY, { charKey: TEACHER_KEY, name: def.name, isBoss: true, hp: bossHp, speed: 70 })
+    // 老师 Boss 按名字性别选精灵（女=teacherF / 男=teacher）。
+    const e = new Enemy(this, x, this.groundY, { charKey: pickTeacherKey(def.name), name: def.name, isBoss: true, hp: def.hp, speed: 70 })
     this.enemies.add(e)
     this.physics.add.collider(e, this.platforms)
     this.boss = e
@@ -461,7 +469,13 @@ export class ArenaScene extends Phaser.Scene {
 
   private doAttack(): void {
     if (this.frozen) return
-    if (this.hero.startAttack()) playSfx('punch')
+    const step = this.hero.startAttack()
+    if (step < 0) return // 没挥出（硬直/已在攻击中）
+    const move = COMBO_MOVES[step]
+    playSfx(move.sfx) // 每招出招音不同（slap/kick/spit）
+    // 招式名飘字（短停留，挂在主角头顶前方）：肉眼可辨这一击是哪招（#21/#22）。
+    const ahead = this.hero.facing * 36
+    this.floatText(this.hero.x + ahead, this.hero.y - this.hero.displayHeight - 18, move.name, move.labelColor, 22)
   }
 
   private doSwitchSkill(): void {
@@ -506,6 +520,8 @@ export class ArenaScene extends Phaser.Scene {
   /** 打开学霸大招的飘浮快题（Phaser 原生，自动收起）。 */
   private openSkillQuiz(question: BattleQuestion): void {
     this.pending = { source: 'skill', question, resolved: false }
+    this.clearMovementInput() // 弹窗即暂停：清移动栓锁，主角立刻停步（见 #23）
+    this.hero.drive(0, true)
     playSfx('tap')
     const qx = Phaser.Math.Clamp(this.hero.x, this.cameras.main.scrollX + 200, this.cameras.main.scrollX + this.W - 200)
     const qy = this.hero.y - this.hero.displayHeight - 70
@@ -535,7 +551,8 @@ export class ArenaScene extends Phaser.Scene {
     if (this.hero.hitThisSwing.has(enemy)) return
     this.hero.hitThisSwing.add(enemy)
 
-    const result = enemy.meleeHit(HERO_MELEE_DMG, this.hero.x)
+    const move = this.hero.activeMove
+    const result = enemy.meleeHit(HERO_MELEE_DMG, this.hero.x, move.knockback, move.launch)
     if (result === 'immune') {
       this.floatText(enemy.x, enemy.y - enemy.displayHeight - 10, '学霸护盾·免疫!', '#7cc0ff', 18)
       this.hitstop(40)
@@ -543,9 +560,9 @@ export class ArenaScene extends Phaser.Scene {
       playSfx('hit')
       return
     }
-    const killedBoss = enemy.isBoss && result === 'dead'
-    // 真理巴掌命中表演：hitstop + 抖屏 + 伤害数字 + 火花 + 冲击点 + slap 音。
+    // 命中表演：每招的命中特效形状/配色不同（巴掌=星 / 踹=冲击环 / 呸=喷溅波）。
     this.combo += 1
+    // 第 3 招（呸）= 收招，配合 kill-streak 触发暴击感（更重的 hitstop/慢镜/闪屏）。
     const crit = this.combo > 0 && this.combo % 3 === 0
     this.gainEnergy(ENERGY_PER_HIT)
     this.hitstop(crit ? 95 : 60)
@@ -553,18 +570,17 @@ export class ArenaScene extends Phaser.Scene {
     this.cameras.main.shake(crit ? 170 : 95, crit ? 0.009 : 0.0045)
     const hitX = enemy.x
     const hitY = enemy.y - enemy.displayHeight * 0.55
-    this.slapImpact(hitX, hitY, crit)
+    this.moveImpact(hitX, hitY, move, crit)
     this.comboGlow()
-    this.floatText(enemy.x, enemy.y - enemy.displayHeight - 6, crit ? `👋暴击 ${HERO_MELEE_DMG * 2}!` : `-${HERO_MELEE_DMG}`, crit ? '#ffd23f' : '#ffffff', crit ? 26 : 20)
-    this.spawnBurst(hitX, hitY, crit ? 0xffd23f : 0xffffff, crit ? 14 : 8)
-    playSfx(crit ? 'crit' : 'slap')
+    this.floatText(enemy.x, enemy.y - enemy.displayHeight - 6, crit ? `暴击 ${HERO_MELEE_DMG * 2}!` : `-${HERO_MELEE_DMG}`, crit ? '#ffd23f' : '#ffffff', crit ? 26 : 20)
+    this.spawnBurst(hitX, hitY, crit ? 0xffd23f : move.vfxColor, crit ? 14 : 8)
+    if (crit) playSfx('crit') // 收招暴击额外叠一记重音（出招音在 doAttack 已播）
     if (crit) {
       this.cameras.main.flash(120, 255, 220, 120)
       const cry = battleCry('crit', this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 160, cry, '#ffd23f', 22)
     }
-    if (killedBoss) this.onBossDefeated()
-    else if (result === 'dead') this.onEnemyKilled(enemy)
+    if (result === 'dead') this.onEnemyKilled(enemy)
     this.pushHud()
   }
 
@@ -603,8 +619,6 @@ export class ArenaScene extends Phaser.Scene {
   // ── BOSS 知识闸 + 答题结算 ───────────────────────────────────────────
   private maybeBossQuiz(): void {
     if (!this.boss || this.boss.dead || this.pending || this.frozen) return
-    // 护盾已破（破盾窗口内）：让主角专心普攻输出，不再弹题打断节奏；护盾再生后才会再弹。
-    if (!this.boss.isShielded) return
     const now = this.time.now
     if (now < this.bossQuizCdUntil) return
     // BOSS 逼近主角（攻击距离内）时触发知识闸。
@@ -620,6 +634,8 @@ export class ArenaScene extends Phaser.Scene {
   /** Boss 知识闸：用 React 卡片（更清晰的提示），但答完/超时即自动收起。 */
   private openBossQuiz(question: BattleQuestion): void {
     this.pending = { source: 'boss', question, resolved: false }
+    this.clearMovementInput() // 弹窗即暂停：清移动栓锁，主角立刻停步（见 #23）
+    this.hero.drive(0, true)
     this.bridge.emit('quiz:open', {
       question,
       source: 'boss',
@@ -660,29 +676,25 @@ export class ArenaScene extends Phaser.Scene {
       this.slowmo(160, 0.45) // 重创老师：微慢镜
       this.cameras.main.shake(240, 0.011)
       this.cameras.main.flash(180, 180, 230, 255)
+      // 纯视觉表达「答对→破防→可近战」：护盾碎裂爆 + BOSS 身上「可揍」高亮脉冲（替代啰嗦文字 #25）。
+      this.shieldShatter(boss, color)
+      this.meleeReadyPulse(boss)
       this.shockwave(boss.x, boss.y - boss.displayHeight * 0.5, color) // 答对按科目配色冲击波
       this.spawnBurst(boss.x, boss.y - boss.displayHeight * 0.6, color, 24)
-      this.floatText(boss.x, boss.y - boss.displayHeight - 10, `知识·重创 -${BOSS_KNOWLEDGE_DMG}!`, '#7cc0ff', 24)
+      // 短促招式名战吼（保留），不再有「答对，知识重创老师」之类的教学句。
       const cry = skillCry(def.subject, this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 170, cry, '#ffd23f', 24)
       playSfx('skill')
       playSfx('correct')
-      // 破盾！窗口内普攻可揍老师，到时护盾再生。提示「护盾破了，快用普攻!」。
-      if (res !== 'dead') {
-        boss.breakShield(SHIELD_BREAK_MS)
-        this.floatText(boss.x, boss.y - boss.displayHeight - 40, '🛡 护盾破了·快普攻!', '#ffd23f', 22)
-      }
-      this.bridge.emit('result', { ok: true, crit: true, title: '答对！护盾破了，快用普攻!', detail: cry ?? undefined })
       if (res === 'dead') this.onBossDefeated()
     } else {
-      // 答错：BOSS 反打主角。
+      // 答错：BOSS 反打主角。纯视觉（红闪 + 抖屏 + 老师吐槽气泡），不再有「答错了！被老师抓到」横幅。
       const hurt = this.hero.takeHit(BOSS_HIT_DMG, boss.x)
       this.cameras.main.shake(160, 0.008)
       this.cameras.main.flash(140, 255, 80, 80)
       const taunt = def.taunts[Phaser.Math.Between(0, def.taunts.length - 1)]
       this.floatText(boss.x, boss.y - boss.displayHeight - 10, `「${taunt}」`, '#ff9e6a', 20)
       playSfx('wrong')
-      this.bridge.emit('result', { ok: false, crit: false, title: '答错了！被老师抓到', detail: taunt })
       if (hurt && this.hero.isDead()) { this.lose(); return }
     }
     // 答题闸结束后给一段喘息：主角短无敌 + 把 BOSS 推开，避免一关掉就被连打。
@@ -704,24 +716,24 @@ export class ArenaScene extends Phaser.Scene {
       playSfx('correct')
       this.shockwave(this.hero.x, this.hero.y - this.hero.displayHeight * 0.5, subjectColor(subject))
       if (this.skill === 'heal') {
+        // 回血：纯视觉（绿闪 + 主角染绿 + 短飘字 +2），无教学横幅。
         this.hero.heal(2)
         this.cameras.main.flash(200, 140, 255, 180)
-        this.floatText(this.hero.x, this.hero.y - 160, '学霸回血 +2', '#7CFFB0', 24)
+        this.floatText(this.hero.x, this.hero.y - 160, '+2', '#7CFFB0', 28)
         playSfx('heal')
-        this.bridge.emit('result', { ok: true, crit: false, title: '答对！学霸回血', detail: '体力恢复' })
       } else {
-        // nova：清屏 AoE（含对 BOSS 的知识重创）。
+        // nova：清屏 AoE（含对 BOSS 的知识重创）。保留一条【短促】大招横幅（无说明性长句），
+        // 且由 ResultFlash 自动收起（#29）。
         this.castNova()
-        this.bridge.emit('result', { ok: true, crit: true, title: '学霸大招·全屏清场!', detail: '同学全倒，老师受创' })
+        this.bridge.emit('result', { ok: true, crit: true, title: '学霸大招·全屏清场!' })
       }
       const cry = battleCry('finish', this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 200, cry, '#ffd23f', 26)
     } else {
-      // 答错：大招哑火，扣一半能量。
+      // 答错：大招哑火，扣一半能量。纯视觉（灰飘字 + 错误音），无教学横幅。
       this.energy = Math.max(0, this.energy - 0.5)
       this.floatText(this.hero.x, this.hero.y - 150, '大招哑火…', '#9aa6b2', 20)
       playSfx('wrong')
-      this.bridge.emit('result', { ok: false, crit: false, title: '答错了，大招没放出来', detail: '能量减半' })
     }
   }
 
@@ -755,7 +767,8 @@ export class ArenaScene extends Phaser.Scene {
       if (e.dead) return
       if (e.isBoss) {
         const res = e.knowledgeHit(2, this.hero.x)
-        this.floatText(e.x, e.y - e.displayHeight - 10, '知识·重创 -2!', '#7cc0ff', 22)
+        this.shieldShatter(e, 0x7cc0ff)
+        this.floatText(e.x, e.y - e.displayHeight - 10, '-2!', '#7cc0ff', 24) // 伤害数字（短促），非教学句
         if (res === 'dead') this.onBossDefeated()
       } else {
         this.spawnBurst(e.x, e.y - e.displayHeight * 0.5, 0xffe08a, 12)
@@ -829,12 +842,24 @@ export class ArenaScene extends Phaser.Scene {
     this.energy = Phaser.Math.Clamp(this.energy + n, 0, 1)
   }
 
+  /**
+   * 飘字（招式名/伤害数字/战吼）：先弹入上浮一小段，停住读一拍，再淡出。
+   * 总时长 ~1.9s（pop 140 + hold 1200 + fade 560），比旧的 0.82s 长得多，看得清（#22）。
+   */
   private floatText(x: number, y: number, text: string, color: string, size: number): void {
     const t = this.add.text(x, y, text, {
       fontSize: `${size}px`, color, fontStyle: 'bold',
       stroke: '#1b2030', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(95)
-    this.tweens.add({ targets: t, y: y - 56, alpha: 0, duration: 820, ease: 'Quad.easeOut', onComplete: () => t.destroy() })
+    // 弹入：快速上浮 + 轻微放大回弹（更醒目）。
+    t.setScale(0.7)
+    this.tweens.add({ targets: t, y: y - 28, scale: 1, duration: 140, ease: 'Back.easeOut' })
+    // 停住读一拍后再上浮一点并淡出（hold → fade）。
+    this.tweens.add({
+      targets: t, y: y - 28 - 22, alpha: 0,
+      delay: 140 + 1200, duration: 560, ease: 'Quad.easeIn',
+      onComplete: () => t.destroy(),
+    })
   }
 
   private spawnBurst(x: number, y: number, color: number, count: number): void {
@@ -854,21 +879,51 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
 
-  /** 真理巴掌命中点：白色冲击星 + 四射火花线（巴掌感）。 */
-  private slapImpact(x: number, y: number, crit: boolean): void {
-    const color = crit ? 0xffd23f : 0xffffff
-    // 冲击星（快速放大淡出）。
-    const star = this.add.star(x, y, crit ? 6 : 5, 6, crit ? 22 : 16, color, 0.95).setDepth(96)
-    this.tweens.add({ targets: star, scale: crit ? 2.4 : 1.8, alpha: 0, angle: 60, duration: 220, ease: 'Quad.easeOut', onComplete: () => star.destroy() })
-    // 火花线（一字排开向命中方向飞）。
+  /**
+   * 命中特效（按招式形状/配色，肉眼可辨这一击是哪招，#21）：
+   *   · 巴掌 star：冲击星 + 四射火花线（脆）
+   *   · 踹   ring：向前的冲击半环 + 直冲火花（猛）
+   *   · 呸   wave：朝前的喷溅扇形点（毒舌/唾沫）
+   * crit（收招）统一叠金色加大。
+   */
+  private moveImpact(x: number, y: number, move: MoveSpec, crit: boolean): void {
+    const color = crit ? 0xffd23f : move.vfxColor
     const dir = this.hero.facing
-    for (let i = 0; i < (crit ? 6 : 4); i++) {
-      const ang = (dir > 0 ? 0 : Math.PI) + Phaser.Math.FloatBetween(-0.6, 0.6)
-      const len = Phaser.Math.Between(18, 34)
-      const spark = this.add.rectangle(x, y, len, 3, color, 1).setDepth(96).setRotation(ang)
-      const spd = Phaser.Math.Between(120, 240)
-      this.tweens.add({ targets: spark, x: x + Math.cos(ang) * spd, y: y + Math.sin(ang) * spd, alpha: 0, duration: 240, ease: 'Quad.easeOut', onComplete: () => spark.destroy() })
+    const big = crit ? 1.4 : 1
+    if (move.vfxShape === 'star') {
+      const star = this.add.star(x, y, crit ? 6 : 5, 6, (crit ? 22 : 16) * big, color, 0.95).setDepth(96)
+      this.tweens.add({ targets: star, scale: crit ? 2.4 : 1.8, alpha: 0, angle: 60, duration: 220, ease: 'Quad.easeOut', onComplete: () => star.destroy() })
+      for (let i = 0; i < (crit ? 6 : 4); i++) {
+        const ang = (dir > 0 ? 0 : Math.PI) + Phaser.Math.FloatBetween(-0.6, 0.6)
+        this.spark(x, y, ang, color)
+      }
+    } else if (move.vfxShape === 'ring') {
+      // 冲击环（朝命中点放大的圆环，给「踹」一记厚重的撞击感）。
+      const ring = this.add.circle(x, y, 8, color, 0.0).setDepth(96)
+      ring.setStrokeStyle(crit ? 8 : 6, color, 0.95)
+      this.tweens.add({ targets: ring, radius: (crit ? 64 : 46) * big, alpha: 0, duration: 260, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() })
+      // 直冲火花（集中朝前，体现踹的方向性）。
+      for (let i = 0; i < (crit ? 7 : 5); i++) {
+        const ang = (dir > 0 ? 0 : Math.PI) + Phaser.Math.FloatBetween(-0.25, 0.25)
+        this.spark(x, y, ang, color)
+      }
+    } else {
+      // 喷溅扇形（朝前张开的一束小点，给「呸」唾沫/毒舌的感觉）。
+      for (let i = 0; i < (crit ? 14 : 10); i++) {
+        const ang = (dir > 0 ? 0 : Math.PI) + Phaser.Math.FloatBetween(-0.5, 0.5)
+        const spd = Phaser.Math.Between(120, 260) * big
+        const p = this.add.circle(x, y, Phaser.Math.Between(3, 6), color, 1).setDepth(96)
+        this.tweens.add({ targets: p, x: x + Math.cos(ang) * spd, y: y + Math.sin(ang) * spd - 20, alpha: 0, scale: 0.2, duration: 360, ease: 'Quad.easeOut', onComplete: () => p.destroy() })
+      }
     }
+  }
+
+  /** 一条向某方向飞的火花线（命中特效用）。 */
+  private spark(x: number, y: number, ang: number, color: number): void {
+    const len = Phaser.Math.Between(18, 34)
+    const spark = this.add.rectangle(x, y, len, 3, color, 1).setDepth(96).setRotation(ang)
+    const spd = Phaser.Math.Between(120, 240)
+    this.tweens.add({ targets: spark, x: x + Math.cos(ang) * spd, y: y + Math.sin(ang) * spd, alpha: 0, duration: 240, ease: 'Quad.easeOut', onComplete: () => spark.destroy() })
   }
 
   /** 连击发光：连击越高，主角身上的光晕越亮越大（逐级升）。 */
@@ -885,6 +940,52 @@ export class ArenaScene extends Phaser.Scene {
     const ring = this.add.circle(x, y, 16, color, 0.0).setDepth(82)
     ring.setStrokeStyle(8, color, 0.85)
     this.tweens.add({ targets: ring, radius: 260, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() })
+  }
+
+  /**
+   * 护盾碎裂爆（纯视觉替代「护盾破了」文字 #25）：答对重创老师时，
+   * 护盾光环猛地撑大碎掉，向四周崩出一圈玻璃碎片（短弧线 + 火花）。
+   */
+  private shieldShatter(boss: Enemy, color: number): void {
+    const cx = boss.x
+    const cy = boss.y - boss.displayHeight * 0.5
+    const r0 = boss.displayHeight * 0.55
+    // 护盾撑爆环。
+    const ring = this.add.circle(cx, cy, r0, 0xffffff, 0.0).setDepth(83)
+    ring.setStrokeStyle(5, color, 0.9)
+    this.tweens.add({ targets: ring, radius: r0 * 1.6, alpha: 0, duration: 260, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() })
+    // 碎片（短弧片向外崩飞 + 自转淡出）。
+    const shards = 12
+    for (let i = 0; i < shards; i++) {
+      const ang = (i / shards) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2)
+      const sx = cx + Math.cos(ang) * r0
+      const sy = cy + Math.sin(ang) * r0
+      const shard = this.add.rectangle(sx, sy, Phaser.Math.Between(6, 12), 3, color, 0.95).setDepth(96).setRotation(ang)
+      const spd = Phaser.Math.Between(120, 240)
+      this.tweens.add({
+        targets: shard,
+        x: sx + Math.cos(ang) * spd, y: sy + Math.sin(ang) * spd,
+        angle: Phaser.Math.Between(-180, 180), alpha: 0,
+        duration: 360, ease: 'Quad.easeOut', onComplete: () => shard.destroy(),
+      })
+    }
+  }
+
+  /**
+   * 「可近战」高亮脉冲（纯视觉替代「快用普攻」文字 #25）：BOSS 被破防后，
+   * 脚下涌起两道金色脉冲环，暗示「现在能上去揍它」。
+   * （不动 BOSS 的 tint：受击红闪已由 Enemy.applyDamage 负责，避免互相覆盖。）
+   */
+  private meleeReadyPulse(boss: Enemy): void {
+    const cy = boss.y - boss.displayHeight * 0.5
+    for (let i = 0; i < 2; i++) {
+      this.time.delayedCall(i * 130, () => {
+        if (boss.dead) return
+        const pulse = this.add.circle(boss.x, cy, boss.displayHeight * 0.3, 0xffd23f, 0.0).setDepth(46)
+        pulse.setStrokeStyle(4, 0xffe08a, 0.9)
+        this.tweens.add({ targets: pulse, radius: boss.displayHeight * 0.8, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => pulse.destroy() })
+      })
+    }
   }
 
   /** 微慢镜：把物理/动画时间缩放压低一小段后自动恢复（大招/重击的「定格感」）。 */

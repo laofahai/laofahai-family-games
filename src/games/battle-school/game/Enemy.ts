@@ -5,8 +5,8 @@
 //   · 所有敌人头顶有名字牌 + 血条（Nameplate）。
 //   · lunge 命中区在身体/地面高度，跳跃可越过（命中判定见 lungeHitsAt）。
 // 本类只管单体行为与表演；波次/数值/答题闸在 ArenaScene。
-// 美术沿用 Kenney「Toon Characters 1」：精灵 key=kidA–D / teacher，攻击帧名 attack2。
-// TODO 性别区分待女版 Kenney 素材：现在不按性别换精灵。
+// 美术沿用 Kenney「Toon Characters 1」：精灵 key 按性别由场景传入
+// （男=kidA–D / teacher，女=kidE–G / teacherF），攻击帧名 attack2。
 
 import Phaser from 'phaser'
 import { texKey, walkAnimKey } from './assets'
@@ -46,13 +46,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   lungeHitDone = false
   crown?: Phaser.GameObjects.Text
   shield?: Phaser.GameObjects.Arc // BOSS 护盾光环
-  /** 当前静态姿势纹理 key（idle/attack2/hurt）；只在变化时换贴图，避免每帧 setTexture 闪烁。 */
-  private poseKey = ''
-  /** BOSS 护盾是否当前竖起（true=免疫近战）。答对会破盾一段时间，到时再生。 */
-  private shieldUp: boolean
-  /** 护盾破开窗口的结束时刻（now < shieldDownUntil 时近战可破防）。 */
-  private shieldDownUntil = 0
-  private shieldRegenEv?: Phaser.Time.TimerEvent
 
   constructor(scene: Phaser.Scene, x: number, y: number, opts: EnemyOpts) {
     super(scene, x, y, texKey(opts.charKey, 'idle'))
@@ -63,7 +56,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.charKey = opts.charKey
     this.hp = opts.hp
     this.maxHp = opts.hp
-    this.shieldUp = opts.isBoss // BOSS 出场即有学霸护盾；小怪没有
     this.speed = opts.speed ?? (opts.isBoss ? BOSS_SPEED : MOB_SPEED)
 
     const displayH = opts.isBoss ? BOSS_DISPLAY_H : MOB_DISPLAY_H
@@ -135,36 +127,28 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.nextAttackAt = now + (this.isBoss ? BOSS_ATTACK_CD : MOB_ATTACK_CD)
     this.lungeHitDone = false
     // 攻击姿势 + 前探一下（手感）。
-    this.poseKey = 'attack2'
-    this.anims.stop()
     this.setTexture(texKey(this.charKey, 'attack2'))
     this.scene.tweens.add({ targets: this, scaleY: this.scaleY * 0.92, scaleX: this.scaleX * 1.08, duration: 90, yoyo: true })
   }
 
   private updateAnim(now: number, body: Phaser.Physics.Arcade.Body, inLunge: boolean): void {
     if (now < this.hurtUntil) {
-      this.setPose('hurt')
+      this.anims.stop()
+      this.setTexture(texKey(this.charKey, 'hurt'))
       return
     }
     if (inLunge) {
-      this.setPose('attack2')
+      this.anims.stop()
+      this.setTexture(texKey(this.charKey, 'attack2'))
       return
     }
     if (Math.abs(body.velocity.x) > 5) {
       const key = walkAnimKey(this.charKey)
       if (this.anims.currentAnim?.key !== key || !this.anims.isPlaying) this.anims.play(key, true)
-      this.poseKey = '' // 走路时清空静态姿势记号
     } else {
-      this.setPose('idle')
+      this.anims.stop()
+      this.setTexture(texKey(this.charKey, 'idle'))
     }
-  }
-
-  /** 切到静态姿势贴图：只在姿势变化时换贴图，避免每帧 stop+setTexture 的 1 帧空白闪烁。 */
-  private setPose(frame: 'idle' | 'attack2' | 'hurt'): void {
-    if (this.poseKey === frame) return
-    this.poseKey = frame
-    this.anims.stop()
-    this.setTexture(texKey(this.charKey, frame))
   }
 
   /** 当前 lunge 是否处于命中窗口（场景据此判接触伤害）。 */
@@ -190,18 +174,21 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (this.shield) this.shield.setPosition(this.x, this.y - this.displayHeight * 0.5)
   }
 
-  /** 受近战命中：小怪扣血+击退+闪红；BOSS 护盾竖起时免疫（返回 'immune'），破盾窗口内可被普攻打。 */
-  meleeHit(dmg: number, fromX: number): 'hurt' | 'dead' | 'immune' {
+  /**
+   * 受近战命中：小怪扣血+击退+闪红；BOSS 免疫（返回 'immune'）。返回结果给场景做表演。
+   * @param kb 横向击退力度（不同招式不同；缺省用小怪默认）。
+   * @param launch 上挑力度（第 3 招更强；缺省默认）。
+   */
+  meleeHit(dmg: number, fromX: number, kb?: number, launch?: number): 'hurt' | 'dead' | 'immune' {
     if (this.dead) return 'dead'
-    if (this.isBoss && this.shieldUp) {
-      // 学霸护盾竖起：普通攻击无效，护盾闪一下。
+    if (this.isBoss) {
+      // 学霸护盾：普通攻击无效，护盾闪一下。
       if (this.shield) {
         this.scene.tweens.add({ targets: this.shield, alpha: 0.5, scale: 1.12, duration: 120, yoyo: true })
       }
       return 'immune'
     }
-    // 护盾已破（或本就是小怪）：普攻照常扣血。
-    return this.applyDamage(dmg, fromX)
+    return this.applyDamage(dmg, fromX, kb, launch)
   }
 
   /** 知识伤害（答题打 BOSS / AoE 打小怪）：无视护盾。 */
@@ -209,65 +196,18 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     return this.applyDamage(dmg, fromX)
   }
 
-  /** BOSS 护盾当前是否竖起（true=普攻免疫）。 */
-  get isShielded(): boolean {
-    return this.isBoss && this.shieldUp
-  }
-
-  /**
-   * 答对一题：破开 BOSS 护盾一段时间（窗口内普攻可破防），到时自动再生。
-   * 破盾有可见表演（护盾炸碎/淡出），再生有可见聚拢/闪现。
-   * @param windowMs 破盾窗口时长（ms）
-   */
-  breakShield(windowMs: number): void {
-    if (!this.isBoss || this.dead) return
-    this.shieldUp = false
-    this.shieldDownUntil = this.scene.time.now + windowMs
-    // 破盾表演：护盾外扩 + 炸碎淡出。
-    if (this.shield) {
-      const s = this.shield
-      s.setVisible(true)
-      this.scene.tweens.killTweensOf(s)
-      this.scene.tweens.add({ targets: s, scale: 1.6, alpha: 0, duration: 240, ease: 'Quad.easeOut', onComplete: () => s.setVisible(false) })
-      // 碎片火花。
-      const cx = this.x
-      const cy = this.y - this.displayHeight * 0.5
-      for (let i = 0; i < 12; i++) {
-        const ang = (i / 12) * Math.PI * 2
-        const p = this.scene.add.circle(cx, cy, 4, 0x9fd0ff, 0.95).setDepth(46)
-        const spd = 120 + Math.random() * 120
-        this.scene.tweens.add({ targets: p, x: cx + Math.cos(ang) * spd, y: cy + Math.sin(ang) * spd, alpha: 0, scale: 0.2, duration: 420, ease: 'Quad.easeOut', onComplete: () => p.destroy() })
-      }
-    }
-    // 安排再生（用 now 兜底，避免连续答对叠加多个再生计时器）。
-    this.shieldRegenEv?.remove()
-    this.shieldRegenEv = this.scene.time.delayedCall(windowMs, () => this.regenShield())
-  }
-
-  private regenShield(): void {
-    if (!this.isBoss || this.dead) return
-    if (this.scene.time.now < this.shieldDownUntil - 1) return // 期间又被破盾刷新过，跳过这次过期回调
-    this.shieldUp = true
-    if (this.shield) {
-      const s = this.shield
-      this.scene.tweens.killTweensOf(s)
-      s.setVisible(true)
-      s.setScale(1.6).setAlpha(0)
-      this.scene.tweens.add({ targets: s, scale: 1, alpha: 1, duration: 300, ease: 'Back.easeOut' })
-    }
-  }
-
-  private applyDamage(dmg: number, fromX: number): 'hurt' | 'dead' {
+  private applyDamage(dmg: number, fromX: number, kb?: number, launch?: number): 'hurt' | 'dead' {
     this.hp = Math.max(0, this.hp - dmg)
     const now = this.scene.time.now
     this.hurtUntil = now + 240
     this.lungeUntil = 0 // 打断它的攻击
     this.setTint(0xff5a5a)
     this.scene.time.delayedCall(220, () => { if (!this.dead) this.clearTint() })
-    // 击退（BOSS 较沉）。
+    // 击退（BOSS 较沉；招式可覆盖力度/上挑）。
     const dir = this.x < fromX ? -1 : 1
-    const kb = this.isBoss ? 120 : 320
-    ;(this.body as Phaser.Physics.Arcade.Body).setVelocity(dir * kb, -180)
+    const kbX = kb ?? (this.isBoss ? 120 : 320)
+    const launchY = launch ?? 180
+    ;(this.body as Phaser.Physics.Arcade.Body).setVelocity(dir * kbX, -launchY)
     if (this.hp <= 0) {
       this.die()
       return 'dead'
@@ -281,9 +221,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dead = true
     const body = this.body as Phaser.Physics.Arcade.Body
     body.enable = false
-    this.shieldRegenEv?.remove()
-    this.poseKey = 'hurt'
-    this.anims.stop()
     this.setTexture(texKey(this.charKey, 'hurt'))
     this.plate.setVisible(false)
     this.scene.tweens.add({

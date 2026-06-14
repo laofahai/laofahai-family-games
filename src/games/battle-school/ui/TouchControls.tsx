@@ -14,17 +14,21 @@ export function TouchControls({
   controls,
   skill,
   energyFull,
+  paused,
   onSwitchSkill,
 }: {
   controls: GameControls
   skill: SkillKind
   energyFull: boolean
+  paused: boolean // 弹窗（答题卡片/飘题）打开时为真：摇杆需清栓锁回中（见 #23）
   onSwitchSkill: () => void
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex select-none items-end justify-between p-4 sm:p-6">
-      {/* 左：虚拟摇杆（按下生成、拇指跟手、回中） */}
-      <Thumbstick controls={controls} />
+      {/* 左：虚拟摇杆（按下生成、拇指跟手、回中）。
+          paused 翻转时用 key 强制重挂 → 内部 heldDir/active/knob/pointer 全部复位（#23），
+          避免「暂停时手指仍按着 → 关闭后还按旧方向自动走、按反方向无反应」的卡死。 */}
+      <Thumbstick key={paused ? 'paused' : 'live'} controls={controls} />
 
       {/* 右：大号动作按钮 */}
       <div className="pointer-events-auto flex items-end gap-3">
