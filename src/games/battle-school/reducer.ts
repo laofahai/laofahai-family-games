@@ -22,6 +22,14 @@ import {
 } from './types'
 
 export const HERO_HP = 5
+/** 普攻（👊）对小怪的伤害：动作为主，几下放倒。Boss 免疫普攻（得用知识）。 */
+export const MELEE_DAMAGE = 1
+/** 学科大招（⚡）对小怪的伤害：足够直接放倒任何小怪（前提是答对了起手的学科题）。 */
+export const SKILL_NOVA_DAMAGE = 999
+/** 学科大招命中老师 Boss 的伤害：知识驱动的大招对老师有效（强力但有限，不秒），答对才生效。 */
+export const SKILL_NOVA_BOSS_DAMAGE = 3
+/** 学科大招起手会随机抽这些「学习类」学科的题（答对才放得出招）。 */
+const NOVA_SUBJECTS = ['math', 'chinese', 'english', 'science'] as const
 /** 损人嘴炮的固定伤害：低，但「侮辱性极强」的演出补偿。自定义打字也是这个值。 */
 export const DISS_DAMAGE = 8
 /** 社交遭遇「搞定他」对共享 Boss 的固定伤害（多人共斗用；单人沿用「直接放倒小怪」）。 */
@@ -48,6 +56,10 @@ function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'hi
 } {
   if (stepIndex < level.mobs.length) {
     const mob: MobStep = level.mobs[stepIndex]
+    if (mob.mode === 'melee') {
+      // 纯动作小怪：没题，走近用 👊 普攻打。
+      return { challenge: { type: 'melee' }, enemyEmoji: mob.emoji, enemyName: mob.name, enemyHp: mob.hp }
+    }
     if (mob.mode === 'encounter') {
       const enc = drawEncounters(band, 1)[0]
       if (enc) {
@@ -159,6 +171,7 @@ export function initGame(args: InitArgs): GameState {
     fxSeq: 0,
     fx: { kind: 'spawn', enemyEmoji, enemyName, isBoss: false },
     coop: args.coop ?? false,
+    skillQuiz: null,
   }
 }
 
@@ -200,6 +213,98 @@ function hitHero(state: GameState, damage: number): GameState {
 
 export function gameReducer(state: GameState, action: Action): GameState {
   switch (action.type) {
+    case 'MELEE': {
+      // 普攻：走近用拳头打小怪。Boss 有「学霸护盾」免疫普攻（弹开），得用知识。
+      if (state.phase !== 'playing') return state
+      const level = state.levels[state.levelIndex]
+      if (isBossStep(level, state.stepIndex)) {
+        return { ...state, fxSeq: state.fxSeq + 1, fx: { kind: 'hero-attack', attack: randomAttackKind(), damage: 0 } }
+      }
+      if (state.coop) {
+        // 共斗：本地不扣共享血（host 权威），只播动画；伤害由 PlayingView 上报。
+        return { ...state, fxSeq: state.fxSeq + 1, fx: { kind: 'hero-attack', attack: randomAttackKind(), damage: MELEE_DAMAGE } }
+      }
+      const enemy = applyDamage(state.enemy, MELEE_DAMAGE)
+      // 不在这里推进：血空后由 PlayingView 的「倒地→推进」effect 处理，能看到最后一拳 + 倒地。
+      return { ...state, enemy, fxSeq: state.fxSeq + 1, fx: { kind: 'hero-attack', attack: randomAttackKind(), damage: MELEE_DAMAGE } }
+    }
+
+    case 'ARM_NOVA': {
+      // 学科大招·起手：弹一道随机学习类学科题（模态），答对才放得出招。已有待答题则忽略（防重复）。
+      if (state.phase !== 'playing' || state.skillQuiz) return state
+      const subject = NOVA_SUBJECTS[Math.floor(Math.random() * NOVA_SUBJECTS.length)]
+      const question = pickQuestion(state.band, { subject })
+      return { ...state, skillQuiz: { question } }
+    }
+
+    case 'RESOLVE_NOVA': {
+      // 学科大招·结算：答对=放招（秒小怪 / 重击老师），答错=哑火（无伤害，能量已在按下时消耗）。
+      if (state.phase !== 'playing' || !state.skillQuiz) return state
+      const q = state.skillQuiz.question
+      const correct = action.choiceId === q.answer
+      const base: GameState = { ...state, skillQuiz: null }
+      if (!correct) {
+        // 哑火：技能没放出来。不惩罚血量（对小朋友友好），给个反馈浮层即可。
+        return {
+          ...base,
+          fxSeq: state.fxSeq + 1,
+          fx: { kind: 'none' },
+          lastResult: {
+            ok: false,
+            text: '大招哑火了！',
+            detail: `答错了，没放出来～正确答案：${q.choices.find((c) => c.id === q.answer)?.text ?? ''}`,
+          },
+        }
+      }
+      const level = state.levels[state.levelIndex]
+      if (isBossStep(level, state.stepIndex)) {
+        // 知识大招命中老师：强力暴击（有限伤害，不秒）。共斗只播动画 + 由 PlayingView 上报。
+        if (state.coop) {
+          return {
+            ...base,
+            streak: state.streak + 1,
+            fxSeq: state.fxSeq + 1,
+            fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_BOSS_DAMAGE },
+            lastResult: { ok: true, text: '知识大招·命中老师！', crit: true },
+          }
+        }
+        const next = hitEnemy(base, SKILL_NOVA_BOSS_DAMAGE, true)
+        return {
+          ...next,
+          streak: state.streak + 1,
+          lastResult: {
+            ok: true,
+            text: '知识大招·命中老师！',
+            detail: isDown(next.enemy) ? undefined : '老师被你的学识震住了！',
+            crit: true,
+          },
+        }
+      }
+      // 小怪：直接放倒。共斗只播动画 + 由 PlayingView 上报；单人本地扣血。
+      if (state.coop) {
+        return {
+          ...base,
+          fxSeq: state.fxSeq + 1,
+          fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_DAMAGE },
+        }
+      }
+      const enemy = applyDamage(base.enemy, SKILL_NOVA_DAMAGE)
+      // 不设 lastResult：小怪被秒后由 PlayingView 的「倒地→推进」effect 处理（看得到倒地）。
+      return {
+        ...base,
+        enemy,
+        fxSeq: state.fxSeq + 1,
+        fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_DAMAGE },
+      }
+    }
+
+    case 'SKILL_HEAL': {
+      // 回血：主角恢复血量（不超上限）。单人/共斗都只动本地 hero，安全。
+      if (state.phase !== 'playing') return state
+      const hp = Math.min(state.hero.maxHp, state.hero.hp + Math.max(1, action.amount))
+      return { ...state, hero: { ...state.hero, hp } }
+    }
+
     case 'ANSWER':
     case 'TIMEOUT': {
       if (state.phase !== 'playing' || state.challenge.type !== 'question') return state

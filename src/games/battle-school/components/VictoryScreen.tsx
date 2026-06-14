@@ -1,4 +1,6 @@
 import type { RosterDef } from '@/games/_battle/roster'
+import type { Band } from '@/games/_battle/core'
+import { battleCry } from '@/games/_battle/cries'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 
@@ -41,16 +43,21 @@ function Confetti() {
 export function VictoryScreen({
   roster,
   playerName,
+  band,
   onRestart,
   onExit,
 }: {
   roster: RosterDef
   playerName: string
+  /** 玩家年龄段：用来取一句中二「终结」战吼作庆祝词（来自 DB，取不到则不显示）。 */
+  band?: Band
   onRestart: () => void
   onExit: () => void
 }) {
   const wantGraduation = roster.finale === 'graduation'
   const showGraduation = wantGraduation && gradUnlocked()
+  // 中二终结战吼（庆祝）。组件只在通关时渲染一次，render 期取一次即可。
+  const finishCry = band ? battleCry('finish', band) : null
 
   if (showGraduation) {
     return (
@@ -62,6 +69,11 @@ export function VictoryScreen({
           </div>
           <h2 className="mt-1 font-display text-2xl text-ink-900">毕业典礼 🎓</h2>
           <p className="mt-1 text-sm text-ink-600">同学们列队鼓掌，老师们送上祝福！</p>
+          {finishCry && (
+            <p className="mx-auto mt-2 max-w-sm rounded-2xl bg-rose-600/95 px-4 py-1.5 text-center font-display text-base font-black text-white shadow">
+              {finishCry}
+            </p>
+          )}
 
           {/* 毕业证书卡 */}
           <div className="mx-auto mt-4 max-w-sm rounded-3xl border-2 border-amber-300 bg-gradient-to-b from-amber-50 to-white p-5 shadow-inner">
@@ -114,6 +126,11 @@ export function VictoryScreen({
         <p className="mt-1 text-sm text-ink-600">
           {playerName} 把全部老师都答服气啦，太厉害了！
         </p>
+        {finishCry && (
+          <p className="mx-auto mt-2 max-w-sm rounded-2xl bg-rose-600/95 px-4 py-1.5 text-center font-display text-base font-black text-white shadow">
+            {finishCry}
+          </p>
+        )}
         {wantGraduation && (
           <p className="mx-auto mt-3 max-w-sm rounded-2xl bg-sky-50 p-3 text-sm text-sky-700">
             毕业典礼要等毕业季哦 🎓（{GRAD_DATE} 起开放）

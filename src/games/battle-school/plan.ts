@@ -17,12 +17,13 @@ function rand(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-/** 普通小怪的互动方式：社交遭遇 / 好玩题 / 损人嘴炮，按权重随机。 */
+/** 小怪互动：动作为主（melee 直接打），中间【穿插】知识题 / 社交 / 损人。Boss 必用知识。 */
 function pickMobMode(): MobMode {
   const r = Math.random()
-  if (r < 0.42) return 'encounter'
-  if (r < 0.72) return 'question'
-  return 'diss'
+  if (r < 0.48) return 'melee' // 动作为主：直接打
+  if (r < 0.7) return 'question' // 穿插一道知识题
+  if (r < 0.88) return 'encounter' // 穿插社交/礼貌互动
+  return 'diss' // 穿插损人嘴炮
 }
 
 /** 为某一关生成 2~3 个同学小怪 + 1 个 Boss 前的体测挑战。 */

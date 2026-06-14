@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { subjectEmoji, subjectLabel } from '@/games/_battle/core'
+import { battleCry, skillCry } from '@/games/_battle/cries'
 import type { Band, BattleQuestion } from '@/games/_battle/core'
 import { drawQuestions } from '@/games/_battle/questions'
 import { getPlayers } from '@/platform/players'
@@ -78,6 +79,8 @@ export function OnlineDuelScreen({ onExit }: OnlineDuelScreenProps) {
   const [streak, setStreak] = useState(0)
   const [oppStreak, setOppStreak] = useState(0)
   const [log, setLog] = useState<string[]>([])
+  // 我这一击的中二台词来源：作答结算时定格（学科 + 暴击/答对），换题/重开时清空。
+  const [myStrike, setMyStrike] = useState<{ subject: string; crit: boolean; correct: boolean } | null>(null)
 
   const chanRef = useRef<DuelChannel | null>(null)
   // 用 ref 镜像最新值，供 onMessage/onPresence 回调读（这些回调闭包在 code 建立时定格，不随渲染更新）
@@ -93,6 +96,15 @@ export function OnlineDuelScreen({ onExit }: OnlineDuelScreenProps) {
 
   const current = queue[qIndex] ?? null
   const oppPresent = conn === 'connected'
+
+  // 中二招式横幅：每次我出招（myStrike 变）才重取一次，避免亮对错期间重渲染抖动。
+  const cryText = useMemo(() => {
+    if (!myStrike) return null
+    if (myStrike.crit) return battleCry('crit', band) ?? skillCry(myStrike.subject, band)
+    if (myStrike.correct) return skillCry(myStrike.subject, band)
+    return null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myStrike])
 
   // ── 频道生命周期：进入 waiting/playing（有 code）就连，卸载/离开断开 ──
   useEffect(() => {
@@ -213,6 +225,7 @@ export function OnlineDuelScreen({ onExit }: OnlineDuelScreenProps) {
     setQueue(q)
     setQIndex(0)
     setPicked(null)
+    setMyStrike(null)
     setStreak(0)
     setOppStreak(0)
     setLog([])
@@ -249,6 +262,8 @@ export function OnlineDuelScreen({ onExit }: OnlineDuelScreenProps) {
       const r = applyMyAnswer(f, correct, streak, uid)
       setFighters(r.fighters)
       setStreak(r.correct ? streak + 1 : 0)
+      // 定格本击中二台词来源（学科取自刚答的这道题）。
+      setMyStrike({ subject: current.subject, crit: r.crit, correct: r.correct })
       playFx(r.fx)
       chanRef.current?.send(r.msg)
       pushLog(myLine(current, r.correct, r.crit, r.damage))
@@ -259,6 +274,7 @@ export function OnlineDuelScreen({ onExit }: OnlineDuelScreenProps) {
         // 进入下一题
         setTimeout(() => {
           setPicked(null)
+          setMyStrike(null)
           setQIndex((i) => (i + 1 < queue.length ? i + 1 : 0))
         }, 650)
       }
@@ -458,23 +474,40 @@ export function OnlineDuelScreen({ onExit }: OnlineDuelScreenProps) {
       </div>
 
       {fighters && (
-        <DuelStage
-          spawnKey={String(battleId)}
-          left={{
-            emoji: meFighter!.emoji,
-            name: `${meFighter!.name}（你）`,
-            maxHp: meFighter!.maxHp,
-            hp: meFighter!.hp,
-          }}
-          right={{
-            emoji: oppFighter!.emoji,
-            name: oppFighter!.name,
-            maxHp: oppFighter!.maxHp,
-            hp: oppFighter!.hp,
-          }}
-          fxSeq={fxSeq}
-          fx={fx}
-        />
+        <div className="relative">
+          <DuelStage
+            spawnKey={String(battleId)}
+            left={{
+              emoji: meFighter!.emoji,
+              name: `${meFighter!.name}（你）`,
+              maxHp: meFighter!.maxHp,
+              hp: meFighter!.hp,
+            }}
+            right={{
+              emoji: oppFighter!.emoji,
+              name: oppFighter!.name,
+              maxHp: oppFighter!.maxHp,
+              hp: oppFighter!.hp,
+            }}
+            fxSeq={fxSeq}
+            fx={fx}
+          />
+          {/* 中二招式横幅：我出招瞬间按学科喊招式名 / 暴击战吼 */}
+          {picked !== null && cryText && (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-2">
+              <div
+                className={[
+                  'kd-banner rounded-2xl px-4 py-1.5 text-center font-display font-black shadow-xl',
+                  myStrike?.crit
+                    ? 'bg-amber-400 text-ink-900 text-lg sm:text-2xl'
+                    : 'bg-melon-600 text-white text-base sm:text-xl',
+                ].join(' ')}
+              >
+                {cryText}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* 血量/连击信息条 */}

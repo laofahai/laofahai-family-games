@@ -22,8 +22,8 @@ export function randomAttackKind(): AttackKind {
   return ATTACK_KINDS[Math.floor(Math.random() * ATTACK_KINDS.length)]
 }
 
-/** 同学小怪遭遇的四种类型：社交遭遇 / 好玩题 / 损人嘴炮 / 体测传感器挑战。 */
-export type MobMode = 'encounter' | 'question' | 'diss' | 'fitness'
+/** 小怪互动类型：melee=直接动手打（动作为主）；其余为偶发的「知识/社交」点缀。 */
+export type MobMode = 'melee' | 'encounter' | 'question' | 'diss' | 'fitness'
 
 /** 一个小怪步骤：是同学，给它名字/表情，以及它本回合用哪种互动。 */
 export interface MobStep {
@@ -87,7 +87,17 @@ export interface FitnessChallengeState {
   challenge: FitnessChallenge
 }
 
-export type Challenge = QuestionChallenge | EncounterChallenge | DissChallenge | FitnessChallengeState
+/** 纯动作小怪：没有题，走近用 👊 普攻打。 */
+export interface MeleeChallenge {
+  type: 'melee'
+}
+
+export type Challenge =
+  | MeleeChallenge
+  | QuestionChallenge
+  | EncounterChallenge
+  | DissChallenge
+  | FitnessChallengeState
 
 export type Phase =
   | 'playing' // 战斗进行中，等待玩家操作（答题/选择）
@@ -121,6 +131,9 @@ export interface GameState {
   // 多人共斗：true=共享 Boss 血量由 host 权威覆盖（敌人血量不由本地结算决定，
   // 而是听 COOP_SYNC）。单人=false，走原有本地结算路径。
   coop: boolean
+  // 学科大招「待答题」：按下⚡后弹一道学科题（模态），答对才放得出大招、答错哑火。
+  // null=没有待答的大招题。学习类技能专属机制（回血不需要答题）。
+  skillQuiz: { question: BattleQuestion } | null
 }
 
 /** 一次结算给 UI 看的反馈。 */
@@ -152,6 +165,10 @@ export interface BattleFx {
 }
 
 export type Action =
+  | { type: 'MELEE' } // 普攻：走近用拳头打当前小怪（Boss 免疫，得用知识）
+  | { type: 'ARM_NOVA' } // 学科大招·起手：弹一道学科题（设 skillQuiz），答对才放得出
+  | { type: 'RESOLVE_NOVA'; choiceId: string } // 学科大招·结算：答对放招（秒小怪/重击老师），答错哑火
+  | { type: 'SKILL_HEAL'; amount: number } // 技能·回血：主角恢复 amount 点血（不超上限，非学习类不需答题）
   | { type: 'ANSWER'; choiceId: string } // 答题：选了某选项
   | { type: 'TIMEOUT' } // 答题超时（算答错）
   | { type: 'PICK_ENCOUNTER'; optionId: string } // 社交遭遇：选了某回应

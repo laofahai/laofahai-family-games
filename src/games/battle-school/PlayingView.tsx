@@ -1,16 +1,25 @@
-// 单局视图：持有 reducer（全部逻辑）与 Phaser 舞台。gameKey 重挂即重置一切。
+// 单局视图（全屏横版）：持有 reducer（全部逻辑）与 Phaser 舞台。gameKey 重挂即重置一切。
 // fx effect 只命令 Phaser 播动画，绝不 setState。
 //
+// 全屏：对局期间用 fixed inset-0 铺满视口（App 的页面 chrome 被这层不透明覆盖盖住）。
+// 移动：主角可前后左右走 + 跳，相机跟随，世界比屏宽。桌面=键盘(方向/WASD/空格)，移动端=屏上 D-pad。
+//   移动意图通过 scene.setMove 喂给 Phaser，逐帧在 update() 消费；绝不 per-frame setState。
+// 走到敌人面前才弹挑战面板（reach gating）：scene 走近敌人 → onReach(true) 回调 → 弹紧凑底部面板。
+//   onReach 由 Phaser update 循环触发（事件，非 effect 体内 setState），ESLint 合规。
+// 挑战面板=紧凑底部 sheet（半透明 + 高度 ≤45vh），不盖住舞台；中二招式横幅浮在上方。
+//
 // 多人共斗：传入 coop（room + me）即进入共斗模式——共享 Boss 血量由 host 权威覆盖，
-// 每个人答各自年级的题、各自上报伤害、一起推进。编排在 useCoopBattle 里（事件/消息回调，不在 effect 同步 dispatch）。
+// 每个人答各自年级的题、各自上报伤害、一起推进。编排在 useCoopBattle 里。
+// 共斗里移动是本地/装饰性的：reach gating 只控本地面板显隐，不影响 host 推进（无 desync 风险）。
 
-import { useEffect, useMemo, useReducer, useRef } from 'react'
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { Game } from 'phaser'
-import { PhaserHost } from '@/games/_battle/PhaserHost'
 import { isDown, resolveAnswer } from '@/games/_battle/core'
 import { rosterFor } from '@/games/_battle/roster'
 import { skillCry, battleCry } from '@/games/_battle/cries'
 import { BattleScene } from './scene'
+import { PhaserStage } from './PhaserStage'
+import { TouchControls } from './components/TouchControls'
 import {
   gameReducer,
   initGame,
@@ -19,9 +28,12 @@ import {
   DISS_DAMAGE,
   FITNESS_PASS_DAMAGE,
   ENCOUNTER_WIN_DAMAGE,
+  MELEE_DAMAGE,
 } from './reducer'
+
+// 共斗里大招对共享 Boss 的伤害：明显比普攻强，但不秒杀，保留多人协作节奏（单人则本地直接放倒）。
+const COOP_NOVA_DAMAGE = 4
 import { saveLevel } from './storage'
-import { BackBar } from './components/BackBar'
 import { HpBar } from './components/HpBar'
 import { QuestionOverlay } from './components/QuestionOverlay'
 import { EncounterOverlay } from './components/EncounterOverlay'
@@ -67,10 +79,29 @@ export function PlayingView({
   const lastSavedRef = useRef<number>(-1)
   const lastReportedHpRef = useRef<number>(-1)
   // 每个挑战只允许作答一次：防快速双击重复上报伤害（共斗时 host 会重复扣共享血）。
-  // 键用 levelIndex:stepIndex（每步只有一个挑战，作答后 ADVANCE 推进步骤 → 键变化 → 自然解锁）。
   const actedKeyRef = useRef<string | null>(null)
+  // 学科大招题只允许结算一次：防双击重复放招/重复上报。每次起手(ARM_NOVA)前置回 false。
+  const novaActedRef = useRef<boolean>(false)
+  // 键盘 / scene 回调用的「最新处理函数」ref：只在 commit effect 里写，键盘/scene 回调里读（合规）。
+  const keyHandlersRef = useRef<{ onMelee: () => void; onSkill: () => void }>({ onMelee: () => {}, onSkill: () => {} })
+  const skipHandlersRef = useRef<{ onSkip: () => void }>({ onSkip: () => {} })
 
-  // 共斗编排：上报命中 / host 算账 / 同步推进。非共斗时 coopBattle 不被使用。
+  // 走到敌人面前才弹面板。reached 只由 scene 的 update 循环回调驱动（事件，非 render/effect 体内）。
+  const [reached, setReached] = useState(false)
+  // 全屏 API 状态（仅装饰；iOS Safari 无 element fullscreen，fixed inset-0 即跨端「全屏」）
+  const [isFs, setIsFs] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // ── 技能能量（UI 资源，逻辑归 React）：打中/答对攒能量，满了可放技能（⚡大招 / 🍬回血 二选一切换）──
+  const ENERGY_MAX = 100
+  const [energy, setEnergy] = useState(0)
+  const [skill, setSkill] = useState<'nova' | 'heal'>('nova')
+  const energyPct = Math.round((energy / ENERGY_MAX) * 100)
+  const skillReady = energy >= ENERGY_MAX
+  // 攒能量的小工具（在事件回调里调，非 render/effect 体内）：melee 命中 +18，答对 +28。
+  const gainEnergy = (n: number) => setEnergy((e) => Math.min(ENERGY_MAX, e + n))
+
+  // 共斗编排
   const coopBattle = useCoopBattle({
     state,
     dispatch,
@@ -88,11 +119,12 @@ export function PlayingView({
     if (!fx) return
     switch (fx.kind) {
       case 'spawn':
+        // 新敌人：先标好「是否可跳过」（普通近战小怪可跳；Boss/题目/特殊不可），再登场。
+        scene.setSkippable(!fx.isBoss && state.challenge.type === 'melee')
         scene.spawnEnemy(fx.enemyEmoji ?? '🙂', fx.enemyName ?? '', fx.isBoss)
         break
       case 'hero-attack':
         scene.playHit('hero', fx.attack ?? 'slap', { crit: fx.crit, damage: fx.damage })
-        // 单人：本地敌人血空就倒地。共斗：敌人血由共享态决定，倒地交给 spawn/advance 时机，这里不强行倒。
         if (!isCoop && isDown(state.enemy)) window.setTimeout(() => sceneRef.current?.playDown('enemy'), 560)
         break
       case 'enemy-attack':
@@ -108,9 +140,9 @@ export function PlayingView({
       default:
         break
     }
-  }, [state.fxSeq, state.fx, state.enemy, state.hero, isCoop])
+  }, [state.fxSeq, state.fx, state.enemy, state.hero, state.challenge.type, isCoop])
 
-  // 共斗：敌人共享血归零时播倒地（与 host 推进解耦，纯视觉）
+  // 共斗：敌人共享血归零时播倒地（纯视觉，与 host 推进解耦）
   useEffect(() => {
     if (!isCoop) return
     if (state.enemy.hp <= 0 && state.phase === 'playing') {
@@ -119,7 +151,16 @@ export function PlayingView({
     }
   }, [isCoop, state.enemy.hp, state.phase])
 
-  // 共斗：自己血量变化时上报给 host（更新名单 + 团灭显示）。在 effect 里仅做网络上报（非 setState），允许。
+  // 单人·近战击杀推进：纯动作小怪被普攻/大招打空血后，reducer 不自动推进——
+  // 等约 720ms（看完最后一拳 + 倒地）再 ADVANCE。仅单人；题目/社交击杀走 lastResult→CLEAR_RESULT 推进。
+  useEffect(() => {
+    if (isCoop) return
+    if (state.phase !== 'playing' || state.enemy.hp > 0 || state.lastResult != null) return
+    const id = window.setTimeout(() => dispatch({ type: 'ADVANCE' }), 720)
+    return () => window.clearTimeout(id)
+  }, [isCoop, state.phase, state.enemy.hp, state.lastResult])
+
+  // 共斗：自己血量变化时上报给 host（仅网络上报，非 setState，允许）
   useEffect(() => {
     if (!isCoop || !coop) return
     if (state.hero.hp === lastReportedHpRef.current) return
@@ -127,29 +168,100 @@ export function PlayingView({
     coop.room.reportHp(state.hero.hp, isDown(state.hero))
   }, [isCoop, coop, state.hero])
 
-  // 持久化「已闯到第几关」（单人才存；共斗共享进度不写本地存档）
+  // 持久化进度（单人才存）
   useEffect(() => {
     if (isCoop) return
-    const reached = state.phase === 'won' ? totalLevels : state.levelIndex
-    if (reached !== lastSavedRef.current) {
-      lastSavedRef.current = reached
-      saveLevel(player, reached)
+    const reached2 = state.phase === 'won' ? totalLevels : state.levelIndex
+    if (reached2 !== lastSavedRef.current) {
+      lastSavedRef.current = reached2
+      saveLevel(player, reached2)
     }
   }, [isCoop, state.phase, state.levelIndex, totalLevels, player])
+
+  // 全屏 API 监听（fullscreenchange）。仅同步状态，不强制。
+  useEffect(() => {
+    const onChange = () => setIsFs(document.fullscreenElement != null)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  // ── 键盘移动（桌面）：window 监听，把意图喂进 scene。用 ref 记按下集合，不 per-frame setState ──
+  const pressedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const applyDir = () => {
+      const p = pressedRef.current
+      const left = p.has('ArrowLeft') || p.has('a') || p.has('A')
+      const right = p.has('ArrowRight') || p.has('d') || p.has('D')
+      const dir: -1 | 0 | 1 = left && !right ? -1 : right && !left ? 1 : 0
+      sceneRef.current?.setMove({ dir })
+    }
+    const isJump = (k: string) =>
+      k === 'ArrowUp' || k === 'w' || k === 'W' || k === ' ' || k === 'Spacebar'
+    const onKeyDown = (e: KeyboardEvent) => {
+      const k = e.key
+      if (isJump(k)) {
+        e.preventDefault()
+        sceneRef.current?.setMove({ jump: true })
+        return
+      }
+      if (k === 'j' || k === 'J') {
+        e.preventDefault()
+        keyHandlersRef.current.onMelee() // 👊 普攻
+        return
+      }
+      if (k === 'k' || k === 'K') {
+        e.preventDefault()
+        keyHandlersRef.current.onSkill() // ⚡ 技能
+        return
+      }
+      if (['ArrowLeft', 'ArrowRight', 'a', 'A', 'd', 'D'].includes(k)) {
+        e.preventDefault()
+        pressedRef.current.add(k)
+        applyDir()
+      }
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      pressedRef.current.delete(e.key)
+      applyDir()
+    }
+    const onBlur = () => {
+      pressedRef.current.clear()
+      sceneRef.current?.setMove({ dir: 0 })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
 
   function handleReady(game: Game) {
     const scene = game.scene.getScene('battle') as BattleScene | null
     sceneRef.current = scene
     if (scene) {
-      lastFxSeqRef.current = state.fxSeq // 初始 spawn fx 已在此手动播，避免 effect 重播
-      scene.spawnEnemy(state.enemy.emoji, state.enemy.name, currentIsBoss(state))
+      lastFxSeqRef.current = state.fxSeq // 初始 spawn fx 已手动播，避免 effect 重播
+      // reach 回调：由 scene 的 update 循环触发（事件），双边都从这里来，避免 effect 体内 setState
+      scene.setReachCallback(() => setReached(true))
+      scene.setUnreachCallback(() => setReached(false))
+      // 跳过回调：成功跳过普通近战小怪 → 推进（事件式，非 effect 体内）
+      scene.setSkipCallback(() => skipHandlersRef.current.onSkip())
+      scene.setHeroName(state.hero.name)
+      const boss = currentIsBoss(state)
+      scene.setSkippable(!boss && state.challenge.type === 'melee')
+      scene.spawnEnemy(state.enemy.emoji, state.enemy.name, boss)
     }
   }
 
   const locked = state.lastResult != null
   const onBoss = currentIsBoss(state)
+  // 面板可见：走到了「非纯动作」敌人面前（题目/社交/损人/体测/Boss），或正在展示结算反馈。
+  // 纯动作小怪（melee）不弹面板——直接 👊 揍它（或 ⤴ 跳过）。
+  const panelVisible = (reached && state.challenge.type !== 'melee') || state.lastResult != null
 
-  // 中二招式名：答对出招按当前题目【学科】喊招式名；暴击/损人另有战吼。每次出招(fxSeq 变)才取一次。
+  // 中二招式名
   const cryText = useMemo(() => {
     const fx = state.fx
     if (!fx) return null
@@ -162,23 +274,92 @@ export function PlayingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.fxSeq])
 
-  // ── 作答处理：共斗时除了本地结算，还要上报伤害给 host ──────────────────
-  // 每个挑战只放行一次作答；已作答（含已出结果）则吞掉重复点击，避免双击重复上报/重复 dispatch。
+  // ── 作答处理 ─────────────────────────────────────────────────────
   function claimChallenge(): boolean {
-    if (locked) return false // 已有结算反馈：当前挑战已作答
+    if (locked) return false
     const key = `${state.levelIndex}:${state.stepIndex}`
     if (actedKeyRef.current === key) return false
     actedKeyRef.current = key
     return true
   }
 
+  // ── 动作：普攻 / 技能 / 跳过推进 ───────────────────────────────────────
+  // 👊 普攻：到达敌人 & (纯动作小怪 或 Boss) → 真打（MELEE）；否则原地挥空（air swing）。
+  function handleMelee() {
+    if (locked) return
+    const canHit = reached && (state.challenge.type === 'melee' || onBoss)
+    if (canHit) {
+      if (!onBoss) gainEnergy(18) // 揍小怪攒能量（Boss 免疫普攻，不给能量）
+      if (isCoop && state.challenge.type === 'melee' && !onBoss) coopBattle.reportHit(MELEE_DAMAGE, false)
+      dispatch({ type: 'MELEE' })
+    } else {
+      sceneRef.current?.attack() // 没敌人在身边：挥个空气，纯手感
+    }
+  }
+
+  // ⚡ 技能：能量满才放。
+  // nova=学科大招：是「学习类技能」——按下不直接放，而是弹一道学科题（模态），答对才放得出（见 handleSkillQuiz）。
+  // heal=回血：非学习类技能，即时生效，不弹题。放完都清空能量。
+  function handleSkill() {
+    if (!skillReady || locked) return
+    if (skill === 'nova') {
+      if (state.skillQuiz) return // 已经在答大招题了
+      novaActedRef.current = false
+      setEnergy(0) // 起手即消耗能量：答错也不退（哑火的代价就是这一管能量）
+      dispatch({ type: 'ARM_NOVA' })
+    } else {
+      sceneRef.current?.playSkillFx('heal', '回血！🍬')
+      dispatch({ type: 'SKILL_HEAL', amount: 2 })
+      setEnergy(0)
+    }
+  }
+
+  // 学科大招·答题结算：答对才放招（喊对应学科的中二招式 + 特效），答错哑火。choiceId='' 视为超时(算错)。
+  function handleSkillQuiz(choiceId: string) {
+    if (!state.skillQuiz || novaActedRef.current) return
+    novaActedRef.current = true
+    const correct = choiceId === state.skillQuiz.question.answer
+    if (correct) {
+      const cry = skillCry(state.skillQuiz.question.subject, state.band) ?? battleCry('finish', state.band)
+      sceneRef.current?.playSkillFx('nova', cry)
+      // 共斗：共享血由 host 权威结算，大招报一笔有限伤害（不秒杀共享血，保留多人节奏）。
+      if (isCoop) coopBattle.reportHit(COOP_NOVA_DAMAGE, true)
+    }
+    dispatch({ type: 'RESOLVE_NOVA', choiceId })
+  }
+
+  // 切换大招 / 回血
+  function cycleSkill() {
+    setSkill((s) => (s === 'nova' ? 'heal' : 'nova'))
+  }
+
+  // 成功跳过普通近战小怪：推进到下一个（单人本地推进；共斗里跳过仅本地、不动 host 进度）。
+  function handleSkip() {
+    if (state.phase !== 'playing') return
+    if (isCoop) {
+      setReached(false) // 共斗：跳过只是本地越过，host 仍权威推进；这里仅收掉本地提示
+      return
+    }
+    dispatch({ type: 'ADVANCE' })
+  }
+
+  // 把「最新」处理函数写进 ref（只在 commit effect 里写，never during render）：
+  // 给 mount-once 的键盘监听 / scene 跳过回调读，避免闭包读到旧 state。
+  useEffect(() => {
+    keyHandlersRef.current = { onMelee: handleMelee, onSkill: handleSkill }
+    skipHandlersRef.current = { onSkip: handleSkip }
+  })
+
   function handleAnswer(choiceId: string) {
     if (!claimChallenge()) return
-    if (isCoop && state.challenge.type === 'question') {
+    if (state.challenge.type === 'question') {
       const correct = choiceId === state.challenge.question.answer
       if (correct) {
-        const res = resolveAnswer(true, state.streak)
-        coopBattle.reportHit(res.damage, res.crit)
+        gainEnergy(28) // 答对攒能量（知识=强攻，回报更高）
+        if (isCoop) {
+          const res = resolveAnswer(true, state.streak)
+          coopBattle.reportHit(res.damage, res.crit)
+        }
       }
     }
     dispatch({ type: 'ANSWER', choiceId })
@@ -207,14 +388,25 @@ export function PlayingView({
     dispatch({ type: 'FITNESS_DONE', passed, reps })
   }
 
+  // 全屏切换：用 Fullscreen API（支持则真全屏）；不支持（iOS Safari）静默 no-op，靠 fixed inset-0 兜底。
+  function toggleFullscreen() {
+    const el = rootRef.current
+    if (!el) return
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.().catch(() => {})
+    } else if (el.requestFullscreen) {
+      void el.requestFullscreen().catch(() => {})
+    }
+  }
+
+  // ── 通关 / 失败：常规居中页（非全屏覆盖，回到正常文档流）──────────────────
   if (state.phase === 'won') {
     return (
       <div className="space-y-4">
-        <BackBar onExit={onExit} />
         {isCoop ? (
           <CoopVictory players={coop?.room.players ?? []} onRestart={onBackToStart} onExit={onExit} />
         ) : (
-          <VictoryScreen roster={roster} playerName={roster.player} onRestart={onBackToStart} onExit={onExit} />
+          <VictoryScreen roster={roster} playerName={roster.player} band={state.band} onRestart={onBackToStart} onExit={onExit} />
         )}
       </div>
     )
@@ -222,7 +414,6 @@ export function PlayingView({
   if (state.phase === 'lost') {
     return (
       <div className="space-y-4">
-        <BackBar onExit={onExit} />
         <LostScreen
           levelIndex={state.levelIndex}
           totalLevels={totalLevels}
@@ -233,98 +424,183 @@ export function PlayingView({
     )
   }
 
+  // ── 对局中：全屏横版舞台 ─────────────────────────────────────────────
   return (
-    <div className="space-y-3">
-      <BackBar onExit={onExit} />
+    <div ref={rootRef} className="fixed inset-0 z-50 select-none overflow-hidden bg-[#1b1726]">
+      {/* Phaser 画布铺满全屏 */}
+      <PhaserStage onReady={handleReady} className="absolute inset-0 h-full w-full" />
 
-      {/* 顶部状态：双方血条 + 关卡进度 */}
-      <div className="flex items-start justify-between gap-3">
-        <HpBar fighter={state.hero} align="left" accent="emerald" />
-        <div className="flex flex-col items-center pt-1 text-center">
-          <span className="rounded-full bg-ink-100 px-3 py-1 text-xs font-bold text-ink-700">
+      {/* 顶栏：返回 + 双方血条 + 关卡进度（浮在画布上） */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2 sm:p-3">
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onExit}
+            className="rounded-full bg-black/40 px-3 py-1.5 text-sm font-medium text-white backdrop-blur transition hover:bg-black/55"
+          >
+            ← 返回
+          </button>
+          <div className="rounded-2xl bg-black/35 px-2 py-1 backdrop-blur">
+            <HpBar fighter={state.hero} align="left" accent="emerald" />
+          </div>
+        </div>
+
+        <div className="pointer-events-none flex flex-col items-center pt-1 text-center">
+          <span className="rounded-full bg-black/45 px-3 py-1 text-xs font-bold text-white backdrop-blur">
             第 {state.levelIndex + 1} / {totalLevels} 关
           </span>
           {onBoss ? (
-            <span className="mt-1 text-xs font-semibold text-rose-600">👑 BOSS {currentBoss(state).name}</span>
+            <span className="mt-1 rounded-full bg-rose-600/90 px-2 py-0.5 text-[11px] font-bold text-white shadow backdrop-blur">
+              👑 BOSS·{currentBoss(state).name}
+            </span>
           ) : (
-            <span className="mt-1 text-xs text-ink-500">同学小怪</span>
+            <span className="mt-1 rounded-full bg-black/40 px-2 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur">
+              ⚔️ 拦路对手
+            </span>
           )}
           {isCoop && (
-            <span className="mt-1 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+            <span className="mt-1 rounded-full bg-rose-50/90 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
               共斗 · 房号 {coop?.room.code}
             </span>
           )}
         </div>
-        <HpBar fighter={state.enemy} align="right" accent="rose" boss={onBoss} />
-      </div>
 
-      {/* 共斗：在线队友名单 */}
-      {isCoop && coop && coop.room.players.length > 0 && (
-        <PlayerList players={coop.room.players} currentEnemyName={state.enemy.name} />
-      )}
-
-      {/* Phaser 舞台 + 浮层 */}
-      <div className="relative">
-        <PhaserHost
-          width={800}
-          height={450}
-          scene={BattleScene}
-          onReady={handleReady}
-          className="mx-auto aspect-[16/9] w-full max-w-3xl overflow-hidden rounded-3xl shadow-sm"
-        />
-
-        {/* 中二招式名横幅：出招瞬间按学科喊招式名 / 暴击·损人战吼 */}
-        {state.lastResult?.ok && cryText && (
-          <div className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center px-3">
-            <div className="rounded-2xl bg-rose-600/95 px-4 py-1.5 text-center font-display text-base font-black text-white shadow-xl sm:text-xl">
-              {cryText}
-            </div>
+        <div className="pointer-events-auto flex items-start gap-2">
+          <div className="rounded-2xl bg-black/35 px-2 py-1 backdrop-blur">
+            <HpBar fighter={state.enemy} align="right" accent="rose" boss={onBoss} />
           </div>
-        )}
-
-        {/* 浮层：结算反馈优先，否则当前挑战 */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-2 sm:p-4">
-          {state.lastResult ? (
-            <ResultFlash result={state.lastResult} onNext={() => dispatch({ type: 'CLEAR_RESULT' })} />
-          ) : state.challenge.type === 'question' ? (
-            <QuestionOverlay
-              question={state.challenge.question}
-              streak={state.streak}
-              locked={locked}
-              onAnswer={handleAnswer}
-              onTimeout={() => dispatch({ type: 'TIMEOUT' })}
-            />
-          ) : state.challenge.type === 'encounter' ? (
-            <EncounterOverlay
-              encounter={state.challenge.encounter}
-              enemyEmoji={state.enemy.emoji}
-              enemyName={state.enemy.name}
-              locked={locked}
-              onPick={handleEncounter}
-            />
-          ) : state.challenge.type === 'diss' ? (
-            <DissOverlay
-              presets={state.challenge.presets}
-              enemyEmoji={state.enemy.emoji}
-              enemyName={state.enemy.name}
-              locked={locked}
-              onDiss={handleDiss}
-            />
-          ) : (
-            <FitnessOverlay
-              key={state.challenge.challenge.id + ':' + state.fxSeq}
-              challenge={state.challenge.challenge}
-              locked={locked}
-              onDone={handleFitness}
-            />
-          )}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            aria-label="全屏"
+            className="rounded-full bg-black/40 p-2 text-base text-white backdrop-blur transition hover:bg-black/55"
+          >
+            {isFs ? '🗗' : '⛶'}
+          </button>
         </div>
       </div>
+
+      {/* 共斗：在线队友名单（顶栏下方一行） */}
+      {isCoop && coop && coop.room.players.length > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 top-16 z-20 flex justify-center px-3 sm:top-20">
+          <div className="pointer-events-auto rounded-2xl bg-black/35 px-3 py-1 backdrop-blur">
+            <PlayerList players={coop.room.players} currentEnemyName={state.enemy.name} />
+          </div>
+        </div>
+      )}
+
+      {/* 中二招式名横幅：出招瞬间按学科喊招式名 / 暴击·损人战吼 */}
+      {state.lastResult?.ok && cryText && (
+        <div className="pointer-events-none absolute inset-x-0 top-24 z-30 flex justify-center px-3 sm:top-28">
+          <div className="rounded-2xl bg-rose-600/95 px-4 py-1.5 text-center font-display text-base font-black text-white shadow-xl sm:text-xl">
+            {cryText}
+          </div>
+        </div>
+      )}
+
+      {/* 动作控制：左=虚拟摇杆走动，右=👊普攻 / ⚡技能 / ⤴跳。回调直接喂给 scene / 处理函数。 */}
+      <TouchControls
+        onMove={(d) => sceneRef.current?.setMove({ dir: d })}
+        onJump={() => sceneRef.current?.setMove({ jump: true })}
+        onAttack={handleMelee}
+        onSkill={handleSkill}
+        skillReady={skillReady}
+        energyPct={energyPct}
+      />
+
+      {/* 技能切换 + 能量条（技能键上方一点）：点一下切「⚡大招 / 🍬回血」 */}
+      <div className="pointer-events-none absolute bottom-40 right-4 z-30 flex flex-col items-end gap-1 sm:bottom-44 sm:right-6">
+        <button
+          type="button"
+          onClick={cycleSkill}
+          className="pointer-events-auto rounded-full bg-black/45 px-3 py-1 text-xs font-bold text-white backdrop-blur transition active:scale-95"
+        >
+          {skill === 'nova' ? '⚡ 学霸大招' : '🍬 回血'} · 切换
+        </button>
+        <span className="rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-semibold text-amber-200 backdrop-blur">
+          能量 {energyPct}%{skillReady ? ' · 可放！' : ''}
+        </span>
+      </div>
+
+      {/* 学科大招·答题模态：按下⚡后弹一道学科题，答对才放得出招（学习类技能专属）。盖在最上层。 */}
+      {state.skillQuiz && (
+        <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-sm sm:items-center sm:p-4">
+          <div className="pointer-events-auto w-full max-w-xl space-y-2">
+            <div className="rounded-2xl bg-gradient-to-r from-amber-500 to-rose-500 px-4 py-2 text-center font-display text-base font-black text-white shadow-xl sm:text-lg">
+              ⚡ 学霸大招 · 答对才放得出来！
+            </div>
+            <QuestionOverlay
+              question={state.skillQuiz.question}
+              streak={state.streak}
+              locked={false}
+              onAnswer={handleSkillQuiz}
+              onTimeout={() => handleSkillQuiz('')}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 挑战面板：紧凑底部 sheet，走到敌人面前（或结算中）才出现，不盖住舞台 */}
+      {!state.skillQuiz && panelVisible && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex max-h-[45vh] justify-center p-2 sm:p-3">
+          <div className="pointer-events-auto w-full max-w-xl overflow-y-auto rounded-t-3xl">
+            {state.lastResult ? (
+              <ResultFlash result={state.lastResult} onNext={() => dispatch({ type: 'CLEAR_RESULT' })} />
+            ) : state.challenge.type === 'question' ? (
+              <QuestionOverlay
+                question={state.challenge.question}
+                streak={state.streak}
+                locked={locked}
+                onAnswer={handleAnswer}
+                onTimeout={() => dispatch({ type: 'TIMEOUT' })}
+              />
+            ) : state.challenge.type === 'encounter' ? (
+              <EncounterOverlay
+                encounter={state.challenge.encounter}
+                enemyEmoji={state.enemy.emoji}
+                enemyName={state.enemy.name}
+                locked={locked}
+                onPick={handleEncounter}
+              />
+            ) : state.challenge.type === 'diss' ? (
+              <DissOverlay
+                presets={state.challenge.presets}
+                enemyEmoji={state.enemy.emoji}
+                enemyName={state.enemy.name}
+                locked={locked}
+                onDiss={handleDiss}
+              />
+            ) : state.challenge.type === 'fitness' ? (
+              <FitnessOverlay
+                key={state.challenge.challenge.id + ':' + state.fxSeq}
+                challenge={state.challenge.challenge}
+                locked={locked}
+                onDone={handleFitness}
+              />
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* 引导/动作提示（面板未出现时）：走到纯动作小怪面前 → 揍他/跳过；否则 → 冲过去！ */}
+      {!panelVisible && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-32 z-20 flex justify-center px-3 sm:bottom-36">
+          {reached && state.challenge.type === 'melee' ? (
+            <span className="animate-pulse rounded-full bg-rose-600/85 px-4 py-2 text-sm font-black text-white shadow-lg backdrop-blur">
+              👊 揍他！ · ⤴ 跳过
+            </span>
+          ) : (
+            <span className="rounded-full bg-black/50 px-4 py-2 text-sm font-bold text-white backdrop-blur">
+              {onBoss ? '👑 冲过去！用知识打败老师' : '冲过去！ →'}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-// 非共斗时给 useCoopBattle 的安全占位（它内部不会真发消息：channel=null no-op）。
+// 非共斗时给 useCoopBattle 的安全占位（channel=null no-op）。
 const FALLBACK_ROOM: UseCoopRoom = {
   channel: null,
   code: null,
