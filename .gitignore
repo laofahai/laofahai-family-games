@@ -31,3 +31,7 @@ dist-ssr
 
 # MCP / agent local state
 .serena/
+
+# 临时产出/agent worktree
+.tmp-*.json
+.claude/
