@@ -1,6 +1,10 @@
 // Phaser 可视化舞台（横版·会动）：世界比屏幕宽、相机跟随主角；主角可前后左右走 + 跳。
 // 不含任何游戏逻辑、不读题库；由 React 通过 sceneRef 调方法 / 设移动意图驱动。
-// 全部用 Graphics 画 + emoji 文本，不加载外部图片/精灵图。
+// 角色用 Kenney「Toon Characters 1」(CC0) 真实美术精灵：preload 加载帧 PNG，create 注册帧动画。
+//   · 主角=Male adventurer（戴帽小孩）；同学=Female adventurer/Female person/Robot/Zombie（按名字哈希挑款）；
+//   · 老师 BOSS=Male person（有胡子的成年男）+ 场景内叠加眼镜与教鞭，并保留皇冠区分。
+//   · 动画为帧式（idle/walk 循环/attack/hurt/jump），叠加原有补间「果冻」手感（挤压拉伸/走路颠簸/朝向翻转）。
+//   · 素材出处与许可见 public/assets/battle-school/CREDITS.md。
 //
 // 关键交互：
 //  · setMove({dir, jump})：React 把「移动意图」喂进来（键盘/触屏），scene 在 update() 里逐帧消费。
@@ -14,6 +18,42 @@ import { ATTACK_META } from './types'
 
 export type Side = 'hero' | 'enemy'
 
+// ── 角色精灵资源（Kenney Toon Characters 1, CC0）──────────────────────────
+// 每个角色一组帧 PNG（idle/walk0-3/attack2/hurt/jump），文件名形如 `<key>_<frame>.png`。
+// Vite 把 public/ 当站点根，故 URL 为 /assets/battle-school/xxx.png。
+const SPRITE_BASE = '/assets/battle-school'
+const SPRITE_FRAMES = ['idle', 'walk0', 'walk1', 'walk2', 'walk3', 'attack2', 'hurt', 'jump'] as const
+type SpriteFrame = (typeof SPRITE_FRAMES)[number]
+// 主角 key、老师(BOSS) key、同学候选 key。同学按 emoji+name 哈希在候选里挑，保证不同同学不同长相。
+const HERO_KEY = 'hero'
+const TEACHER_KEY = 'teacher'
+const CLASSMATE_KEYS = ['kidA', 'kidB', 'kidC', 'kidD'] as const
+const ALL_SPRITE_KEYS = [HERO_KEY, TEACHER_KEY, ...CLASSMATE_KEYS] as const
+
+// 原始帧 96×128；按显示高等比缩放（脚到头）。
+const SPRITE_SRC_H = 128
+const UNIT_DISPLAY_H = 126 // 普通同学显示高
+const HERO_DISPLAY_H = 126 // 主角显示高（≈原「110」量级，含留白略高）
+const BOSS_DISPLAY_H = 182 // 老师 BOSS 明显更大
+
+/** 纹理 key（hero_idle 等）。 */
+function texKey(charKey: string, frame: SpriteFrame): string {
+  return `${charKey}_${frame}`
+}
+/** 走路循环动画 key（hero_walk 等）。 */
+function walkAnimKey(charKey: string): string {
+  return `${charKey}_walkcycle`
+}
+/** 字符串稳定哈希（用于把同学 emoji+name 映射到固定的精灵款式）。 */
+function hashStr(s: string): number {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return Math.abs(h)
+}
+
 /** React 喂进来的移动意图：dir=-1 左 / 0 停 / 1 右；jump=本帧是否起跳。 */
 export interface MoveIntent {
   dir: -1 | 0 | 1
@@ -24,11 +64,16 @@ export interface MoveIntent {
 interface EnemyUnit {
   container: Phaser.GameObjects.Container
   shadow: Phaser.GameObjects.Ellipse
-  emojiText: Phaser.GameObjects.Text
+  // bodyGroup：装精灵 + 老师道具，统一翻转朝向（scaleX）；命中抖动作用在 container 上。
+  bodyGroup: Phaser.GameObjects.Container
+  sprite: Phaser.GameObjects.Sprite // 角色精灵（受击时闪它/换帧）
+  teacherProp: Phaser.GameObjects.Graphics // 老师专属道具（眼镜+教鞭），普通同学隐藏
   crown: Phaser.GameObjects.Text
   nameplate: Phaser.GameObjects.Container
   nameText: Phaser.GameObjects.Text
   isBoss: boolean
+  charKey: string // 当前用的精灵款式 key（hero/teacher/kidA…）
+  facing: 1 | -1 // 朝向：默认 -1（敌人面朝左边的主角）
 }
 
 // 近战群里，相邻两个小怪之间的横向间距（front 最近，其余朝右错开站位）。
@@ -59,11 +104,6 @@ const WALK_SPEED = 280 // px/秒
 const GRAVITY = 1800 // px/秒^2
 const JUMP_V = 760 // 起跳初速度
 
-// 主角配色（一只友好的休闲游戏吉祥物）
-const HERO_BODY = 0x4f8cff // 身体主色（明快的蓝）
-const HERO_BODY_DARK = 0x2f6bd6 // 身体描边/暗部
-const HERO_LIMB = 0x3a73e6 // 手臂/腿
-const HERO_FOOT = 0xffce54 // 鞋（暖黄，画龙点睛）
 const NAMEPLATE_BG = 0x1f2433 // 名牌底色（深色半透明）
 
 export class BattleScene extends Phaser.Scene {
@@ -71,12 +111,12 @@ export class BattleScene extends Phaser.Scene {
   private H = 450
   private groundY = 360
 
-  // 主角：容器(hero) 里有 影子 + 身体组(bodyGroup：身体/四肢一起翻转+挤压) + 头脸 + 名牌。
+  // 主角：容器(hero) 里有 影子 + 身体组(bodyGroup：精灵一起翻转+挤压) + 名牌。
   private hero!: Phaser.GameObjects.Container
   private heroShadow!: Phaser.GameObjects.Ellipse
-  private heroBodyGroup!: Phaser.GameObjects.Container // 装身体/手臂/腿，统一翻转朝向与挤压拉伸
-  private heroBodyGfx!: Phaser.GameObjects.Graphics // 身体+四肢的形状（受击时闪它）
-  private heroFace!: Phaser.GameObjects.Text // 头/脸 emoji（受击时也闪它）
+  private heroBodyGroup!: Phaser.GameObjects.Container // 装角色精灵，统一翻转朝向与挤压拉伸
+  private heroSprite!: Phaser.GameObjects.Sprite // 主角精灵（受击时闪它/换帧）
+  private heroAnimState: 'idle' | 'walk' | 'pose' = 'idle' // 当前帧动画状态（pose=临时姿势锁定，如攻击/受击）
   private heroName!: Phaser.GameObjects.Container // 头顶名牌（pill）。bg/label 存在容器 data 里，按需取。
   private heroNameValue = '🧒' // 当前显示的玩家名（空则回退到默认）
 
@@ -120,24 +160,51 @@ export class BattleScene extends Phaser.Scene {
     super('battle')
   }
 
+  /** 加载角色精灵帧 PNG（Kenney Toon Characters 1, CC0）。create() 在 preload 完成后才跑。 */
+  preload() {
+    for (const key of ALL_SPRITE_KEYS) {
+      for (const frame of SPRITE_FRAMES) {
+        this.load.image(texKey(key, frame), `${SPRITE_BASE}/${key}_${frame}.png`)
+      }
+    }
+  }
+
+  /** 为每个角色注册一条 4 帧走路循环动画（idle/attack/hurt/jump 用静态帧 setTexture 切换）。 */
+  private registerAnims() {
+    for (const key of ALL_SPRITE_KEYS) {
+      const animKey = walkAnimKey(key)
+      if (this.anims.exists(animKey)) continue
+      this.anims.create({
+        key: animKey,
+        frames: [0, 1, 2, 3].map((i) => ({ key: texKey(key, `walk${i}` as SpriteFrame) })),
+        frameRate: 10,
+        repeat: -1,
+      })
+    }
+  }
+
+  /** 把一个精灵等比缩放到目标显示高（脚到头），并把 origin 设为「底部中心」(脚下贴地)。 */
+  private fitSprite(sprite: Phaser.GameObjects.Sprite, displayH: number) {
+    sprite.setOrigin(0.5, 1) // 脚下中心为原点：y=0 即贴地点
+    sprite.setScale(displayH / SPRITE_SRC_H)
+  }
+
   create() {
     this.recomputeLayout()
+    this.registerAnims()
 
     this.theme = THEMES[Math.floor(Math.random() * THEMES.length)]
     this.far = this.add.graphics()
     this.bg = this.add.graphics()
     this.drawBackground(this.theme)
 
-    // ── 主角：一只友好的休闲游戏吉祥物（影子 + 圆润身体/四肢 + 头脸 emoji + 头顶名牌）──
-    // 容器自身的 (x,y) 是「脚下中心」(贴地点)。所有内容用脚为原点向上画。
+    // ── 主角：真实美术精灵（影子 + 角色精灵 + 头顶名牌）──
+    // 容器自身的 (x,y) 是「脚下中心」(贴地点)。精灵 origin=(0.5,1)，故直接以脚为基准向上长。
     this.heroShadow = this.add.ellipse(0, 6, 80, 22, 0x000000, 0.18).setOrigin(0.5)
-    this.heroBodyGfx = this.add.graphics()
-    this.drawHeroBody(this.heroBodyGfx)
+    this.heroSprite = this.add.sprite(0, 0, texKey(HERO_KEY, 'idle'))
+    this.fitSprite(this.heroSprite, HERO_DISPLAY_H)
     // bodyGroup 单独成容器：朝向翻转(scaleX)与跳跃挤压(scaleY)都作用在它上，名牌/影子不受影响。
-    this.heroBodyGroup = this.add.container(0, 0, [this.heroBodyGfx])
-    // 头/脸：稳稳坐在身体顶端（身体顶约 -94，头中心放 -104），不再飘在左上。
-    this.heroFace = this.add.text(0, -104, '🧒', { fontSize: '40px' }).setOrigin(0.5)
-    this.heroBodyGroup.add(this.heroFace)
+    this.heroBodyGroup = this.add.container(0, 0, [this.heroSprite])
     this.heroName = this.makeNameplate('', false)
     this.heroName.setPosition(0, -150)
     this.hero = this.add.container(this.heroStartX(), this.groundY, [this.heroShadow, this.heroBodyGroup, this.heroName])
@@ -149,18 +216,13 @@ export class BattleScene extends Phaser.Scene {
     // 起始建一个单位（front），后续 spawnEnemy/spawnWave 复用/补建。──
     this.units = [this.createUnit(this.heroStartX() + 520)]
 
-    // 「往右走 →」引导提示（走到敌人前消失）
+    // 引导提示对象保留（各处 setVisible 调用依赖它），但置空文本——真游戏不需要满屏提示词。
     this.hint = this.add
-      .text(0, 0, '← → 移动 · ↑ 跳 · 撞上对手开打', {
-        fontSize: '20px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-        backgroundColor: '#00000066',
-        padding: { x: 12, y: 6 },
-      })
+      .text(0, 0, '', { fontSize: '1px' })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(60)
+      .setVisible(false)
 
     // 相机：世界边界 + 跟随主角（横向滚动）。本场景用手动积分，不开物理引擎。
     this.cameras.main.setBounds(0, 0, WORLD_W, this.H)
@@ -177,33 +239,105 @@ export class BattleScene extends Phaser.Scene {
     return this.units[0]
   }
 
-  /** 建一个敌人单位（影子 + 表情 + 可选皇冠 + 头顶名牌 pill），放在指定 x、地面 y。 */
+  /** 建一个敌人单位（影子 + 角色精灵 + 老师道具 + 可选皇冠 + 头顶名牌 pill），放在指定 x、地面 y。 */
   private createUnit(x: number): EnemyUnit {
     const shadow = this.add.ellipse(0, 6, 84, 22, 0x000000, 0.18).setOrigin(0.5)
-    const emojiText = this.add.text(0, -58, '🙂', { fontSize: '54px' }).setOrigin(0.5)
+    const sprite = this.add.sprite(0, 0, texKey(CLASSMATE_KEYS[0], 'idle'))
+    this.fitSprite(sprite, UNIT_DISPLAY_H)
+    const teacherProp = this.add.graphics().setVisible(false)
+    // 敌人默认面朝左（朝向主角）：bodyGroup.scaleX = -1。
+    const bodyGroup = this.add.container(0, 0, [sprite, teacherProp])
+    bodyGroup.scaleX = -1
     const crown = this.add.text(0, -104, '👑', { fontSize: '30px' }).setOrigin(0.5).setVisible(false)
     const nameplate = this.makeNameplate('', false)
     nameplate.setPosition(0, -132)
     const nameText = nameplate.getData('label') as Phaser.GameObjects.Text
-    const container = this.add.container(x, this.groundY, [shadow, emojiText, crown, nameplate])
+    const container = this.add.container(x, this.groundY, [shadow, bodyGroup, crown, nameplate])
     container.setDepth(9)
-    return { container, shadow, emojiText, crown, nameplate, nameText, isBoss: false }
+    return {
+      container,
+      shadow,
+      bodyGroup,
+      sprite,
+      teacherProp,
+      crown,
+      nameplate,
+      nameText,
+      isBoss: false,
+      charKey: CLASSMATE_KEYS[0],
+      facing: -1,
+    }
   }
 
-  /** 给一个单位套上「形象/名牌/皇冠/影子」样式（boss 更大 + 皇冠 + 暖红名牌；普通小怪常规）。 */
+  /** 按 emoji+name 哈希在同学候选里挑一款精灵 key（让不同同学长相固定且各异）。 */
+  private pickClassmateKey(emoji: string, name: string): string {
+    const seed = (name && name.trim()) || emoji || 'x'
+    return CLASSMATE_KEYS[hashStr(seed) % CLASSMATE_KEYS.length]
+  }
+
+  /** 给一个单位套上「精灵款式/大小/名牌/皇冠/影子/老师道具」样式。
+   *  boss → 老师精灵 + 更大 + 皇冠 + 眼镜教鞭 + 暖红名牌；普通 → 按哈希挑同学精灵。 */
   private styleUnit(u: EnemyUnit, emoji: string, name: string, isBoss: boolean) {
     u.isBoss = isBoss
-    u.emojiText.setText(emoji)
-    u.emojiText.setFontSize(isBoss ? 84 : 54) // boss 明显更大
-    u.emojiText.setY(isBoss ? -70 : -58)
-    u.emojiText.setAngle(0)
-    u.emojiText.clearTint()
+    const charKey = isBoss ? TEACHER_KEY : this.pickClassmateKey(emoji, name)
+    const displayH = isBoss ? BOSS_DISPLAY_H : UNIT_DISPLAY_H
+    u.charKey = charKey
+    // 切到该款式的待机帧并按大小缩放。
+    u.sprite.setTexture(texKey(charKey, 'idle'))
+    this.fitSprite(u.sprite, displayH)
+    u.sprite.clearTint()
+    // 入场后开始待机走路循环（让敌人「活着」）。spawn 的入场补间结束后由 startUnitIdle 切。
+    u.bodyGroup.scaleX = u.facing // 朝向（默认 -1，面朝主角）
+    // 老师道具（眼镜 + 教鞭）：仅 boss 显示，按显示高重绘，跟随精灵缩放。
+    this.drawTeacherProp(u.teacherProp, isBoss, displayH)
+
     u.crown.setVisible(isBoss)
-    u.crown.setY(isBoss ? -122 : -104)
-    u.shadow.setSize(isBoss ? 110 : 84, isBoss ? 26 : 22)
+    u.crown.setY(isBoss ? -(displayH + 16) : -(displayH + 4))
+    u.shadow.setSize(isBoss ? 116 : 84, isBoss ? 26 : 22)
     u.nameText.setText(name)
     this.redrawNameplate(u.nameplate, isBoss)
-    u.nameplate.setY(isBoss ? -150 : -126)
+    u.nameplate.setY(isBoss ? -(displayH + 40) : -(displayH + 8))
+  }
+
+  /** 画老师专属道具：一副圆眼镜（戴在脸上）+ 一根斜挎的木质教鞭。坐标按显示高比例摆放。
+   *  普通同学：清空并隐藏。道具在 bodyGroup 内，随朝向翻转、跟精灵一致。 */
+  private drawTeacherProp(g: Phaser.GameObjects.Graphics, isBoss: boolean, displayH: number) {
+    g.clear()
+    if (!isBoss) {
+      g.setVisible(false)
+      return
+    }
+    g.setVisible(true)
+    // 脸部约在 0.78~0.88 显示高处。眼镜：两个圆环 + 中梁。
+    const eyeY = -displayH * 0.74
+    const eyeDx = displayH * 0.085
+    const eyeR = displayH * 0.058
+    g.lineStyle(Math.max(3, displayH * 0.022), 0x2b2b2b, 1)
+    g.strokeCircle(-eyeDx, eyeY, eyeR)
+    g.strokeCircle(eyeDx, eyeY, eyeR)
+    g.lineBetween(-eyeDx + eyeR, eyeY, eyeDx - eyeR, eyeY) // 中梁
+    g.lineBetween(eyeDx + eyeR, eyeY, eyeDx + eyeR * 1.8, eyeY - eyeR * 0.4) // 右镜腿
+    // 教鞭：一根斜放的细木棍（从腰侧斜向上指），木色 + 末端浅色握把。
+    const stickColor = 0x9a6a3a
+    g.lineStyle(Math.max(4, displayH * 0.03), stickColor, 1)
+    const bx = displayH * 0.34 // 握在身体右侧（朝主角那侧）
+    g.lineBetween(bx, -displayH * 0.36, bx + displayH * 0.26, -displayH * 0.86)
+    g.fillStyle(0xefe2c8, 1)
+    g.fillCircle(bx, -displayH * 0.36, Math.max(3, displayH * 0.03)) // 握把
+  }
+
+  /** 敌人入场后开始「待机呼吸」：bodyGroup 极轻微的纵向起伏循环，让站着的同学/老师也活着。 */
+  private startUnitIdle(u: EnemyUnit) {
+    this.tweens.killTweensOf(u.bodyGroup)
+    u.bodyGroup.scaleY = 1
+    this.tweens.add({
+      targets: u.bodyGroup,
+      scaleY: 1.03,
+      duration: 1100 + Math.random() * 300,
+      yoyo: true,
+      repeat: -1,
+      ease: 'sine.inOut',
+    })
   }
 
   private recomputeLayout() {
@@ -281,6 +415,7 @@ export class BattleScene extends Phaser.Scene {
       const airStretch = this.onGround ? 0 : 0.08
 
       this.applyHeroTransform(walking, breath, airStretch)
+      this.updateHeroAnim(walking)
 
       // 全部判定都对 front（最近的那个敌人）。near=front 容器。
       const frontX = this.front().container.x
@@ -405,40 +540,40 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  // ── 主角形象：圆润的吉祥物身体 + 小手小脚（不是火柴线条）──────────────────
-  // 以「脚下中心」(0,0) 为原点向上画。整体高约 110，身体是带描边的圆角胶囊。
-  private drawHeroBody(g: Phaser.GameObjects.Graphics) {
-    g.clear()
+  // ── 主角帧动画：地面走→walk 循环；地面静止→idle；空中→jump 静帧；攻击/受击→临时 pose 锁定。──
+  // pose 状态下不被 idle/walk 抢帧；pose 结束（playHit/onImpact 的 delayedCall）后自动回 idle/walk。
+  private updateHeroAnim(walking: boolean) {
+    if (this.heroAnimState === 'pose') return // 攻击/受击姿势锁定中，交给计时器解锁
+    if (!this.onGround) {
+      // 空中：用 jump 静帧（停掉走路循环）
+      if (this.heroSprite.anims.isPlaying) this.heroSprite.anims.stop()
+      this.heroSprite.setTexture(texKey(HERO_KEY, 'jump'))
+      this.heroAnimState = 'idle' // 落地后会切回 walk/idle
+      return
+    }
+    if (walking) {
+      if (this.heroAnimState !== 'walk') {
+        this.heroSprite.play(walkAnimKey(HERO_KEY))
+        this.heroAnimState = 'walk'
+      }
+    } else {
+      if (this.heroAnimState !== 'idle' || this.heroSprite.anims.isPlaying) {
+        this.heroSprite.anims.stop()
+        this.heroSprite.setTexture(texKey(HERO_KEY, 'idle'))
+        this.heroAnimState = 'idle'
+      }
+    }
+  }
 
-    // 腿（两条短粗腿）+ 鞋
-    g.fillStyle(HERO_LIMB, 1)
-    g.fillRoundedRect(-18, -22, 14, 26, 7) // 左腿
-    g.fillRoundedRect(4, -22, 14, 26, 7) // 右腿
-    g.fillStyle(HERO_FOOT, 1) // 鞋（暖黄）
-    g.fillEllipse(-11, 2, 22, 12)
-    g.fillEllipse(11, 2, 22, 12)
-
-    // 手臂（两侧短粗手臂，略微张开）
-    g.fillStyle(HERO_LIMB, 1)
-    g.fillRoundedRect(-40, -78, 14, 40, 7) // 左臂
-    g.fillRoundedRect(26, -78, 14, 40, 7) // 右臂
-    // 手（小圆手）
-    g.fillStyle(0xffe0bd, 1)
-    g.fillCircle(-33, -36, 9)
-    g.fillCircle(33, -36, 9)
-
-    // 身体：圆角胶囊（先描边色铺底再叠主色，得到一圈干净描边）
-    g.fillStyle(HERO_BODY_DARK, 1)
-    g.fillRoundedRect(-32, -94, 64, 78, 26) // 描边底（略大）
-    g.fillStyle(HERO_BODY, 1)
-    g.fillRoundedRect(-28, -90, 56, 70, 23) // 主体
-    // 肚子上一块更亮的高光，增加立体感
-    g.fillStyle(0xeaf2ff, 0.55)
-    g.fillEllipse(-6, -64, 22, 30)
-
-    // 围巾/领口（一抹暖色点缀，呼应鞋）
-    g.fillStyle(HERO_FOOT, 1)
-    g.fillRoundedRect(-22, -96, 44, 12, 6)
+  /** 让主角临时摆一个静态姿势（攻击/受击），锁定 durationMs 后自动回到 idle/walk。 */
+  private setHeroPose(frame: SpriteFrame, durationMs: number) {
+    this.heroSprite.anims.stop()
+    this.heroSprite.setTexture(texKey(HERO_KEY, frame))
+    this.heroAnimState = 'pose'
+    this.time.delayedCall(durationMs, () => {
+      // 解锁：下一帧 update 会据走/停重新切 idle/walk
+      if (this.heroAnimState === 'pose') this.heroAnimState = 'idle'
+    })
   }
 
   // ── 名牌(pill)：深色半透明圆角底 + 白色粗体字。hero/enemy 共用一套样式。──
@@ -552,6 +687,10 @@ export class BattleScene extends Phaser.Scene {
     members.forEach((m, i) => {
       const u = this.units[i]
       this.styleUnit(u, m.emoji, m.name, isBoss && i === 0)
+      // 复位上一次复用残留的姿态（killFront 旋的是 container，呼吸 tween 改的是 bodyGroup）。
+      this.tweens.killTweensOf(u.bodyGroup)
+      u.bodyGroup.scaleY = 1
+      u.bodyGroup.angle = 0
       const targetX = frontX + i * WAVE_GAP
       u.container.x = targetX + 60
       u.container.y = this.groundY
@@ -560,7 +699,16 @@ export class BattleScene extends Phaser.Scene {
       u.container.setAngle(0)
       // depth：front 最靠前（数值大），后排略低，避免名牌互相压住时层次混乱。
       u.container.setDepth(9 - i)
-      this.tweens.add({ targets: u.container, x: targetX, alpha: 1, scale: 1, duration: 420, delay: i * 70, ease: 'back.out' })
+      this.tweens.add({
+        targets: u.container,
+        x: targetX,
+        alpha: 1,
+        scale: 1,
+        duration: 420,
+        delay: i * 70,
+        ease: 'back.out',
+        onComplete: () => this.startUnitIdle(u),
+      })
     })
 
     // 重置 reach / skip；显示「往前走」提示
@@ -583,6 +731,10 @@ export class BattleScene extends Phaser.Scene {
   killFront() {
     if (this.units.length === 0) return
     const dying = this.units.shift()!
+    // 倒地者：停掉呼吸循环 + 换受击帧。
+    this.tweens.killTweensOf(dying.bodyGroup)
+    dying.sprite.anims.stop()
+    dying.sprite.setTexture(texKey(dying.charKey, 'hurt'))
     // 前排播倒地（旋转 + 淡出）后销毁。
     this.tweens.add({
       targets: dying.container,
@@ -646,7 +798,9 @@ export class BattleScene extends Phaser.Scene {
     const dying = this.units
     this.units = []
     dying.forEach((u, i) => {
-      u.emojiText.setTint(0xff7a3c)
+      this.tweens.killTweensOf(u.bodyGroup)
+      u.sprite.setTexture(texKey(u.charKey, 'hurt'))
+      u.sprite.setTint(0xff7a3c)
       this.tweens.add({
         targets: u.container,
         angle: 90,
@@ -698,6 +852,24 @@ export class BattleScene extends Phaser.Scene {
     if (attacker === 'hero') {
       this.heroFacing = dir as 1 | -1
       this.applyHeroTransform(false, 0, 0) // 让身体即刻朝向目标
+      this.setHeroPose('attack2', 460) // 主角出拳姿势（冲刺+命中期间锁定）
+    } else {
+      // 敌方攻击：让前排敌人摆出攻击姿势 + 面朝主角
+      const f = this.front()
+      if (f) {
+        f.facing = dir as 1 | -1
+        f.bodyGroup.scaleX = f.facing
+        this.tweens.killTweensOf(f.bodyGroup)
+        f.bodyGroup.scaleY = 1
+        f.sprite.anims.stop()
+        f.sprite.setTexture(texKey(f.charKey, 'attack2'))
+        this.time.delayedCall(460, () => {
+          if (this.units[0] === f) {
+            f.sprite.setTexture(texKey(f.charKey, 'idle'))
+            this.startUnitIdle(f)
+          }
+        })
+      }
     }
 
     this.busy = true
@@ -739,15 +911,30 @@ export class BattleScene extends Phaser.Scene {
       ease: 'sine.inOut',
     })
     if (tgtObj !== this.hero) {
-      // 命中敌方 front：闪红它的表情。
-      const emojiText = this.front()?.emojiText
-      if (emojiText) {
-        emojiText.setTint(0xff5a5a)
-        this.time.delayedCall(180, () => emojiText.clearTint())
+      // 命中敌方 front：闪红 + 摆受击姿势。
+      const f = this.front()
+      if (f) {
+        f.sprite.setTint(0xff5a5a)
+        this.tweens.killTweensOf(f.bodyGroup)
+        f.bodyGroup.scaleY = 1
+        f.sprite.anims.stop()
+        f.sprite.setTexture(texKey(f.charKey, 'hurt'))
+        this.time.delayedCall(220, () => {
+          if (this.units[0] === f) {
+            f.sprite.clearTint()
+            f.sprite.setTexture(texKey(f.charKey, 'idle'))
+            this.startUnitIdle(f)
+          } else {
+            f.sprite.clearTint()
+          }
+        })
       }
     } else {
-      // 主角受击：闪烁新身体 + 头脸（不再是火柴线条）
-      this.tweens.add({ targets: [this.heroBodyGfx, this.heroFace], alpha: 0.3, duration: 70, yoyo: true, repeat: 1 })
+      // 主角受击：闪红 + 受击姿势（短暂锁定，随后回 idle/walk）。
+      this.heroSprite.setTint(0xff5a5a)
+      this.setHeroPose('hurt', 240)
+      this.time.delayedCall(240, () => this.heroSprite.clearTint())
+      this.tweens.add({ targets: this.heroSprite, alpha: 0.4, duration: 70, yoyo: true, repeat: 1 })
     }
 
     // 命中招式特效（扇耳光👋/踹腿🦵/挠痒🤣/吐痰💦）：砸得又大又狠，先猛地弹大再淡出。
@@ -813,8 +1000,21 @@ export class BattleScene extends Phaser.Scene {
     if (!front) return
     const enemy = front.container
     this.busy = true
-    front.emojiText.setTint(0xff5a5a)
-    this.time.delayedCall(300, () => front.emojiText.clearTint())
+    // 被损：闪红 + 摆受击姿势，结束回 idle。
+    this.tweens.killTweensOf(front.bodyGroup)
+    front.bodyGroup.scaleY = 1
+    front.sprite.anims.stop()
+    front.sprite.setTexture(texKey(front.charKey, 'hurt'))
+    front.sprite.setTint(0xff5a5a)
+    this.time.delayedCall(360, () => {
+      if (this.units[0] === front) {
+        front.sprite.clearTint()
+        front.sprite.setTexture(texKey(front.charKey, 'idle'))
+        this.startUnitIdle(front)
+      } else {
+        front.sprite.clearTint()
+      }
+    })
     this.tweens.add({ targets: enemy, x: enemy.x + 14, duration: 55, yoyo: true, repeat: 4, ease: 'sine.inOut' })
 
     this.cameras.main.shake(360, 0.018)
@@ -890,8 +1090,8 @@ export class BattleScene extends Phaser.Scene {
       ease: 'quad.in',
       onComplete: () => {
         this.cameras.main.shake(crit ? 200 : 120, crit ? 0.012 : 0.006)
-        front.emojiText.setTint(0x7dd3fc)
-        this.time.delayedCall(160, () => front.emojiText.clearTint())
+        front.sprite.setTint(0x7dd3fc)
+        this.time.delayedCall(160, () => front.sprite.clearTint())
         this.tweens.add({ targets: fist, alpha: 0, y: ty - 90, duration: 220, onComplete: () => fist.destroy() })
       },
     })
@@ -919,6 +1119,19 @@ export class BattleScene extends Phaser.Scene {
   playDown(side: Side) {
     const obj = side === 'enemy' ? this.front()?.container : this.hero
     if (!obj) return
+    // 倒地者换受击帧、停掉走/呼吸循环（避免倒地时还在抽搐）。
+    if (side === 'enemy') {
+      const f = this.front()
+      if (f) {
+        this.tweens.killTweensOf(f.bodyGroup)
+        f.sprite.anims.stop()
+        f.sprite.setTexture(texKey(f.charKey, 'hurt'))
+      }
+    } else {
+      this.heroSprite.anims.stop()
+      this.heroSprite.setTexture(texKey(HERO_KEY, 'hurt'))
+      this.heroAnimState = 'pose' // 锁住，别被 update 切回 idle
+    }
     this.tweens.add({
       targets: obj,
       angle: side === 'enemy' ? 90 : -90,
@@ -935,6 +1148,7 @@ export class BattleScene extends Phaser.Scene {
   attack() {
     if (this.busy) return
     const dir = this.heroFacing
+    this.setHeroPose('attack2', 280) // 临时出拳姿势（不锁移动，update 仍跑）
     // 身体朝前微冲（jab）后回弹 + 手臂前摆角度
     this.tweens.killTweensOf(this.heroBodyGroup)
     const baseAngle = 0
@@ -1022,8 +1236,20 @@ export class BattleScene extends Phaser.Scene {
           onComplete: () => t.destroy(),
         })
       }
-      front.emojiText.setTint(0xff7a3c)
-      this.time.delayedCall(260, () => front.emojiText.clearTint())
+      this.tweens.killTweensOf(front.bodyGroup)
+      front.bodyGroup.scaleY = 1
+      front.sprite.anims.stop()
+      front.sprite.setTexture(texKey(front.charKey, 'hurt'))
+      front.sprite.setTint(0xff7a3c)
+      this.time.delayedCall(300, () => {
+        if (this.units[0] === front) {
+          front.sprite.clearTint()
+          front.sprite.setTexture(texKey(front.charKey, 'idle'))
+          this.startUnitIdle(front)
+        } else {
+          front.sprite.clearTint()
+        }
+      })
       this.tweens.add({ targets: enemy, x: enemy.x + 22, duration: 60, yoyo: true, repeat: 3, ease: 'sine.inOut' })
       if (cry) {
         const big = this.add
