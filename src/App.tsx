@@ -7,6 +7,7 @@ import { CharadesGame } from '@/games/charades/CharadesGame'
 import { DiceGame } from '@/games/dice/DiceGame'
 import { DrawGame } from '@/games/draw/DrawGame'
 import { KnowYouGame } from '@/games/know-you/KnowYouGame'
+import { KnowledgeDuelGame } from '@/games/knowledge-duel/KnowledgeDuelGame'
 import { MemoryGame } from '@/games/memory/MemoryGame'
 import { PriceGame } from '@/games/price/PriceGame'
 import { SoundGame } from '@/games/sound/SoundGame'
@@ -15,8 +16,8 @@ import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
-import { isAdmin, isUnlocked } from '@/platform/access'
-import { UnlockGate } from '@/platform/UnlockGate'
+import { addDeviceLogin, getDeviceLogins, isAdmin, isUnlocked, tryUnlock } from '@/platform/access'
+import { UnlockGate, type UnlockInfo } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
 import { WhoPlaying } from '@/platform/WhoPlaying'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
@@ -42,6 +43,7 @@ type Screen =
   | 'dice'
   | 'sound'
   | 'memory'
+  | 'knowledgeDuel'
 
 const games = GAMES
 const ACTIVE_GAMES = ACTIVE_GAME_IDS
@@ -114,6 +116,7 @@ export default function App() {
   const handleAddPlayer = (name: string) => {
     const p = addPlayer(name)
     setPlayers(getPlayers())
+    addDeviceLogin(p.id) // 本机加的人也算「登录过」，可在切换列表里出现
     choosePlayer(p.id)
   }
 
@@ -124,20 +127,31 @@ export default function App() {
     if (playerId === id) choosePlayer(next[0]?.id ?? 'guest')
   }
 
-  // 用个人码登录：自动选中这个人（家庭成员按名字匹配，否则新建），并把这个码绑成 TA 的个人码
-  const handleUnlocked = (person?: { name: string; emoji: string | null; code: string }) => {
+  // 登录：个人码→自动选中那个人并绑成 TA 的个人码；管理员→只认身份、不绑码。都记进「本机登录过」。
+  const handleUnlocked = (info?: UnlockInfo) => {
     setUnlocked(true)
-    if (!person) return
-    const existing = getPlayers().find((p) => p.name === person.name)
+    if (!info) return
+    const existing = getPlayers().find((p) => p.name === info.name)
     let pid: string
     if (existing) {
       pid = existing.id
     } else {
-      pid = addPlayer(person.name).id
+      pid = addPlayer(info.name).id
       setPlayers(getPlayers())
     }
-    setSyncCode(person.code, pid)
+    if (!info.admin) setSyncCode(info.code, pid) // 管理员不把管理码绑成个人码
+    addDeviceLogin(pid)
     choosePlayer(pid)
+  }
+
+  // 「我」面板里用码登录别人：校验通过就切到 TA（管理员请走解锁页两步）
+  const handleLoginOther = async (code: string): Promise<boolean> => {
+    const res = await tryUnlock(code)
+    if (res.ok && res.person) {
+      handleUnlocked(res.person)
+      return true
+    }
+    return false
   }
 
   if (!unlocked) {
@@ -150,9 +164,11 @@ export default function App() {
         <IdentitySheet
           players={players}
           currentId={playerId}
+          deviceLogins={getDeviceLogins()}
           onPick={choosePlayer}
           onAdd={handleAddPlayer}
           onRemove={handleRemovePlayer}
+          onLoginOther={handleLoginOther}
           onClose={() => setShowMe(false)}
         />
       )}
@@ -468,6 +484,21 @@ export default function App() {
               <p className="text-sm text-ink-600">翻开两张找一样的，全配上就赢，考考记性。</p>
             </div>
             <MemoryGame onExit={() => setScreen('home')} />
+          </section>
+        )}
+
+        {screen === 'knowledgeDuel' && (
+          <section className="space-y-6">
+            <div>
+              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
+                返回首页
+              </Button>
+            </div>
+            <div>
+              <h2 className="font-display text-3xl text-ink-900">我要用知识打败你</h2>
+              <p className="text-sm text-ink-600">回合制答题对战：答对揍对方、连对暴击，血先空的输。两人传手机或对电脑。</p>
+            </div>
+            <KnowledgeDuelGame onExit={() => setScreen('home')} />
           </section>
         )}
       </div>

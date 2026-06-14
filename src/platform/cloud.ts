@@ -48,6 +48,13 @@ export async function redeemLogin(code: string): Promise<LoginResult> {
   }
 }
 
+/** 管理员「名字 + 码」二次校验登录（防撞库）：先 redeemLogin 认出是管理码，再调这个验名字。 */
+export async function adminLogin(code: string, name: string): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase.rpc('admin_login', { p_code: code, p_name: name })
+  return !error && data === true
+}
+
 export async function mintCode(
   adminCode: string,
   newCode: string,

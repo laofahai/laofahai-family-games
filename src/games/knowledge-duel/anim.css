@@ -1,0 +1,83 @@
+/* 「我要用知识打败你」回合制对战动画。纯 CSS keyframes + transform，组件切 class 触发。 */
+
+/* —— 待机轻浮动 —— */
+@keyframes kd-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.kd-bob { animation: kd-bob 2.4s ease-in-out infinite; }
+
+/* —— 出招：朝右/朝左冲一下 —— */
+@keyframes kd-attack-right {
+  0% { transform: translateX(0) scale(1); }
+  35% { transform: translateX(34px) scale(1.14) rotate(-5deg); }
+  55% { transform: translateX(48px) scale(1.18) rotate(4deg); }
+  100% { transform: translateX(0) scale(1); }
+}
+.kd-attack-right { animation: kd-attack-right 0.48s cubic-bezier(.2,.9,.3,1.4); }
+
+@keyframes kd-attack-left {
+  0% { transform: translateX(0) scale(1); }
+  35% { transform: translateX(-34px) scale(1.14) rotate(5deg); }
+  55% { transform: translateX(-48px) scale(1.18) rotate(-4deg); }
+  100% { transform: translateX(0) scale(1); }
+}
+.kd-attack-left { animation: kd-attack-left 0.48s cubic-bezier(.2,.9,.3,1.4); }
+
+/* —— 受击：抖 + 泛红 —— */
+@keyframes kd-shake {
+  0%, 100% { transform: translateX(0); filter: none; }
+  15% { transform: translateX(-9px) rotate(-3deg); filter: brightness(1.3) sepia(1) hue-rotate(-30deg) saturate(4); }
+  35% { transform: translateX(8px) rotate(2deg); }
+  55% { transform: translateX(-6px); filter: brightness(1.2) sepia(0.6) hue-rotate(-30deg) saturate(2); }
+  75% { transform: translateX(4px); }
+}
+.kd-shake { animation: kd-shake 0.5s ease; }
+
+/* —— 暴击闪光：受击之上叠一层亮环 —— */
+@keyframes kd-crit-flash {
+  0% { box-shadow: 0 0 0 0 rgba(244,63,94,0); }
+  30% { box-shadow: 0 0 0 10px rgba(244,63,94,0.55); }
+  100% { box-shadow: 0 0 0 24px rgba(244,63,94,0); }
+}
+.kd-crit-flash { animation: kd-crit-flash 0.6s ease; }
+
+/* —— 倒下 —— */
+@keyframes kd-down {
+  0% { transform: translateY(0) rotate(0); }
+  60% { transform: translateY(8px) rotate(18deg); }
+  100% { transform: translateY(6px) rotate(0); }
+}
+.kd-down { animation: kd-down 0.6s ease forwards; }
+
+/* —— 飘伤害数字：上浮淡出 —— */
+@keyframes kd-float {
+  0% { transform: translate(-50%, 6px) scale(0.7); opacity: 0; }
+  25% { transform: translate(-50%, -10px) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, -52px) scale(1); opacity: 0; }
+}
+.kd-float { animation: kd-float 1s ease-out forwards; }
+
+/* —— VS / 回合横幅：放大弹入 —— */
+@keyframes kd-banner {
+  0% { transform: scale(0.6); opacity: 0; }
+  35% { transform: scale(1.08); opacity: 1; }
+  70% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.kd-banner { animation: kd-banner 0.5s cubic-bezier(.2,.9,.3,1.4) forwards; }
+
+/* —— 胜者奖杯跳动 —— */
+@keyframes kd-trophy {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-10px) rotate(3deg); }
+}
+.kd-trophy { animation: kd-trophy 1.2s ease-in-out infinite; }
+
+/* —— 选项命中/错误反馈闪一下 —— */
+@keyframes kd-pulse-good {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+.kd-pulse-good { animation: kd-pulse-good 0.3s ease; }

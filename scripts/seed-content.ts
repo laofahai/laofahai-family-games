@@ -19,6 +19,8 @@ import { TRUE_FALSE, FUN_CARDS } from '../src/games/yiyi-bureau/data/spark'
 import { memoryCards } from '../src/games/memory/data/memory-cards'
 import { diceTasks } from '../src/games/dice/data/dice-tasks'
 import { soundPrompts } from '../src/games/sound/data/sound-prompts'
+// 战斗游戏（打老师 / 知识对战）题库（扁平、带 band）
+import { RAW_QUESTIONS } from '../src/games/_battle/banks'
 
 const banks: Record<string, readonly unknown[]> = {
   charades: charadesWords,
@@ -43,6 +45,8 @@ const banks: Record<string, readonly unknown[]> = {
   memory: memoryCards,
   dice: diceTasks,
   sound: soundPrompts,
+  // 打老师 / 知识对战 题库（DB 为真源，代码里只作离线回退）
+  'battle-questions': RAW_QUESTIONS,
 }
 
 const out: string[] = []

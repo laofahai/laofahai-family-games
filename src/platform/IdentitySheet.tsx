@@ -17,23 +17,51 @@ import type { LearnGame } from './learning'
 export function IdentitySheet({
   players,
   currentId,
+  deviceLogins,
   onPick,
   onAdd,
   onRemove,
+  onLoginOther,
   onClose,
 }: {
   players: Player[]
   currentId: string
+  deviceLogins: string[]
   onPick: (id: string) => void
   onAdd: (name: string) => void
   onRemove: (id: string) => void
+  onLoginOther: (code: string) => Promise<boolean>
   onClose: () => void
 }) {
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
   const [showBadges, setShowBadges] = useState(false)
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [loginCode, setLoginCode] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
+  const [loginErr, setLoginErr] = useState('')
   const meName = players.find((p) => p.id === currentId)?.name ?? '这个人'
+  // 只显示「在本机登录过的人」+ 当前这个人；切别人要用码登录
+  const visible = players.filter((p) => deviceLogins.includes(p.id) || p.id === currentId)
+
+  const submitLogin = async () => {
+    const c = loginCode.replace(/\D/g, '')
+    if (c.length < 4 || loginBusy) {
+      if (c.length < 4) setLoginErr('个人码至少 4 位')
+      return
+    }
+    setLoginBusy(true)
+    setLoginErr('')
+    const ok = await onLoginOther(c)
+    setLoginBusy(false)
+    if (ok) {
+      setLoginCode('')
+      setLoginOpen(false)
+    } else {
+      setLoginErr('码不对，或那是管理码（请在解锁页登录）。')
+    }
+  }
   // 学习游戏=哪个孩子；非孩子只有探索勋章
   const learnGame: LearnGame | undefined =
     currentId === 'yiyi' ? 'yiyi' : currentId === 'shuner' ? 'shiliu' : undefined
@@ -72,7 +100,7 @@ export function IdentitySheet({
         <div className="mt-4 space-y-2">
           <div className="text-xs font-semibold text-ink-500">这台设备现在是谁？（按人记「玩过」和进度）</div>
           <div className="flex flex-wrap items-center gap-2">
-            {players.map((p) => (
+            {visible.map((p) => (
               <span key={p.id} className="relative inline-flex">
                 <button
                   type="button"
@@ -134,7 +162,54 @@ export function IdentitySheet({
               </button>
             )}
           </div>
-          <p className="text-xs text-ink-400">每一局玩的人，进游戏后再选；远程局在房间里定。这里只是「我是谁」。</p>
+          <p className="text-xs text-ink-400">只列出在本机登录过的人。切换成别人，要输 TA 的个人码。</p>
+
+          {/* 用码登录别人 */}
+          {loginOpen ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoFocus
+                value={loginCode}
+                onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submitLogin()
+                }}
+                placeholder="输 TA 的个人码"
+                maxLength={10}
+                className="h-10 w-36 rounded-full border border-melon-400 px-3 text-center font-mono tracking-widest outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => void submitLogin()}
+                disabled={loginBusy}
+                className="min-h-10 rounded-full border border-melon-500 bg-melon-50 px-3 text-sm font-semibold text-melon-700 disabled:opacity-50"
+              >
+                {loginBusy ? '…' : '登录'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginOpen(false)
+                  setLoginErr('')
+                  setLoginCode('')
+                }}
+                className="min-h-10 px-2 text-sm text-ink-400"
+              >
+                取消
+              </button>
+              {loginErr && <p className="w-full text-xs text-rose-500">{loginErr}</p>}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLoginOpen(true)}
+              className="text-sm font-semibold text-melon-600 hover:text-melon-700"
+            >
+              ＋ 用码登录别人
+            </button>
+          )}
         </div>
 
         {/* 我的勋章 */}
