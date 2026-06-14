@@ -17,6 +17,7 @@ import type { Game } from 'phaser'
 import { isDown, resolveAnswer } from '@/games/_battle/core'
 import { rosterFor } from '@/games/_battle/roster'
 import { skillCry, battleCry } from '@/games/_battle/cries'
+import { playSfx, unlockAudio, isMuted, toggleMuted } from '@/games/shared/sound'
 import { BattleScene } from './scene'
 import { PhaserStage } from './PhaserStage'
 import { TouchControls } from './components/TouchControls'
@@ -83,13 +84,19 @@ export function PlayingView({
   // 学科大招题只允许结算一次：防双击重复放招/重复上报。每次起手(ARM_NOVA)前置回 false。
   const novaActedRef = useRef<boolean>(false)
   // 键盘 / scene 回调用的「最新处理函数」ref：只在 commit effect 里写，键盘/scene 回调里读（合规）。
-  const keyHandlersRef = useRef<{ onMelee: () => void; onSkill: () => void }>({ onMelee: () => {}, onSkill: () => {} })
+  const keyHandlersRef = useRef<{ onMelee: () => void; onSkill: () => void; onCycleSkill: () => void }>({
+    onMelee: () => {},
+    onSkill: () => {},
+    onCycleSkill: () => {},
+  })
   const skipHandlersRef = useRef<{ onSkip: () => void }>({ onSkip: () => {} })
 
   // 走到敌人面前才弹面板。reached 只由 scene 的 update 循环回调驱动（事件，非 render/effect 体内）。
   const [reached, setReached] = useState(false)
   // 全屏 API 状态（仅装饰；iOS Safari 无 element fullscreen，fixed inset-0 即跨端「全屏」）
   const [isFs, setIsFs] = useState(false)
+  // 静音开关（音效引擎自带 localStorage 持久化，这里只镜像一份用于按钮显隐）
+  const [muted, setMutedState] = useState(isMuted)
   const rootRef = useRef<HTMLDivElement>(null)
 
   // ── 技能能量（UI 资源，逻辑归 React）：打中/答对攒能量，满了可放技能（⚡大招 / 🍬回血 二选一切换）──
@@ -119,28 +126,53 @@ export function PlayingView({
     if (!fx) return
     switch (fx.kind) {
       case 'spawn':
+        if (fx.waveNext) {
+          // 近战群补位：前排倒、下一个滑入（不重 spawn 整列）。
+          playSfx('down')
+          scene.killFront()
+          break
+        }
         // 新敌人：先标好「是否可跳过」（普通近战小怪可跳；Boss/题目/特殊不可），再登场。
         scene.setSkippable(!fx.isBoss && state.challenge.type === 'melee')
-        scene.spawnEnemy(fx.enemyEmoji ?? '🙂', fx.enemyName ?? '', fx.isBoss)
+        if (!fx.isBoss && state.challenge.type === 'melee' && state.waveQueue.length > 0) {
+          // 多人近战群：front + waveQueue 一起排成横队登场。
+          const members = [
+            { emoji: state.enemy.emoji, name: state.enemy.name },
+            ...state.waveQueue.map((w) => ({ emoji: w.emoji, name: w.name })),
+          ]
+          scene.spawnWave(members, true)
+        } else {
+          scene.spawnEnemy(fx.enemyEmoji ?? '🙂', fx.enemyName ?? '', fx.isBoss)
+        }
         break
       case 'hero-attack':
+        playSfx(fx.crit ? 'crit' : 'punch')
         scene.playHit('hero', fx.attack ?? 'slap', { crit: fx.crit, damage: fx.damage })
-        if (!isCoop && isDown(state.enemy)) window.setTimeout(() => sceneRef.current?.playDown('enemy'), 560)
+        // 单人前排被打空血：等命中后播倒地（仅当本波只剩这一个时——若还有 waveQueue，
+        // 倒地由 WAVE_NEXT→killFront 处理，这里不重复播）。
+        if (!isCoop && isDown(state.enemy) && state.waveQueue.length === 0)
+          window.setTimeout(() => {
+            sceneRef.current?.playDown('enemy')
+            playSfx('down')
+          }, 560)
         break
       case 'enemy-attack':
+        playSfx('hit')
         scene.playHit('enemy', fx.attack ?? 'slap', { damage: fx.damage })
         break
       case 'diss':
+        playSfx('combo')
         scene.playDiss(fx.text ?? '哼！', fx.damage)
         if (!isCoop && isDown(state.enemy)) window.setTimeout(() => sceneRef.current?.playDown('enemy'), 700)
         break
       case 'peer-hit':
+        playSfx('hit')
         scene.playPeerHit(fx.byName ?? '队友', fx.damage, fx.crit)
         break
       default:
         break
     }
-  }, [state.fxSeq, state.fx, state.enemy, state.hero, state.challenge.type, isCoop])
+  }, [state.fxSeq, state.fx, state.enemy, state.hero, state.challenge.type, state.waveQueue, isCoop])
 
   // 共斗：敌人共享血归零时播倒地（纯视觉，与 host 推进解耦）
   useEffect(() => {
@@ -152,13 +184,26 @@ export function PlayingView({
   }, [isCoop, state.enemy.hp, state.phase])
 
   // 单人·近战击杀推进：纯动作小怪被普攻/大招打空血后，reducer 不自动推进——
-  // 等约 720ms（看完最后一拳 + 倒地）再 ADVANCE。仅单人；题目/社交击杀走 lastResult→CLEAR_RESULT 推进。
+  // 等约 720ms（看完最后一拳 + 倒地）再处理。仅单人；题目/社交击杀走 lastResult→CLEAR_RESULT 推进。
+  // 近战群：若前排倒下但本波没清完（waveQueue 非空）→ WAVE_NEXT 顶下一个上来（不推进步骤）；
+  // 否则（单怪 / 本波最后一个 / 大招 AoE 已清空）→ ADVANCE 推进整步。
   useEffect(() => {
     if (isCoop) return
     if (state.phase !== 'playing' || state.enemy.hp > 0 || state.lastResult != null) return
-    const id = window.setTimeout(() => dispatch({ type: 'ADVANCE' }), 720)
+    const hasMore = state.waveQueue.length > 0
+    const id = window.setTimeout(
+      () => dispatch({ type: hasMore ? 'WAVE_NEXT' : 'ADVANCE' }),
+      720
+    )
     return () => window.clearTimeout(id)
-  }, [isCoop, state.phase, state.enemy.hp, state.lastResult])
+  }, [isCoop, state.phase, state.enemy.hp, state.lastResult, state.waveQueue])
+
+  // 单次作答锁复位：展示完结算、出现新挑战（lastResult 清空）时解除 actedKeyRef，
+  // 允许对「同一步的下一题」（Boss 多血 / 2 血小怪）继续作答——否则第二题起会卡成「点不了答案」。
+  // 同一题内的防双击仍在：锁在作答瞬间同步置上，重置只发生在 lastResult 归零之后。
+  useEffect(() => {
+    if (state.lastResult == null) actedKeyRef.current = null
+  }, [state.lastResult, state.levelIndex, state.stepIndex])
 
   // 共斗：自己血量变化时上报给 host（仅网络上报，非 setState，允许）
   useEffect(() => {
@@ -185,6 +230,12 @@ export function PlayingView({
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
 
+  // 胜负音效：phase 进入 won/lost 时各放一次号角/沮丧音（副作用，非 setState）。
+  useEffect(() => {
+    if (state.phase === 'won') playSfx('win')
+    else if (state.phase === 'lost') playSfx('lose')
+  }, [state.phase])
+
   // ── 键盘移动（桌面）：window 监听，把意图喂进 scene。用 ref 记按下集合，不 per-frame setState ──
   const pressedRef = useRef<Set<string>>(new Set())
   useEffect(() => {
@@ -201,6 +252,7 @@ export function PlayingView({
       const k = e.key
       if (isJump(k)) {
         e.preventDefault()
+        if (!e.repeat) playSfx('jump') // 长按不连放
         sceneRef.current?.setMove({ jump: true })
         return
       }
@@ -211,7 +263,12 @@ export function PlayingView({
       }
       if (k === 'k' || k === 'K') {
         e.preventDefault()
-        keyHandlersRef.current.onSkill() // ⚡ 技能
+        keyHandlersRef.current.onSkill() // ⚡ 技能（放当前选中的大招/回血）
+        return
+      }
+      if (k === 'l' || k === 'L') {
+        e.preventDefault()
+        keyHandlersRef.current.onCycleSkill() // 切换大招 / 回血
         return
       }
       if (['ArrowLeft', 'ArrowRight', 'a', 'A', 'd', 'D'].includes(k)) {
@@ -219,6 +276,7 @@ export function PlayingView({
         pressedRef.current.add(k)
         applyDir()
       }
+      if (k === 's' || k === 'S') e.preventDefault() // 下：横版无蹲，吞掉避免页面滚动
     }
     const onKeyUp = (e: KeyboardEvent) => {
       pressedRef.current.delete(e.key)
@@ -251,7 +309,16 @@ export function PlayingView({
       scene.setHeroName(state.hero.name)
       const boss = currentIsBoss(state)
       scene.setSkippable(!boss && state.challenge.type === 'melee')
-      scene.spawnEnemy(state.enemy.emoji, state.enemy.name, boss)
+      if (!boss && state.challenge.type === 'melee' && state.waveQueue.length > 0) {
+        // 起手即是多人近战群：整队登场。
+        const members = [
+          { emoji: state.enemy.emoji, name: state.enemy.name },
+          ...state.waveQueue.map((w) => ({ emoji: w.emoji, name: w.name })),
+        ]
+        scene.spawnWave(members, true)
+      } else {
+        scene.spawnEnemy(state.enemy.emoji, state.enemy.name, boss)
+      }
     }
   }
 
@@ -260,6 +327,9 @@ export function PlayingView({
   // 面板可见：走到了「非纯动作」敌人面前（题目/社交/损人/体测/Boss），或正在展示结算反馈。
   // 纯动作小怪（melee）不弹面板——直接 👊 揍它（或 ⤴ 跳过）。
   const panelVisible = (reached && state.challenge.type !== 'melee') || state.lastResult != null
+  // 近战群：右上角单个敌人血条对一波爆米花没意义——改显「本波 ×N」小徽章（剩余=1+waveQueue）。
+  const isMeleeWave = !onBoss && state.challenge.type === 'melee'
+  const waveRemaining = 1 + state.waveQueue.length
 
   // 中二招式名
   const cryText = useMemo(() => {
@@ -286,14 +356,16 @@ export function PlayingView({
   // ── 动作：普攻 / 技能 / 跳过推进 ───────────────────────────────────────
   // 👊 普攻：到达敌人 & (纯动作小怪 或 Boss) → 真打（MELEE）；否则原地挥空（air swing）。
   function handleMelee() {
+    unlockAudio() // 首个手势里解锁音频上下文（iOS/Safari 必需）
     if (locked) return
     const canHit = reached && (state.challenge.type === 'melee' || onBoss)
     if (canHit) {
       if (!onBoss) gainEnergy(18) // 揍小怪攒能量（Boss 免疫普攻，不给能量）
       if (isCoop && state.challenge.type === 'melee' && !onBoss) coopBattle.reportHit(MELEE_DAMAGE, false)
-      dispatch({ type: 'MELEE' })
+      dispatch({ type: 'MELEE' }) // 命中音由 hero-attack fx 播
     } else {
-      sceneRef.current?.attack() // 没敌人在身边：挥个空气，纯手感
+      playSfx('tap') // 没敌人在身边：挥个空气，轻响一下
+      sceneRef.current?.attack()
     }
   }
 
@@ -301,13 +373,16 @@ export function PlayingView({
   // nova=学科大招：是「学习类技能」——按下不直接放，而是弹一道学科题（模态），答对才放得出（见 handleSkillQuiz）。
   // heal=回血：非学习类技能，即时生效，不弹题。放完都清空能量。
   function handleSkill() {
+    unlockAudio()
     if (!skillReady || locked) return
     if (skill === 'nova') {
       if (state.skillQuiz) return // 已经在答大招题了
       novaActedRef.current = false
+      playSfx('skill') // 起手蓄力音；放招/哑火音在 handleSkillQuiz 里
       setEnergy(0) // 起手即消耗能量：答错也不退（哑火的代价就是这一管能量）
       dispatch({ type: 'ARM_NOVA' })
     } else {
+      playSfx('heal')
       sceneRef.current?.playSkillFx('heal', '回血！🍬')
       dispatch({ type: 'SKILL_HEAL', amount: 2 })
       setEnergy(0)
@@ -319,9 +394,15 @@ export function PlayingView({
     if (!state.skillQuiz || novaActedRef.current) return
     novaActedRef.current = true
     const correct = choiceId === state.skillQuiz.question.answer
+    playSfx(correct ? 'nova' : 'wrong')
     if (correct) {
       const cry = skillCry(state.skillQuiz.question.subject, state.band) ?? battleCry('finish', state.band)
-      sceneRef.current?.playSkillFx('nova', cry)
+      // 单人·非 Boss 近战群：大招 = AoE 清场（全体一起倒地）；其余（Boss / 共斗）仍是定向大招。
+      if (!isCoop && !onBoss && state.challenge.type === 'melee') {
+        sceneRef.current?.clearWaveAoe(cry)
+      } else {
+        sceneRef.current?.playSkillFx('nova', cry)
+      }
       // 共斗：共享血由 host 权威结算，大招报一笔有限伤害（不秒杀共享血，保留多人节奏）。
       if (isCoop) coopBattle.reportHit(COOP_NOVA_DAMAGE, true)
     }
@@ -330,6 +411,7 @@ export function PlayingView({
 
   // 切换大招 / 回血
   function cycleSkill() {
+    playSfx('tap')
     setSkill((s) => (s === 'nova' ? 'heal' : 'nova'))
   }
 
@@ -346,7 +428,7 @@ export function PlayingView({
   // 把「最新」处理函数写进 ref（只在 commit effect 里写，never during render）：
   // 给 mount-once 的键盘监听 / scene 跳过回调读，避免闭包读到旧 state。
   useEffect(() => {
-    keyHandlersRef.current = { onMelee: handleMelee, onSkill: handleSkill }
+    keyHandlersRef.current = { onMelee: handleMelee, onSkill: handleSkill, onCycleSkill: cycleSkill }
     skipHandlersRef.current = { onSkip: handleSkip }
   })
 
@@ -354,6 +436,7 @@ export function PlayingView({
     if (!claimChallenge()) return
     if (state.challenge.type === 'question') {
       const correct = choiceId === state.challenge.question.answer
+      playSfx(correct ? 'correct' : 'wrong')
       if (correct) {
         gainEnergy(28) // 答对攒能量（知识=强攻，回报更高）
         if (isCoop) {
@@ -466,9 +549,31 @@ export function PlayingView({
         </div>
 
         <div className="pointer-events-auto flex items-start gap-2">
-          <div className="rounded-2xl bg-black/35 px-2 py-1 backdrop-blur">
-            <HpBar fighter={state.enemy} align="right" accent="rose" boss={onBoss} />
-          </div>
+          {isMeleeWave ? (
+            // 近战群：显示「本波 ×N」徽章（剩余敌人数 = 前排 + waveQueue），而非单个血条。
+            <div className="flex flex-col items-end gap-1 rounded-2xl bg-black/35 px-3 py-1.5 backdrop-blur">
+              <span className="rounded-full bg-rose-600/90 px-2.5 py-0.5 text-xs font-black text-white shadow">
+                👊 本波 ×{waveRemaining}
+              </span>
+              <span className="text-[10px] font-semibold text-white/80">{state.enemy.emoji} 一拳一个</span>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-black/35 px-2 py-1 backdrop-blur">
+              <HpBar fighter={state.enemy} align="right" accent="rose" boss={onBoss} />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              const m = toggleMuted()
+              setMutedState(m)
+              if (!m) playSfx('tap') // 刚开声：响一下确认
+            }}
+            aria-label={muted ? '取消静音' : '静音'}
+            className="rounded-full bg-black/40 p-2 text-base text-white backdrop-blur transition hover:bg-black/55"
+          >
+            {muted ? '🔇' : '🔊'}
+          </button>
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -501,7 +606,11 @@ export function PlayingView({
       {/* 动作控制：左=虚拟摇杆走动，右=👊普攻 / ⚡技能 / ⤴跳。回调直接喂给 scene / 处理函数。 */}
       <TouchControls
         onMove={(d) => sceneRef.current?.setMove({ dir: d })}
-        onJump={() => sceneRef.current?.setMove({ jump: true })}
+        onJump={() => {
+          unlockAudio()
+          playSfx('jump')
+          sceneRef.current?.setMove({ jump: true })
+        }}
         onAttack={handleMelee}
         onSkill={handleSkill}
         skillReady={skillReady}
@@ -542,7 +651,7 @@ export function PlayingView({
 
       {/* 挑战面板：紧凑底部 sheet，走到敌人面前（或结算中）才出现，不盖住舞台 */}
       {!state.skillQuiz && panelVisible && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex max-h-[45vh] justify-center p-2 sm:p-3">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex max-h-[40vh] justify-center p-2 sm:p-3">
           <div className="pointer-events-auto w-full max-w-xl overflow-y-auto rounded-t-3xl">
             {state.lastResult ? (
               <ResultFlash result={state.lastResult} onNext={() => dispatch({ type: 'CLEAR_RESULT' })} />

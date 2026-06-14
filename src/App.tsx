@@ -540,9 +540,9 @@ export default function App() {
               </Button>
             </div>
             <div>
-              <h2 className="font-display text-3xl text-ink-900">横版打老师</h2>
+              <h2 className="font-display text-3xl text-ink-900">课间大乱斗</h2>
               <p className="text-sm text-ink-600">
-                答题往右闯关：同学是小怪、老师是 Boss。答对揍他，答错或超时挨揍。可邀同学一起合作打。
+                横版闯关：揍翻拦路同学，答题打败关底老师。可邀同学一起合作打。
               </p>
             </div>
             <Suspense fallback={<div className="py-16 text-center text-sm text-ink-500">游戏加载中…</div>}>

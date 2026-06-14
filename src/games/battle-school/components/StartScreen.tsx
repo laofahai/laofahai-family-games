@@ -21,11 +21,9 @@ export function StartScreen({
     <Card className="mx-auto max-w-xl space-y-4 p-6 text-center">
       <div className="text-5xl">🧒⚔️🧑‍🏫</div>
       <div>
-        <h2 className="font-display text-2xl text-ink-900">横版打老师</h2>
+        <h2 className="font-display text-2xl text-ink-900">课间大乱斗</h2>
         <p className="mt-1 text-sm text-ink-600">
-          {playerName}，往右闯关！先搞定 2~3 个同学小怪，再答题打败关底老师 Boss。
-          <br />
-          答对出招、连对暴击；答错或超时会被反揍掉血。共 {totalLevels} 关。
+          {playerName}，冲过去！揍翻拦路的同学，再答题打败每关的老师。共 {totalLevels} 关。
         </p>
       </div>
 
@@ -47,8 +45,10 @@ export function StartScreen({
         </Button>
       </div>
 
-      <div className="rounded-2xl bg-amber-50 p-3 text-left text-xs text-amber-800">
-        招式随机：扇大耳刮子 👋 / 踹一脚 🦵 / 挠痒痒 🤣 / 吐口痰 💦，搞笑又解压～
+      <div className="space-y-1 rounded-2xl bg-amber-50 p-3 text-left text-xs text-amber-800">
+        <p>📱 触屏：左摇杆移动 · 👊 普攻 · ⤴ 跳(可跳过弱怪) · ⚡ 学霸大招</p>
+        <p>💻 电脑：W/A/S/D 或方向键移动(W/↑跳) · J 普攻 · K 技能 · L 切换大招/回血</p>
+        <p className="text-amber-700/80">学霸大招 = 答对一道学科题，放出群体大招(对老师是重击)。</p>
       </div>
     </Card>
   )

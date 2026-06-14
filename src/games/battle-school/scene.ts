@@ -20,6 +20,20 @@ export interface MoveIntent {
   jump: boolean
 }
 
+/** 一个敌人单位（单怪/Boss/近战群里的一个）。front=units[0]，离主角最近，是 reach/skip/攻击目标。 */
+interface EnemyUnit {
+  container: Phaser.GameObjects.Container
+  shadow: Phaser.GameObjects.Ellipse
+  emojiText: Phaser.GameObjects.Text
+  crown: Phaser.GameObjects.Text
+  nameplate: Phaser.GameObjects.Container
+  nameText: Phaser.GameObjects.Text
+  isBoss: boolean
+}
+
+// 近战群里，相邻两个小怪之间的横向间距（front 最近，其余朝右错开站位）。
+const WAVE_GAP = 135
+
 // 几套随机横版场景配色（天空、地面、远景装饰），程序化画。
 interface SceneTheme {
   sky: number
@@ -39,7 +53,7 @@ const THEMES: SceneTheme[] = [
 
 // 世界比屏宽：相机跟随主角横向滚动。
 const WORLD_W = 3200
-const GROUND_RATIO = 0.8 // 地面在视口高度的占比
+const GROUND_RATIO = 0.56 // 地面在视口高度的占比（抬高些，让角色站在上方，底部留给题卡不挡人）
 const REACH_DIST = 150 // 主角离敌人多近算「走到了」
 const WALK_SPEED = 280 // px/秒
 const GRAVITY = 1800 // px/秒^2
@@ -66,13 +80,9 @@ export class BattleScene extends Phaser.Scene {
   private heroName!: Phaser.GameObjects.Container // 头顶名牌（pill）。bg/label 存在容器 data 里，按需取。
   private heroNameValue = '🧒' // 当前显示的玩家名（空则回退到默认）
 
-  // 敌人：容器里有 影子 + 表情 + 皇冠 + 名牌(pill)。
-  private enemy!: Phaser.GameObjects.Container
-  private enemyShadow!: Phaser.GameObjects.Ellipse
-  private enemyEmojiText!: Phaser.GameObjects.Text
-  private enemyCrown!: Phaser.GameObjects.Text
-  private enemyName!: Phaser.GameObjects.Container // 名牌(pill)。bg/label 存容器 data，更新文字时取 label 重绘。
-  private enemyNameText!: Phaser.GameObjects.Text
+  // 敌人单位数组：front=units[0]（离主角最近，reach/skip/攻击目标）；近战群里其余排在它右后方。
+  // 单怪/Boss/共斗时长度恒为 1，行为与改造前完全一致。
+  private units: EnemyUnit[] = []
   private hint!: Phaser.GameObjects.Text
   private bg!: Phaser.GameObjects.Graphics
   private far!: Phaser.GameObjects.Graphics // 远景视差层
@@ -135,20 +145,9 @@ export class BattleScene extends Phaser.Scene {
     this.heroY = this.groundY
     this.setHeroName(this.heroNameValue)
 
-    // ── 敌人：同款风格（影子 + 表情 + 可选皇冠 + 头顶名牌 pill）──
-    this.enemyShadow = this.add.ellipse(0, 6, 84, 22, 0x000000, 0.18).setOrigin(0.5)
-    this.enemyEmojiText = this.add.text(0, -58, '🙂', { fontSize: '54px' }).setOrigin(0.5)
-    this.enemyCrown = this.add.text(0, -104, '👑', { fontSize: '30px' }).setOrigin(0.5).setVisible(false)
-    this.enemyName = this.makeNameplate('', false)
-    this.enemyName.setPosition(0, -132)
-    this.enemyNameText = this.enemyName.getData('label') as Phaser.GameObjects.Text
-    this.enemy = this.add.container(this.heroStartX() + 520, this.groundY, [
-      this.enemyShadow,
-      this.enemyEmojiText,
-      this.enemyCrown,
-      this.enemyName,
-    ])
-    this.enemy.setDepth(9)
+    // ── 敌人：同款风格（影子 + 表情 + 可选皇冠 + 头顶名牌 pill）。
+    // 起始建一个单位（front），后续 spawnEnemy/spawnWave 复用/补建。──
+    this.units = [this.createUnit(this.heroStartX() + 520)]
 
     // 「往右走 →」引导提示（走到敌人前消失）
     this.hint = this.add
@@ -173,6 +172,40 @@ export class BattleScene extends Phaser.Scene {
     })
   }
 
+  /** 前排敌人（离主角最近，reach/skip/攻击目标）。单怪/Boss/共斗时即唯一那个。 */
+  private front(): EnemyUnit {
+    return this.units[0]
+  }
+
+  /** 建一个敌人单位（影子 + 表情 + 可选皇冠 + 头顶名牌 pill），放在指定 x、地面 y。 */
+  private createUnit(x: number): EnemyUnit {
+    const shadow = this.add.ellipse(0, 6, 84, 22, 0x000000, 0.18).setOrigin(0.5)
+    const emojiText = this.add.text(0, -58, '🙂', { fontSize: '54px' }).setOrigin(0.5)
+    const crown = this.add.text(0, -104, '👑', { fontSize: '30px' }).setOrigin(0.5).setVisible(false)
+    const nameplate = this.makeNameplate('', false)
+    nameplate.setPosition(0, -132)
+    const nameText = nameplate.getData('label') as Phaser.GameObjects.Text
+    const container = this.add.container(x, this.groundY, [shadow, emojiText, crown, nameplate])
+    container.setDepth(9)
+    return { container, shadow, emojiText, crown, nameplate, nameText, isBoss: false }
+  }
+
+  /** 给一个单位套上「形象/名牌/皇冠/影子」样式（boss 更大 + 皇冠 + 暖红名牌；普通小怪常规）。 */
+  private styleUnit(u: EnemyUnit, emoji: string, name: string, isBoss: boolean) {
+    u.isBoss = isBoss
+    u.emojiText.setText(emoji)
+    u.emojiText.setFontSize(isBoss ? 84 : 54) // boss 明显更大
+    u.emojiText.setY(isBoss ? -70 : -58)
+    u.emojiText.setAngle(0)
+    u.emojiText.clearTint()
+    u.crown.setVisible(isBoss)
+    u.crown.setY(isBoss ? -122 : -104)
+    u.shadow.setSize(isBoss ? 110 : 84, isBoss ? 26 : 22)
+    u.nameText.setText(name)
+    this.redrawNameplate(u.nameplate, isBoss)
+    u.nameplate.setY(isBoss ? -150 : -126)
+  }
+
   private recomputeLayout() {
     this.W = this.scale.width
     this.H = this.scale.height
@@ -192,7 +225,7 @@ export class BattleScene extends Phaser.Scene {
     this.heroY = Math.min(this.heroY, this.groundY)
     if (this.onGround) this.heroY = this.groundY
     this.hero.y = this.heroY
-    this.enemy.y = this.groundY
+    for (const u of this.units) u.container.y = this.groundY
     this.drawBackground(this.theme)
     this.repositionHint()
   }
@@ -249,10 +282,13 @@ export class BattleScene extends Phaser.Scene {
 
       this.applyHeroTransform(walking, breath, airStretch)
 
+      // 全部判定都对 front（最近的那个敌人）。near=front 容器。
+      const frontX = this.front().container.x
+
       // 跳过判定：可跳过的普通近战小怪——在空中且越过敌人 x → 直接掠过（不弹面板、不开打）。
       if (this.enemySkippable && !this.skipped && !this.enemyReached && !this.onGround) {
         // 主角从敌人左侧跳到了敌人右侧（越过），算成功跳过
-        if (this.hero.x > this.enemy.x + 24) {
+        if (this.hero.x > frontX + 24) {
           this.skipped = true
           this.hint.setVisible(false)
           this.onSkip?.()
@@ -263,11 +299,11 @@ export class BattleScene extends Phaser.Scene {
       // 可跳过的小怪在空中时不触发 reach——这样玩家「跳着冲过去」能直接掠过，不被卡下来开打。
       const reachSuppressedByJump = this.enemySkippable && !this.onGround
       if (!this.enemyReached && !this.skipped && !reachSuppressedByJump) {
-        const dx = Math.abs(this.hero.x - this.enemy.x)
+        const dx = Math.abs(this.hero.x - frontX)
         if (dx <= REACH_DIST) {
           this.enemyReached = true
           this.hint.setVisible(false)
-          this.heroFacing = this.enemy.x >= this.hero.x ? 1 : -1
+          this.heroFacing = frontX >= this.hero.x ? 1 : -1
           this.applyHeroTransform(false, 0, 0)
         }
       }
@@ -483,33 +519,49 @@ export class BattleScene extends Phaser.Scene {
 
   // ── React 调用的接口方法 ─────────────────────────────────────────
 
-  /** 新敌人登场：换 emoji/名字；放到主角【前方】的路上，重置「已到达」标记。走过去才会触发 onReachEnemy。 */
+  /** 新敌人登场（单怪/Boss/共斗）：换 emoji/名字；放到主角【前方】的路上，重置「已到达」标记。
+   *  内部即单成员的 spawnWave，额外处理 Boss 形象（皇冠 + 更大 + 暖红名牌）。 */
   spawnEnemy(emoji: string, name: string, isBoss = false) {
-    this.enemyEmojiText.setText(emoji)
-    this.enemyEmojiText.setFontSize(isBoss ? 84 : 54) // boss 明显更大
-    // 表情/皇冠/名牌随大小上移，贴合不同体型
-    this.enemyEmojiText.setY(isBoss ? -70 : -58)
-    this.enemyCrown.setVisible(isBoss)
-    this.enemyCrown.setY(isBoss ? -122 : -104)
-    // 影子也随体型变宽
-    this.enemyShadow.setSize(isBoss ? 110 : 84, isBoss ? 26 : 22)
-    // 名牌：boss 用暖红强调，置于头顶上方
-    this.enemyNameText.setText(name)
-    this.redrawNameplate(this.enemyName, isBoss)
-    this.enemyName.setY(isBoss ? -150 : -126)
+    this.spawnWaveInternal([{ emoji, name }], isBoss)
+  }
 
-    // 放到主角前方（朝右），与主角拉开一段距离，让玩家「走过去」
+  /** 近战群登场：把 members 排成主角前方的一条横队（front 最近，其余朝右错开补位）。
+   *  全部是普通小怪（无皇冠、常规大小）；front 是 reach + skip 目标。 */
+  spawnWave(members: { emoji: string; name: string }[], skippable: boolean) {
+    this.setSkippable(skippable)
+    this.spawnWaveInternal(members.length ? members : [{ emoji: '🙂', name: '' }], false)
+  }
+
+  /** 内部实现：建/复用单位、套样式、排成横队入场，并重置 reach/skip。 */
+  private spawnWaveInternal(members: { emoji: string; name: string }[], isBoss: boolean) {
+    // 单位数量对齐 members：多了销毁、少了补建。
+    while (this.units.length > members.length) {
+      const u = this.units.pop()!
+      u.container.destroy()
+    }
+    while (this.units.length < members.length) {
+      this.units.push(this.createUnit(this.hero.x + 800))
+    }
+
+    // front 落点：主角前方拉开一段距离，让玩家「走过去」。其余朝右每隔 WAVE_GAP 站一个。
     const ahead = 560 + Math.random() * 180
-    let ex = this.hero.x + ahead
-    if (ex > WORLD_W - 80) ex = Math.max(this.hero.x + 320, WORLD_W - 80) // 贴近世界尽头时收一点
-    this.enemy.x = ex + 60
-    this.enemy.y = this.groundY
-    this.enemy.setAlpha(0)
-    this.enemy.setScale(0.6)
-    this.enemy.setAngle(0)
-    this.enemyEmojiText.setAngle(0)
-    this.enemyEmojiText.clearTint()
-    this.tweens.add({ targets: this.enemy, x: ex, alpha: 1, scale: 1, duration: 420, ease: 'back.out' })
+    let frontX = this.hero.x + ahead
+    const lineW = (members.length - 1) * WAVE_GAP
+    if (frontX + lineW > WORLD_W - 80) frontX = Math.max(this.hero.x + 320, WORLD_W - 80 - lineW)
+
+    members.forEach((m, i) => {
+      const u = this.units[i]
+      this.styleUnit(u, m.emoji, m.name, isBoss && i === 0)
+      const targetX = frontX + i * WAVE_GAP
+      u.container.x = targetX + 60
+      u.container.y = this.groundY
+      u.container.setAlpha(0)
+      u.container.setScale(0.6)
+      u.container.setAngle(0)
+      // depth：front 最靠前（数值大），后排略低，避免名牌互相压住时层次混乱。
+      u.container.setDepth(9 - i)
+      this.tweens.add({ targets: u.container, x: targetX, alpha: 1, scale: 1, duration: 420, delay: i * 70, ease: 'back.out' })
+    })
 
     // 重置 reach / skip；显示「往前走」提示
     this.enemyReached = false
@@ -526,10 +578,120 @@ export class BattleScene extends Phaser.Scene {
     // 若主角此刻已经贴着敌人（极端：世界尽头），下一帧 checkReach 会立即触发，避免卡死。
   }
 
-  /** 播放一次攻击/受击：attacker 冲向 target，命中后弹回；target 抖动；飘招式特效。 */
+  /** 近战群：前排倒下并移除，余下整体左滑补位——下一个成新前排并重新进入 reach（连击爽快）。
+   *  空（已无单位）时安全 no-op。 */
+  killFront() {
+    if (this.units.length === 0) return
+    const dying = this.units.shift()!
+    // 前排播倒地（旋转 + 淡出）后销毁。
+    this.tweens.add({
+      targets: dying.container,
+      angle: 90,
+      y: this.groundY + 20,
+      alpha: 0,
+      duration: 460,
+      ease: 'quad.in',
+      onComplete: () => dying.container.destroy(),
+    })
+    const star = this.add.text(dying.container.x, dying.container.y - 70, '💫', { fontSize: '34px' }).setOrigin(0.5).setDepth(30)
+    this.tweens.add({ targets: star, angle: 360, alpha: 0, duration: 700, onComplete: () => star.destroy() })
+
+    // 余下整体左滑一格（朝主角），并刷新 depth；新前排自动重新参与 reach。
+    this.units.forEach((u, i) => {
+      this.tweens.add({ targets: u.container, x: u.container.x - WAVE_GAP, duration: 260, ease: 'quad.out' })
+      u.container.setDepth(9 - i)
+    })
+
+    // 复位每个前排独立的 reach/skip 标记，让新前排能再次触发「揍他」面板/连击。
+    this.enemyReached = false
+    this.skipped = false
+  }
+
+  /** 大招 AoE：相机闪光 + 抖屏 + 放射光环 + 全体一起倒地 + 中二招式横幅，随后全部移除。 */
+  clearWaveAoe(cry?: string | null) {
+    if (this.units.length === 0) return
+    this.cameras.main.flash(200, 255, 240, 160)
+    this.cameras.main.shake(360, 0.02)
+
+    // 以前排为中心来一圈放射光环
+    const cx = this.front().container.x
+    const cy = this.groundY - 50
+    const ring = this.add.circle(cx, cy, 24, 0xffe08a, 0.55).setDepth(23)
+    this.tweens.add({
+      targets: ring,
+      radius: 260,
+      alpha: { from: 0.6, to: 0 },
+      duration: 560,
+      ease: 'quad.out',
+      onComplete: () => ring.destroy(),
+    })
+    const burst = ['💥', '⚡', '✨', '🔥', '💫']
+    for (let i = 0; i < 14; i++) {
+      const a = (Math.PI * 2 * i) / 14
+      const em = burst[i % burst.length]
+      const t = this.add.text(cx, cy, em, { fontSize: '30px' }).setOrigin(0.5).setDepth(24)
+      this.tweens.add({
+        targets: t,
+        x: cx + Math.cos(a) * 200,
+        y: cy + Math.sin(a) * 140,
+        scale: { from: 0.6, to: 1.6 },
+        alpha: { from: 1, to: 0 },
+        duration: 600,
+        ease: 'quad.out',
+        onComplete: () => t.destroy(),
+      })
+    }
+
+    // 全体一起倒地 + 移除。units 清空。
+    const dying = this.units
+    this.units = []
+    dying.forEach((u, i) => {
+      u.emojiText.setTint(0xff7a3c)
+      this.tweens.add({
+        targets: u.container,
+        angle: 90,
+        y: this.groundY + 20,
+        alpha: 0,
+        duration: 480,
+        delay: i * 50,
+        ease: 'quad.in',
+        onComplete: () => u.container.destroy(),
+      })
+    })
+
+    if (cry) {
+      const big = this.add
+        .text(this.W / 2, this.H * 0.3, cry, {
+          fontSize: '40px',
+          color: '#f59e0b',
+          fontStyle: 'bold',
+          align: 'center',
+          stroke: '#ffffff',
+          strokeThickness: 6,
+          wordWrap: { width: this.W * 0.86 },
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(52)
+      this.tweens.add({
+        targets: big,
+        scale: { from: 0.4, to: 1.15 },
+        duration: 200,
+        ease: 'back.out',
+        yoyo: true,
+        hold: 620,
+        onComplete: () => big.destroy(),
+      })
+    }
+  }
+
+  /** 播放一次攻击/受击：attacker 冲向 target，命中后弹回；target 抖动；飘招式特效。
+   *  敌方一律取 front（最近的那个），单怪/Boss 时即唯一那个。 */
   playHit(attacker: Side, kind: AttackKind, opts?: { crit?: boolean; damage?: number }) {
-    const atkObj = attacker === 'hero' ? this.hero : this.enemy
-    const tgtObj = attacker === 'hero' ? this.enemy : this.hero
+    const front = this.front()?.container
+    const atkObj = attacker === 'hero' ? this.hero : front
+    const tgtObj = attacker === 'hero' ? front : this.hero
+    if (!atkObj || !tgtObj) return // 群已清空（极端竞态）：本帧不播
     const dir = atkObj.x <= tgtObj.x ? 1 : -1 // 朝目标方向
     const startX = atkObj.x
     const meta = ATTACK_META[kind]
@@ -576,24 +738,30 @@ export class BattleScene extends Phaser.Scene {
       repeat: 2,
       ease: 'sine.inOut',
     })
-    if (tgtObj === this.enemy) {
-      this.enemyEmojiText.setTint(0xff5a5a)
-      this.time.delayedCall(180, () => this.enemyEmojiText.clearTint())
+    if (tgtObj !== this.hero) {
+      // 命中敌方 front：闪红它的表情。
+      const emojiText = this.front()?.emojiText
+      if (emojiText) {
+        emojiText.setTint(0xff5a5a)
+        this.time.delayedCall(180, () => emojiText.clearTint())
+      }
     } else {
       // 主角受击：闪烁新身体 + 头脸（不再是火柴线条）
       this.tweens.add({ targets: [this.heroBodyGfx, this.heroFace], alpha: 0.3, duration: 70, yoyo: true, repeat: 1 })
     }
 
-    const fx = this.add.text(tgtObj.x - dir * 40, tgtObj.y - 50, fxEmoji, { fontSize: '40px' }).setOrigin(0.5).setDepth(20)
+    // 命中招式特效（扇耳光👋/踹腿🦵/挠痒🤣/吐痰💦）：砸得又大又狠，先猛地弹大再淡出。
+    const fxBig = opts?.crit ? '108px' : '84px'
+    const fx = this.add.text(tgtObj.x - dir * 48, tgtObj.y - 60, fxEmoji, { fontSize: fxBig }).setOrigin(0.5).setDepth(20)
     this.tweens.add({
       targets: fx,
       x: tgtObj.x,
-      y: tgtObj.y - 70,
-      scale: { from: 0.6, to: 1.6 },
-      angle: dir * 40,
+      y: tgtObj.y - 76,
+      scale: { from: 0.5, to: opts?.crit ? 3.0 : 2.4 },
+      angle: dir * 38,
       alpha: { from: 1, to: 0 },
-      duration: 420,
-      ease: 'quad.out',
+      duration: 520,
+      ease: 'back.out',
       onComplete: () => fx.destroy(),
     })
 
@@ -639,12 +807,15 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  /** 损人嘴炮特效：大字 + 屏幕猛抖 + 一堆嘲讽 emoji 朝敌人爆发。 */
+  /** 损人嘴炮特效：大字 + 屏幕猛抖 + 一堆嘲讽 emoji 朝敌人爆发。（损人=非近战单怪，front 即唯一那个） */
   playDiss(text: string, damage?: number) {
+    const front = this.front()
+    if (!front) return
+    const enemy = front.container
     this.busy = true
-    this.enemyEmojiText.setTint(0xff5a5a)
-    this.time.delayedCall(300, () => this.enemyEmojiText.clearTint())
-    this.tweens.add({ targets: this.enemy, x: this.enemy.x + 14, duration: 55, yoyo: true, repeat: 4, ease: 'sine.inOut' })
+    front.emojiText.setTint(0xff5a5a)
+    this.time.delayedCall(300, () => front.emojiText.clearTint())
+    this.tweens.add({ targets: enemy, x: enemy.x + 14, duration: 55, yoyo: true, repeat: 4, ease: 'sine.inOut' })
 
     this.cameras.main.shake(360, 0.018)
     this.cameras.main.flash(120, 255, 120, 120)
@@ -683,7 +854,7 @@ export class BattleScene extends Phaser.Scene {
       const t = this.add.text(this.hero.x, this.groundY - 50, em, { fontSize: '30px' }).setOrigin(0.5).setDepth(45)
       this.tweens.add({
         targets: t,
-        x: this.enemy.x + (Math.random() * 80 - 40),
+        x: enemy.x + (Math.random() * 80 - 40),
         y: this.groundY - 40 - Math.random() * 120,
         angle: Math.random() * 360,
         scale: { from: 0.6, to: 1.4 },
@@ -697,17 +868,19 @@ export class BattleScene extends Phaser.Scene {
 
     if (damage && damage > 0) {
       const dmg = this.add
-        .text(this.enemy.x, this.enemy.y - 90, `-${damage}`, { fontSize: '28px', color: '#e11d48', fontStyle: 'bold' })
+        .text(enemy.x, enemy.y - 90, `-${damage}`, { fontSize: '28px', color: '#e11d48', fontStyle: 'bold' })
         .setOrigin(0.5)
         .setDepth(46)
-      this.tweens.add({ targets: dmg, y: this.enemy.y - 150, alpha: 0, duration: 800, onComplete: () => dmg.destroy() })
+      this.tweens.add({ targets: dmg, y: enemy.y - 150, alpha: 0, duration: 800, onComplete: () => dmg.destroy() })
     }
   }
 
-  /** 队友（多人共斗）打出的命中：从天而降一记拳头砸在敌人头上，标出是谁打的。 */
+  /** 队友（多人共斗）打出的命中：从天而降一记拳头砸在敌人头上，标出是谁打的。（共斗=单怪，front 即唯一那个） */
   playPeerHit(byName: string, damage?: number, crit?: boolean) {
-    const tx = this.enemy.x
-    const ty = this.enemy.y
+    const front = this.front()
+    if (!front) return
+    const tx = front.container.x
+    const ty = front.container.y
     const fist = this.add.text(tx, ty - 220, '👊', { fontSize: '46px' }).setOrigin(0.5).setDepth(48).setAlpha(0)
     this.tweens.add({
       targets: fist,
@@ -717,8 +890,8 @@ export class BattleScene extends Phaser.Scene {
       ease: 'quad.in',
       onComplete: () => {
         this.cameras.main.shake(crit ? 200 : 120, crit ? 0.012 : 0.006)
-        this.enemyEmojiText.setTint(0x7dd3fc)
-        this.time.delayedCall(160, () => this.enemyEmojiText.clearTint())
+        front.emojiText.setTint(0x7dd3fc)
+        this.time.delayedCall(160, () => front.emojiText.clearTint())
         this.tweens.add({ targets: fist, alpha: 0, y: ty - 90, duration: 220, onComplete: () => fist.destroy() })
       },
     })
@@ -742,9 +915,10 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  /** 敌人倒下：旋转倒地 + 淡出。 */
+  /** 敌人倒下：旋转倒地 + 淡出。敌方取 front（单怪/Boss/共斗即唯一那个；近战群的逐个倒地走 killFront）。 */
   playDown(side: Side) {
-    const obj = side === 'enemy' ? this.enemy : this.hero
+    const obj = side === 'enemy' ? this.front()?.container : this.hero
+    if (!obj) return
     this.tweens.add({
       targets: obj,
       angle: side === 'enemy' ? 90 : -90,
@@ -810,11 +984,15 @@ export class BattleScene extends Phaser.Scene {
     })
   }
 
-  /** 技能特效（视觉，伤害/血量由 React 算）。nova=大招爆发（朝敌人）；heal=回血光效（在主角身上）。 */
+  /** 技能特效（视觉，伤害/血量由 React 算）。nova=大招爆发（朝敌人 front）；heal=回血光效（在主角身上）。
+   *  nova 用于 Boss 或单个小怪（单怪 front 即唯一那个）；近战群的 AoE 走 clearWaveAoe。 */
   playSkillFx(kind: 'nova' | 'heal', cry?: string | null) {
     if (kind === 'nova') {
-      const tx = this.enemy.x
-      const ty = this.enemy.y - 50
+      const front = this.front()
+      if (!front) return
+      const enemy = front.container
+      const tx = enemy.x
+      const ty = enemy.y - 50
       this.cameras.main.flash(180, 255, 240, 160)
       this.cameras.main.shake(280, 0.016)
       // 中心一记大字 + 放射光环
@@ -844,9 +1022,9 @@ export class BattleScene extends Phaser.Scene {
           onComplete: () => t.destroy(),
         })
       }
-      this.enemyEmojiText.setTint(0xff7a3c)
-      this.time.delayedCall(260, () => this.enemyEmojiText.clearTint())
-      this.tweens.add({ targets: this.enemy, x: this.enemy.x + 22, duration: 60, yoyo: true, repeat: 3, ease: 'sine.inOut' })
+      front.emojiText.setTint(0xff7a3c)
+      this.time.delayedCall(260, () => front.emojiText.clearTint())
+      this.tweens.add({ targets: enemy, x: enemy.x + 22, duration: 60, yoyo: true, repeat: 3, ease: 'sine.inOut' })
       if (cry) {
         const big = this.add
           .text(this.W / 2, this.H * 0.3, cry, {

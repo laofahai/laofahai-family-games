@@ -32,6 +32,10 @@ export interface MobStep {
   emoji: string
   hp: number
   mode: MobMode
+  /** 小怪群（仅 mode==='melee' 用）：一波同时出现的近战小怪（1/3/5 个）。
+   *  members[0]=最前排（front，进 enemy），其余进 waveQueue（各 1 血爆米花，一拳一个）。
+   *  非 melee 步骤不带 members（仍是单个 name/emoji/hp）。 */
+  members?: { name: string; emoji: string }[]
 }
 
 // ── 损人/嘴炮：预设来自 contentFor<DissLine>('battle-disses', []) ──────────
@@ -116,7 +120,10 @@ export interface GameState {
   band: 'low' | 'high'
   player: string
   hero: Fighter
-  enemy: Fighter // 当前出场的敌人（小怪或 Boss）
+  enemy: Fighter // 当前出场的敌人（小怪或 Boss）；近战群里=最前排那个（驱动 HUD 与全部既有逻辑）
+  // 近战小怪群里「排在 enemy 后面」的余下小怪（各 1 血爆米花，一拳一个）。
+  // 只有近战群会填它；题目/社交/损人/体测/Boss 以及【全部共斗步骤】都恒为 []（单怪路径）。
+  waveQueue: Fighter[]
   levels: LevelPlan[]
   levelIndex: number // 当前第几关（0-based）
   stepIndex: number // 当前关里第几个步骤（0..mobs.length，等于 mobs.length 时是 Boss）
@@ -150,7 +157,7 @@ export interface BattleFx {
     | 'hero-attack' // 主角攻击敌人
     | 'enemy-attack' // 敌人攻击主角
     | 'enemy-down' // 敌人倒下
-    | 'spawn' // 新敌人登场
+    | 'spawn' // 新敌人登场（单怪/Boss/共斗）；若是多人近战群，PlayingView 改调 spawnWave
     | 'diss' // 损人嘴炮：大字 + 屏幕抖 + emoji 爆发（侮辱性极强）
     | 'peer-hit' // 队友（多人共斗）打出的命中：从天而降一记，标记是谁打的
     | 'none'
@@ -162,6 +169,9 @@ export interface BattleFx {
   isBoss?: boolean // spawn 用：是否老师 Boss（形象/血条区分）
   text?: string // diss 用：要砸在屏上的那句话
   byName?: string // peer-hit 用：队友名字
+  // 近战群专用：WAVE_NEXT 时置 true——前排小怪倒下、下一个滑入补位（scene.killFront），
+  // 不重新 spawn 整列。PlayingView 据此区分「补位」与「全新一波登场」。
+  waveNext?: boolean
 }
 
 export type Action =
@@ -174,6 +184,7 @@ export type Action =
   | { type: 'PICK_ENCOUNTER'; optionId: string } // 社交遭遇：选了某回应
   | { type: 'DISS'; text: string; band?: 'low' | 'high' } // 损人嘴炮：选了预设或自己打字（text=那句话）
   | { type: 'FITNESS_DONE'; passed: boolean; reps: number } // 体测挑战结束：是否达标 + 完成次数
+  | { type: 'WAVE_NEXT' } // 近战群：前排倒下但本波没清完——把 waveQueue[0] 顶上来当新前排（不推进步骤）
   | { type: 'ADVANCE' } // 敌人倒下后推进到下一个敌人/关卡/通关
   | { type: 'CLEAR_RESULT' } // 收起反馈浮层，继续战斗
   | { type: 'RESTART' } // 失败后从本关重来（或从头，外层决定）

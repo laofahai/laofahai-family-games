@@ -8,7 +8,7 @@ import { drawEncounters } from '@/games/_battle/encounters'
 import { rosterFor } from '@/games/_battle/roster'
 import { contentFor } from '@/platform/content'
 import type { RosterDef, BossDef } from '@/games/_battle/roster'
-import type { BattleQuestion } from '@/games/_battle/core'
+import type { BattleQuestion, Fighter } from '@/games/_battle/core'
 import { buildLevels } from './plan'
 import {
   randomAttackKind,
@@ -47,18 +47,28 @@ function pickQuestion(band: 'low' | 'high', opts: { subject?: string; kinds?: re
   return (primary[0] ?? drawQuestions({ band, count: 1 })[0])!
 }
 
-/** 给当前步骤抽一个挑战（社交遭遇 or 题目）。 */
+/** 给当前步骤抽一个挑战（社交遭遇 or 题目）。
+ *  近战群步骤会额外返回 waveQueue（front 之外的爆米花小怪，各 1 血）；其余步骤 waveQueue=[]。 */
 function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'high'): {
   challenge: Challenge
   enemyEmoji: string
   enemyName: string
   enemyHp: number
+  waveQueue: Fighter[]
 } {
   if (stepIndex < level.mobs.length) {
     const mob: MobStep = level.mobs[stepIndex]
     if (mob.mode === 'melee') {
       // 纯动作小怪：没题，走近用 👊 普攻打。
-      return { challenge: { type: 'melee' }, enemyEmoji: mob.emoji, enemyName: mob.name, enemyHp: mob.hp }
+      // 近战群：front=members[0]（enemyEmoji/Name），其余 members 进 waveQueue（各 1 血爆米花）。
+      const members = mob.members
+      if (members && members.length > 0) {
+        const front = members[0]
+        const waveQueue = members.slice(1).map((m, i) => makeFighter(`wave-${stepIndex}-${i + 1}`, m.name, m.emoji, 1))
+        return { challenge: { type: 'melee' }, enemyEmoji: front.emoji, enemyName: front.name, enemyHp: 1, waveQueue }
+      }
+      // 兼容无 members 的旧式单个近战小怪。
+      return { challenge: { type: 'melee' }, enemyEmoji: mob.emoji, enemyName: mob.name, enemyHp: mob.hp, waveQueue: [] }
     }
     if (mob.mode === 'encounter') {
       const enc = drawEncounters(band, 1)[0]
@@ -68,6 +78,7 @@ function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'hi
           enemyEmoji: mob.emoji,
           enemyName: mob.name,
           enemyHp: mob.hp,
+          waveQueue: [],
         }
       }
       // DB 没遭遇内容 → 退化成好玩题（不在代码里塞假遭遇）
@@ -80,6 +91,7 @@ function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'hi
         enemyEmoji: mob.emoji,
         enemyName: mob.name,
         enemyHp: mob.hp,
+        waveQueue: [],
       }
     }
     if (mob.mode === 'fitness') {
@@ -91,6 +103,7 @@ function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'hi
           enemyEmoji: mob.emoji,
           enemyName: mob.name,
           enemyHp: mob.hp,
+          waveQueue: [],
         }
       }
       // DB 没体测内容 → 退化成好玩题
@@ -102,6 +115,7 @@ function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'hi
       enemyEmoji: mob.emoji,
       enemyName: mob.name,
       enemyHp: mob.hp,
+      waveQueue: [],
     }
   }
   // Boss 步骤
@@ -112,6 +126,7 @@ function challengeForStep(level: LevelPlan, stepIndex: number, band: 'low' | 'hi
     enemyEmoji: boss.emoji,
     enemyName: boss.name,
     enemyHp: boss.hp,
+    waveQueue: [],
   }
 }
 
@@ -130,6 +145,7 @@ function nextChallengeForCurrentStep(state: GameState): GameState {
     return { ...state, challenge: { type: 'question', question: q }, lastResult: null }
   }
   const c = challengeForStep(level, state.stepIndex, state.band)
+  // 只换挑战、不换敌人——不动 waveQueue（共斗恒空；单人非近战续题这里也用不到群）。
   return { ...state, challenge: c.challenge, lastResult: null }
 }
 
@@ -152,8 +168,10 @@ export function initGame(args: InitArgs): GameState {
   const heroName = displayName(args.player, roster)
   const hero = makeFighter('hero', heroName, '🧒', HERO_HP)
 
-  const { challenge, enemyEmoji, enemyName, enemyHp } = challengeForStep(levels[levelIndex], 0, band)
+  const { challenge, enemyEmoji, enemyName, enemyHp, waveQueue } = challengeForStep(levels[levelIndex], 0, band)
   const enemy = makeFighter('enemy', enemyName, enemyEmoji, enemyHp)
+  // 共斗恒为单怪：waveQueue 强制清空（波次仅单人）。
+  const coop = args.coop ?? false
 
   return {
     roster,
@@ -161,6 +179,7 @@ export function initGame(args: InitArgs): GameState {
     player: args.player,
     hero,
     enemy,
+    waveQueue: coop ? [] : waveQueue,
     levels,
     levelIndex,
     stepIndex: 0,
@@ -170,7 +189,7 @@ export function initGame(args: InitArgs): GameState {
     lastResult: null,
     fxSeq: 0,
     fx: { kind: 'spawn', enemyEmoji, enemyName, isBoss: false },
-    coop: args.coop ?? false,
+    coop,
     skillQuiz: null,
   }
 }
@@ -288,11 +307,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
           fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_DAMAGE },
         }
       }
+      // 单人近战群：大招 = AoE，秒前排 + 清空整波（waveQueue 一并放倒）。
+      // 之后由 PlayingView「enemy.hp<=0 → 推进」effect 处理（此时 waveQueue 已空 → 直接 ADVANCE 推进整步）。
       const enemy = applyDamage(base.enemy, SKILL_NOVA_DAMAGE)
-      // 不设 lastResult：小怪被秒后由 PlayingView 的「倒地→推进」effect 处理（看得到倒地）。
       return {
         ...base,
         enemy,
+        waveQueue: [],
         fxSeq: state.fxSeq + 1,
         fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_DAMAGE },
       }
@@ -424,6 +445,22 @@ export function gameReducer(state: GameState, action: Action): GameState {
       return nextChallengeForCurrentStep({ ...state, lastResult: null })
     }
 
+    case 'WAVE_NEXT': {
+      // 近战群：前排倒下但本波没清完——把 waveQueue[0] 顶上来当新前排，不推进步骤。
+      // 仅单人（共斗 waveQueue 恒空，永不触发）。
+      if (state.phase !== 'playing' || state.waveQueue.length === 0) return state
+      const [next, ...rest] = state.waveQueue
+      return {
+        ...state,
+        enemy: next,
+        waveQueue: rest,
+        lastResult: null,
+        fxSeq: state.fxSeq + 1,
+        // waveNext 标记：PlayingView 据此调 scene.killFront()（前排倒、下一个滑入），不重 spawn 整列。
+        fx: { kind: 'spawn', enemyEmoji: next.emoji, enemyName: next.name, isBoss: false, waveNext: true },
+      }
+    }
+
     case 'ADVANCE':
       return advance(state)
 
@@ -451,6 +488,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         levelIndex: action.levelIndex,
         stepIndex: action.stepIndex,
         enemy,
+        waveQueue: [], // 共斗恒为单怪
         lastResult: null,
         fxSeq: state.fxSeq + 1,
         fx: { kind: 'spawn', enemyEmoji: action.enemyEmoji, enemyName: action.enemyName, isBoss: action.isBoss },
@@ -495,6 +533,7 @@ function advance(state: GameState): GameState {
       levelIndex: nextLevelIndex,
       stepIndex: 0,
       enemy,
+      waveQueue: c.waveQueue, // 近战群带余下小怪；其余步骤为 []（advance 仅单人，共斗走 COOP_ADVANCE）
       challenge: c.challenge,
       lastResult: null,
       fxSeq: state.fxSeq + 1,
@@ -510,6 +549,7 @@ function advance(state: GameState): GameState {
     ...state,
     stepIndex: nextStep,
     enemy,
+    waveQueue: c.waveQueue, // 近战群带余下小怪；其余步骤为 []
     challenge: c.challenge,
     lastResult: null,
     fxSeq: state.fxSeq + 1,
