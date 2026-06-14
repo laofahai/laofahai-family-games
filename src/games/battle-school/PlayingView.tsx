@@ -205,6 +205,25 @@ export function PlayingView({
     if (state.lastResult == null) actedKeyRef.current = null
   }, [state.lastResult, state.levelIndex, state.stepIndex])
 
+  // 结算卡自动隐藏：答对/达标约 1.3s、答错/超时约 2.6s 后自动收起继续，不用每次手点「继续」。
+  // （「继续」按钮仍在，想快可手点。）
+  useEffect(() => {
+    if (state.lastResult == null || state.phase !== 'playing') return
+    const ms = state.lastResult.ok ? 1300 : 2600
+    const id = window.setTimeout(() => dispatch({ type: 'CLEAR_RESULT' }), ms)
+    return () => window.clearTimeout(id)
+  }, [state.lastResult, state.phase])
+
+  // 怪物主动普攻：走到出题的敌人（小怪/老师，reached 对 Boss 也成立）面前、题卡开着、
+  // 且没在结算/没在放大招时，怪物每隔几秒朝你来一下（默认普攻、小伤害）；答题超时则是它的「大招」。仅单人。
+  useEffect(() => {
+    if (isCoop || state.phase !== 'playing') return
+    if (state.lastResult != null || state.skillQuiz != null) return
+    if (state.challenge.type !== 'question' || !reached) return
+    const id = window.setInterval(() => dispatch({ type: 'ENEMY_PECK' }), 6000)
+    return () => window.clearInterval(id)
+  }, [isCoop, state.phase, state.lastResult, state.skillQuiz, state.challenge.type, reached])
+
   // 共斗：自己血量变化时上报给 host（仅网络上报，非 setState，允许）
   useEffect(() => {
     if (!isCoop || !coop) return
@@ -618,7 +637,7 @@ export function PlayingView({
       />
 
       {/* 技能切换 + 能量条（技能键上方一点）：点一下切「⚡大招 / 🍬回血」 */}
-      <div className="pointer-events-none absolute bottom-40 right-4 z-30 flex flex-col items-end gap-1 sm:bottom-44 sm:right-6">
+      <div className="pointer-events-none absolute bottom-40 right-4 z-[45] flex flex-col items-end gap-1 sm:bottom-44 sm:right-6">
         <button
           type="button"
           onClick={cycleSkill}
@@ -634,7 +653,7 @@ export function PlayingView({
       {/* 学科大招·答题模态：按下⚡后弹一道学科题，答对才放得出招（学习类技能专属）。盖在最上层。 */}
       {state.skillQuiz && (
         <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/50 p-2 backdrop-blur-sm sm:items-center sm:p-4">
-          <div className="pointer-events-auto w-full max-w-xl space-y-2">
+          <div className="pointer-events-auto w-full max-w-2xl space-y-2">
             <div className="rounded-2xl bg-gradient-to-r from-amber-500 to-rose-500 px-4 py-2 text-center font-display text-base font-black text-white shadow-xl sm:text-lg">
               ⚡ 学霸大招 · 答对才放得出来！
             </div>
@@ -651,8 +670,8 @@ export function PlayingView({
 
       {/* 挑战面板：紧凑底部 sheet，走到敌人面前（或结算中）才出现，不盖住舞台 */}
       {!state.skillQuiz && panelVisible && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex max-h-[40vh] justify-center p-2 sm:p-3">
-          <div className="pointer-events-auto w-full max-w-xl overflow-y-auto rounded-t-3xl">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex max-h-[42vh] justify-center p-2 sm:p-3">
+          <div className="pointer-events-auto w-full max-w-2xl overflow-y-auto rounded-t-3xl">
             {state.lastResult ? (
               <ResultFlash result={state.lastResult} onNext={() => dispatch({ type: 'CLEAR_RESULT' })} />
             ) : state.challenge.type === 'question' ? (
@@ -691,20 +710,6 @@ export function PlayingView({
         </div>
       )}
 
-      {/* 引导/动作提示（面板未出现时）：走到纯动作小怪面前 → 揍他/跳过；否则 → 冲过去！ */}
-      {!panelVisible && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-32 z-20 flex justify-center px-3 sm:bottom-36">
-          {reached && state.challenge.type === 'melee' ? (
-            <span className="animate-pulse rounded-full bg-rose-600/85 px-4 py-2 text-sm font-black text-white shadow-lg backdrop-blur">
-              👊 揍他！ · ⤴ 跳过
-            </span>
-          ) : (
-            <span className="rounded-full bg-black/50 px-4 py-2 text-sm font-bold text-white backdrop-blur">
-              {onBoss ? '👑 冲过去！用知识打败老师' : '冲过去！ →'}
-            </span>
-          )}
-        </div>
-      )}
     </div>
   )
 }

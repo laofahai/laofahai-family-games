@@ -32,6 +32,10 @@ export const SKILL_NOVA_BOSS_DAMAGE = 3
 const NOVA_SUBJECTS = ['math', 'chinese', 'english', 'science'] as const
 /** 损人嘴炮的固定伤害：低，但「侮辱性极强」的演出补偿。自定义打字也是这个值。 */
 export const DISS_DAMAGE = 8
+/** 怪物主动普攻（默认攻击）对主角的伤害：在你磨蹭/答题时偶尔挨一下，制造压迫感。 */
+export const ENEMY_PECK_DAMAGE = 1
+/** 怪物大招对主角的伤害：答题「没答上来」（超时）= 被怪物放大招，比普攻更疼。 */
+export const ENEMY_NOVA_DAMAGE = 2
 /** 社交遭遇「搞定他」对共享 Boss 的固定伤害（多人共斗用；单人沿用「直接放倒小怪」）。 */
 export const ENCOUNTER_WIN_DAMAGE = 3
 /** 体测达标的大伤害（足够直接放倒小怪）；失败自己掉的血。 */
@@ -346,16 +350,24 @@ export function gameReducer(state: GameState, action: Action): GameState {
           },
         }
       }
-      // 答错 / 超时：主角受击、连对清零
-      const next = hitHero(state, 1)
+      // 答错 = 露破绽挨一下普攻；超时 = 「没答上来」被怪物放大招（更疼）。连对清零。
+      const isTimeout = action.type === 'TIMEOUT'
+      const next = hitHero(state, isTimeout ? ENEMY_NOVA_DAMAGE : ENEMY_PECK_DAMAGE)
       return {
         ...next,
         lastResult: {
           ok: false,
-          text: action.type === 'TIMEOUT' ? '超时啦！' : '答错了',
+          text: isTimeout ? '没答上来——被放大招！' : '答错了',
           detail: q.explanation ?? `正确答案：${q.choices.find((c) => c.id === q.answer)?.text ?? ''}`,
         },
       }
+    }
+
+    case 'ENEMY_PECK': {
+      // 怪物主动普攻：你磨蹭/正在答题时，怪物偶尔朝你来一下（默认攻击，小伤害）。
+      // 仅单人本地结算；共斗里主角血由各端自管、host 不管小伤害，这里也直接本地扣。
+      if (state.phase !== 'playing') return state
+      return hitHero(state, ENEMY_PECK_DAMAGE)
     }
 
     case 'PICK_ENCOUNTER': {

@@ -185,6 +185,7 @@ export type Action =
   | { type: 'DISS'; text: string; band?: 'low' | 'high' } // 损人嘴炮：选了预设或自己打字（text=那句话）
   | { type: 'FITNESS_DONE'; passed: boolean; reps: number } // 体测挑战结束：是否达标 + 完成次数
   | { type: 'WAVE_NEXT' } // 近战群：前排倒下但本波没清完——把 waveQueue[0] 顶上来当新前排（不推进步骤）
+  | { type: 'ENEMY_PECK' } // 怪物主动普攻：你磨蹭/答题时，怪物偶尔朝你来一下（小伤害）
   | { type: 'ADVANCE' } // 敌人倒下后推进到下一个敌人/关卡/通关
   | { type: 'CLEAR_RESULT' } // 收起反馈浮层，继续战斗
   | { type: 'RESTART' } // 失败后从本关重来（或从头，外层决定）

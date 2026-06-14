@@ -8,7 +8,6 @@ import type { RosterDef } from '@/games/_battle/roster'
 import type { LevelPlan, MobStep, MobMode } from './types'
 
 const MOB_EMOJIS = ['🙂', '😀', '😎', '😜', '🤓', '😏', '🥳', '😺']
-const FITNESS_NAMES = ['体育委员', '运动健将', '操场霸主', '跳绳大王']
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
@@ -91,14 +90,8 @@ function buildMobs(roster: RosterDef, levelIndex: number): MobStep[] {
       mode,
     })
   }
-  // Boss 前热身：一个体测传感器挑战小怪（达标直接放倒、过得爽）
-  steps.push({
-    kind: 'mob',
-    name: pick(FITNESS_NAMES),
-    emoji: '🏃',
-    hp: 1,
-    mode: 'fitness',
-  })
+  // 去掉了 Boss 前的「体测传感器」热身步（手机传感器交互在横版闯关里太突兀、易让人懵），
+  // 直接进 Boss。体测玩法代码保留，暂不编排进关卡。
   return steps
 }
 

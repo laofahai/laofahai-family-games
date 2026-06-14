@@ -83,7 +83,7 @@ export function TouchControls({
   return (
     <>
       {/* 左：虚拟摇杆 */}
-      <div className="pointer-events-none absolute bottom-4 left-4 z-30 select-none sm:bottom-6 sm:left-6">
+      <div className="pointer-events-none absolute bottom-4 left-4 z-[45] select-none sm:bottom-6 sm:left-6">
         <div
           ref={baseRef}
           className="pointer-events-auto relative h-32 w-32 touch-none rounded-full bg-white/15 ring-2 ring-white/25 backdrop-blur-sm"
@@ -104,7 +104,7 @@ export function TouchControls({
       </div>
 
       {/* 右：动作键 👊普攻 / ⚡技能 / ⤴跳 */}
-      <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex select-none items-end gap-3 sm:bottom-6 sm:right-6">
+      <div className="pointer-events-none absolute bottom-4 right-4 z-[45] flex select-none items-end gap-3 sm:bottom-6 sm:right-6">
         <div className="flex flex-col gap-3">
           <button
             type="button"
