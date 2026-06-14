@@ -214,13 +214,16 @@ export function PlayingView({
     return () => window.clearTimeout(id)
   }, [state.lastResult, state.phase])
 
-  // 怪物主动普攻：走到出题的敌人（小怪/老师，reached 对 Boss 也成立）面前、题卡开着、
-  // 且没在结算/没在放大招时，怪物每隔几秒朝你来一下（默认普攻、小伤害）；答题超时则是它的「大招」。仅单人。
+  // 怪物主动进攻：只要走到敌人面前（近战小怪 / 出题的小怪 / 老师，reached 对 Boss 也成立）、
+  // 且没在结算/没在放大招时，前排怪就每隔几秒朝你扑一下（lunge=既会动又造成普攻小伤害），让它「活」起来。
+  // 近战波节奏快、间隔短一点；答题时间隔长一点。答题超时另算它的「大招」。仅单人。
   useEffect(() => {
     if (isCoop || state.phase !== 'playing') return
-    if (state.lastResult != null || state.skillQuiz != null) return
-    if (state.challenge.type !== 'question' || !reached) return
-    const id = window.setInterval(() => dispatch({ type: 'ENEMY_PECK' }), 6000)
+    if (state.lastResult != null || state.skillQuiz != null || !reached) return
+    const t = state.challenge.type
+    if (t !== 'melee' && t !== 'question') return
+    const interval = t === 'melee' ? 3200 : 6000
+    const id = window.setInterval(() => dispatch({ type: 'ENEMY_PECK' }), interval)
     return () => window.clearInterval(id)
   }, [isCoop, state.phase, state.lastResult, state.skillQuiz, state.challenge.type, reached])
 

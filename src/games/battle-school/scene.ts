@@ -417,29 +417,32 @@ export class BattleScene extends Phaser.Scene {
       this.applyHeroTransform(walking, breath, airStretch)
       this.updateHeroAnim(walking)
 
-      // 全部判定都对 front（最近的那个敌人）。near=front 容器。
-      const frontX = this.front().container.x
+      // 全部判定都对 front（最近的那个敌人）。波间空档（大招清空整波后到下一波 spawn 之间）
+      // units 为空，必须跳过这些判定——否则 this.front() 为 undefined，读 .container 每帧抛错会卡死整局。
+      if (this.units.length > 0) {
+        const frontX = this.front().container.x
 
-      // 跳过判定：可跳过的普通近战小怪——在空中且越过敌人 x → 直接掠过（不弹面板、不开打）。
-      if (this.enemySkippable && !this.skipped && !this.enemyReached && !this.onGround) {
-        // 主角从敌人左侧跳到了敌人右侧（越过），算成功跳过
-        if (this.hero.x > frontX + 24) {
-          this.skipped = true
-          this.hint.setVisible(false)
-          this.onSkip?.()
+        // 跳过判定：可跳过的普通近战小怪——在空中且越过敌人 x → 直接掠过（不弹面板、不开打）。
+        if (this.enemySkippable && !this.skipped && !this.enemyReached && !this.onGround) {
+          // 主角从敌人左侧跳到了敌人右侧（越过），算成功跳过
+          if (this.hero.x > frontX + 24) {
+            this.skipped = true
+            this.hint.setVisible(false)
+            this.onSkip?.()
+          }
         }
-      }
 
-      // reach 判定：走近敌人 → 置 enemyReached（上报在下方统一做）。已跳过的不再触发。
-      // 可跳过的小怪在空中时不触发 reach——这样玩家「跳着冲过去」能直接掠过，不被卡下来开打。
-      const reachSuppressedByJump = this.enemySkippable && !this.onGround
-      if (!this.enemyReached && !this.skipped && !reachSuppressedByJump) {
-        const dx = Math.abs(this.hero.x - frontX)
-        if (dx <= REACH_DIST) {
-          this.enemyReached = true
-          this.hint.setVisible(false)
-          this.heroFacing = frontX >= this.hero.x ? 1 : -1
-          this.applyHeroTransform(false, 0, 0)
+        // reach 判定：走近敌人 → 置 enemyReached（上报在下方统一做）。已跳过的不再触发。
+        // 可跳过的小怪在空中时不触发 reach——这样玩家「跳着冲过去」能直接掠过，不被卡下来开打。
+        const reachSuppressedByJump = this.enemySkippable && !this.onGround
+        if (!this.enemyReached && !this.skipped && !reachSuppressedByJump) {
+          const dx = Math.abs(this.hero.x - frontX)
+          if (dx <= REACH_DIST) {
+            this.enemyReached = true
+            this.hint.setVisible(false)
+            this.heroFacing = frontX >= this.hero.x ? 1 : -1
+            this.applyHeroTransform(false, 0, 0)
+          }
         }
       }
     }

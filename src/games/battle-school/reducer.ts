@@ -311,15 +311,17 @@ export function gameReducer(state: GameState, action: Action): GameState {
           fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_DAMAGE },
         }
       }
-      // 单人近战群：大招 = AoE，秒前排 + 清空整波（waveQueue 一并放倒）。
-      // 之后由 PlayingView「enemy.hp<=0 → 推进」effect 处理（此时 waveQueue 已空 → 直接 ADVANCE 推进整步）。
+      // 单人小怪/近战群：大招直接放倒（近战群 AoE 一并清空 waveQueue）。
+      // 视觉已由 PlayingView 调 clearWaveAoe/playSkillFx 完成；这里 fx=none，
+      // 千万别再用 hero-attack——否则 PlayingView 会在「已被 clearWaveAoe 清空的 units」上调 playHit/playDown，
+      // 触发空 front 报错、卡死、角色歪倒。之后由「enemy.hp<=0 → 推进」effect 直接 ADVANCE。
       const enemy = applyDamage(base.enemy, SKILL_NOVA_DAMAGE)
       return {
         ...base,
         enemy,
         waveQueue: [],
         fxSeq: state.fxSeq + 1,
-        fx: { kind: 'hero-attack', attack: randomAttackKind(), crit: true, damage: SKILL_NOVA_DAMAGE },
+        fx: { kind: 'none' },
       }
     }
 
