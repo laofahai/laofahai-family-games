@@ -3,13 +3,16 @@
 // 注意：每一局玩的人是在「进游戏后选」或「远程房间里定」的，这里只管「这台设备现在是谁」（按人记进度）。
 
 import { useState } from 'react'
-import { KeyRound, Lock, UserRound, X } from 'lucide-react'
+import { Award, KeyRound, Lock, UserRound, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import type { Player } from './players'
 import { adminCode, gateActive, isAdmin, lock } from './access'
 import { AdminPanel } from './AdminPanel'
 import { SyncBar } from './SyncBar'
+import { BadgeWallModal } from './BadgeWall'
+import { badgeStats } from './badges'
+import type { LearnGame } from './learning'
 
 export function IdentitySheet({
   players,
@@ -29,7 +32,12 @@ export function IdentitySheet({
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showBadges, setShowBadges] = useState(false)
   const meName = players.find((p) => p.id === currentId)?.name ?? '这个人'
+  // 学习游戏=哪个孩子；非孩子只有探索勋章
+  const learnGame: LearnGame | undefined =
+    currentId === 'yiyi' ? 'yiyi' : currentId === 'shuner' ? 'shiliu' : undefined
+  const bs = badgeStats(currentId, learnGame)
 
   const confirmAdd = () => {
     const name = newName.trim()
@@ -41,6 +49,14 @@ export function IdentitySheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink-900/40 p-0 sm:items-center sm:p-4">
       {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+      {showBadges && (
+        <BadgeWallModal
+          player={currentId}
+          learnGame={learnGame}
+          title={`${meName} 的勋章`}
+          onClose={() => setShowBadges(false)}
+        />
+      )}
       <div className="paper-grid max-h-[90vh] w-full max-w-md overflow-auto rounded-t-3xl bg-white p-6 shadow-xl sm:rounded-3xl">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 font-display text-2xl text-ink-900">
@@ -120,6 +136,21 @@ export function IdentitySheet({
           </div>
           <p className="text-xs text-ink-400">每一局玩的人，进游戏后再选；远程局在房间里定。这里只是「我是谁」。</p>
         </div>
+
+        {/* 我的勋章 */}
+        <button
+          type="button"
+          onClick={() => setShowBadges(true)}
+          className="mt-4 flex w-full items-center justify-between rounded-2xl border border-ink-200 bg-white px-4 py-3 text-left transition hover:border-melon-300"
+        >
+          <span className="flex items-center gap-2">
+            <Award className="h-5 w-5 text-melon-600" />
+            <span className="font-semibold text-ink-800">{meName} 的勋章</span>
+          </span>
+          <span className="text-sm text-ink-500">
+            点亮 <span className="font-semibold text-melon-600">{bs.got}</span> / {bs.total} ›
+          </span>
+        </button>
 
         {/* 个人码：解锁 + 身份 + 进度/错题本，一个码全包 */}
         <div className="mt-5 space-y-1.5">

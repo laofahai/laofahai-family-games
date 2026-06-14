@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { cn } from '@/lib/utils'
 import { GrowthReport } from '@/platform/GrowthReport'
 import { getMistakeQuestions, hydrateLearn, recordSession } from '@/platform/learning'
+import { checkLearnBadges, hydrateBadges, type BadgeDef } from '@/platform/badges'
+import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { buildBureauQuestions } from './data/questions'
 import type { BureauMode, BureauQuestion, BureauRecord } from './types'
 
@@ -170,11 +172,13 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
   const [showHint, setShowHint] = useState(false)
   const [review, setReview] = useState(0)
   const [showReport, setShowReport] = useState(false)
+  const [newBadges, setNewBadges] = useState<BadgeDef[]>([])
   const recordedRef = useRef(false)
 
-  // 进场先把云端学习数据拉回来（没连码是无操作）
+  // 进场先把云端学习数据 + 勋章拉回来（没连码是无操作）
   useEffect(() => {
     void hydrateLearn('yiyi')
+    void hydrateBadges('yiyi')
   }, [])
 
   useEffect(() => {
@@ -193,6 +197,11 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
           .filter((r) => !isSpark(r.question))
           .map((r) => ({ question: r.question, correct: r.correct, your: r.your }))
       )
+      const fresh = checkLearnBadges('yiyi')
+      if (fresh.length) {
+        const t = setTimeout(() => setNewBadges(fresh), 500) // 让结算页先露面，勋章再弹
+        return () => clearTimeout(t)
+      }
     }
     if (state.stage !== 'result') recordedRef.current = false
   }, [state.stage, state.records])
@@ -309,6 +318,7 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
       {showReport && (
         <GrowthReport game="yiyi" onClose={() => setShowReport(false)} onRedo={startRedo} />
       )}
+      <BadgeUnlock badges={newBadges} onClose={() => setNewBadges([])} />
       <Card className="paper-grid">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">

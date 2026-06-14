@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { cn } from '@/lib/utils'
 import { GrowthReport } from '@/platform/GrowthReport'
 import { getMistakeQuestions, hydrateLearn, recordSession } from '@/platform/learning'
+import { checkLearnBadges, hydrateBadges, type BadgeDef } from '@/platform/badges'
+import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { buildQuestions } from './data/questions'
 import type { AnswerRecord, TownMode, TownQuestion } from './types'
 
@@ -220,11 +222,13 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
   })
   const [showHint, setShowHint] = useState(false)
   const [showReport, setShowReport] = useState(false)
+  const [newBadges, setNewBadges] = useState<BadgeDef[]>([])
   const recordedRef = useRef(false)
 
-  // 进场先把云端学习数据拉回来（没连码是无操作）
+  // 进场先把云端学习数据 + 勋章拉回来（没连码是无操作）
   useEffect(() => {
     void hydrateLearn('shiliu')
+    void hydrateBadges('shuner')
   }, [])
 
   // 一局结束记进学习库（错题进错题本、对的清掉）；「轻松一下」spark 卡不计分不入库。
@@ -237,6 +241,11 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
           .filter((r) => r.question.kind !== 'spark')
           .map((r) => ({ question: r.question, correct: r.answerCorrect, your: r.your }))
       )
+      const fresh = checkLearnBadges('shiliu')
+      if (fresh.length) {
+        const t = setTimeout(() => setNewBadges(fresh), 500) // 让结算页先露面，勋章再弹
+        return () => clearTimeout(t)
+      }
     }
     if (state.stage !== 'result') recordedRef.current = false
   }, [state.stage, state.records])
@@ -373,6 +382,7 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
       {showReport && (
         <GrowthReport game="shiliu" onClose={() => setShowReport(false)} onRedo={startRedo} />
       )}
+      <BadgeUnlock badges={newBadges} onClose={() => setNewBadges([])} />
       <Card className="paper-grid">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">

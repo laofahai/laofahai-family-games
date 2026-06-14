@@ -1,12 +1,21 @@
 // 管理面板（仅管理员设备）：生成 / 列出 / 吊销 数字邀请码。
 
 import { useEffect, useState } from 'react'
-import { ShieldCheck, X } from 'lucide-react'
+import { Copy, RefreshCw, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { adminCode } from './access'
-import { listCodes, mintCode, setCodeRevoked, type CodeRow } from './cloud'
+import {
+  adminDeleteProfile,
+  adminListProfiles,
+  adminResetProfileCode,
+  listCodes,
+  mintCode,
+  setCodeRevoked,
+  type CodeRow,
+  type ProfileRow,
+} from './cloud'
 
 function numericCode(len = 6): string {
   return Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join('')
@@ -15,14 +24,46 @@ function numericCode(len = 6): string {
 export function AdminPanel({ onClose }: { onClose: () => void }) {
   const admin = adminCode()
   const [codes, setCodes] = useState<CodeRow[]>([])
+  const [profiles, setProfiles] = useState<ProfileRow[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [inviteName, setInviteName] = useState('')
+  const [copied, setCopied] = useState('')
 
   const refresh = async () => {
     if (!admin) return
     setCodes(await listCodes(admin))
+    setProfiles(await adminListProfiles(admin))
     setLoading(false)
+  }
+
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(code)
+      setTimeout(() => setCopied(''), 1500)
+    } catch {
+      /* 不支持剪贴板：忽略 */
+    }
+  }
+
+  const resetCode = async (p: ProfileRow) => {
+    if (!admin || busy) return
+    if (!window.confirm(`把「${p.name}」的个人码换一个新的？旧码立刻失效。`)) return
+    setBusy(true)
+    const next = numericCode()
+    await adminResetProfileCode(admin, p.id, next)
+    await refresh()
+    setBusy(false)
+  }
+
+  const deleteProfile = async (p: ProfileRow) => {
+    if (!admin || busy) return
+    if (!window.confirm(`删除「${p.name}」？TA 的进度、错题本、勋章都会一起清掉，且不可恢复。`)) return
+    setBusy(true)
+    await adminDeleteProfile(admin, p.id)
+    await refresh()
+    setBusy(false)
   }
 
   useEffect(() => {
@@ -122,6 +163,62 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           ))}
+        </div>
+
+        {/* 家人个人码：查询 / 找回 / 重置 */}
+        <div className="mt-6 border-t border-ink-100 pt-4">
+          <div className="flex items-center gap-2 font-semibold text-ink-800">
+            <UserRound className="h-4 w-4 text-melon-600" />
+            家人个人码
+          </div>
+          <p className="mt-1 text-xs text-ink-500">谁忘了码就来这查；也能换一个好记的（旧码立即失效，进度/勋章自动迁过去）。</p>
+          <div className="mt-3 space-y-2">
+            {loading && <div className="text-sm text-ink-400">读取中…</div>}
+            {!loading && profiles.length === 0 && (
+              <div className="text-sm text-ink-400">还没有人设过个人码。</div>
+            )}
+            {profiles.map((p) => (
+              <div key={p.id} className="flex items-center justify-between rounded-2xl border border-ink-100 bg-white p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">{p.emoji ?? '🙂'}</span>
+                  <div>
+                    <div className="text-sm font-semibold text-ink-900">{p.name}</div>
+                    <div className="font-mono text-lg tracking-widest text-ink-800">{p.sync_code ?? '—'}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {p.sync_code && (
+                    <button
+                      type="button"
+                      onClick={() => void copyCode(p.sync_code!)}
+                      className="flex items-center gap-1 rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:border-melon-300"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copied === p.sync_code ? '已复制' : '复制'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void resetCode(p)}
+                    disabled={busy}
+                    className="flex items-center gap-1 rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-melon-300 disabled:opacity-50"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    换码
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteProfile(p)}
+                    disabled={busy}
+                    aria-label={`删除 ${p.name}`}
+                    className="flex items-center gap-1 rounded-full border border-ink-200 px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:border-rose-300 hover:text-rose-500 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

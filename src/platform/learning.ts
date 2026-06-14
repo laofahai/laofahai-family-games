@@ -9,7 +9,7 @@ import { getSyncCode } from './progress'
 export type LearnGame = 'yiyi' | 'shiliu'
 
 // 学习游戏对应哪个孩子（家庭成员 id）——错题本/统计跟着这个孩子的「个人码」走
-const KID_PLAYER: Record<LearnGame, string> = { yiyi: 'yiyi', shiliu: 'shuner' }
+export const KID_PLAYER: Record<LearnGame, string> = { yiyi: 'yiyi', shiliu: 'shuner' }
 
 // 学科标签：用题目的 kind 归类，给人看的名字
 const SUBJECTS: Record<LearnGame, Record<string, string>> = {
@@ -55,6 +55,9 @@ interface Stats {
   totalCorrect: number
   bySubject: Record<string, SubjectStat>
   daily: Record<string, SubjectStat> // key: YYYY-MM-DD
+  maxStreak?: number // 历史最高单局连对（给「连击火力」勋章）
+  fullSessions?: number // 全对的局数（≥5 题且一题没错）
+  defeated?: number // 累计「翻盘」数：把错题本里的题做对、清掉的次数
 }
 
 export interface LearnItem {
@@ -79,6 +82,9 @@ export interface Report {
   accuracy: number
   streak: number
   playedDays: number
+  maxStreak: number
+  fullSessions: number
+  defeated: number
   subjects: SubjectRow[]
   mistakes: Mistake[]
 }
@@ -128,13 +134,16 @@ function loadStats(game: LearnGame): Stats {
           totalCorrect: s.totalCorrect ?? 0,
           bySubject: s.bySubject ?? {},
           daily: s.daily ?? {},
+          maxStreak: s.maxStreak ?? 0,
+          fullSessions: s.fullSessions ?? 0,
+          defeated: s.defeated ?? 0,
         }
       }
     } catch {
       /* 坏数据：重来 */
     }
   }
-  return { totalDone: 0, totalCorrect: 0, bySubject: {}, daily: {} }
+  return { totalDone: 0, totalCorrect: 0, bySubject: {}, daily: {}, maxStreak: 0, fullSessions: 0, defeated: 0 }
 }
 
 /** 本地日期 YYYY-MM-DD（按设备时区，符合「今天练了没」的直觉） */
@@ -169,9 +178,13 @@ export function recordSession(game: LearnGame, items: LearnItem[]): void {
   if (items.length === 0) return
   const stats = loadStats(game)
   let mistakes = loadMistakes(game)
+  const wasMistake = new Set(mistakes.map((m) => m.qid)) // 本局开始时错题本里有哪些
   const day = today()
   if (!stats.daily[day]) stats.daily[day] = { done: 0, correct: 0 }
 
+  let run = 0 // 本局当前连对
+  let sessionBest = 0 // 本局最高连对
+  let sessionCorrect = 0
   for (const item of items) {
     const kind = item.question.kind
     if (!stats.bySubject[kind]) stats.bySubject[kind] = { done: 0, correct: 0 }
@@ -182,13 +195,23 @@ export function recordSession(game: LearnGame, items: LearnItem[]): void {
       stats.bySubject[kind].correct += 1
       stats.daily[day].correct += 1
       stats.totalCorrect += 1
-      // 这道题做对了：从错题本清掉（掌握了）
+      sessionCorrect += 1
+      run += 1
+      if (run > sessionBest) sessionBest = run
+      // 这道题原来在错题本里、现在做对了 = 翻盘一次
+      if (wasMistake.has(item.question.id)) stats.defeated = (stats.defeated ?? 0) + 1
+      // 从错题本清掉（掌握了）
       mistakes = mistakes.filter((m) => m.qid !== item.question.id)
     } else {
+      run = 0
       // 错题：去重后放到最前面（最近的错题在上）
       mistakes = mistakes.filter((m) => m.qid !== item.question.id)
       mistakes.unshift(toMistake(game, item))
     }
+  }
+  if (sessionBest > (stats.maxStreak ?? 0)) stats.maxStreak = sessionBest
+  if (items.length >= 5 && sessionCorrect === items.length) {
+    stats.fullSessions = (stats.fullSessions ?? 0) + 1 // 满分局
   }
 
   if (mistakes.length > MISTAKE_CAP) mistakes = mistakes.slice(0, MISTAKE_CAP)
@@ -241,6 +264,9 @@ export function getReport(game: LearnGame): Report {
     accuracy: stats.totalDone > 0 ? stats.totalCorrect / stats.totalDone : 0,
     streak: computeStreak(stats.daily),
     playedDays: Object.values(stats.daily).filter((d) => d.done > 0).length,
+    maxStreak: stats.maxStreak ?? 0,
+    fullSessions: stats.fullSessions ?? 0,
+    defeated: stats.defeated ?? 0,
     subjects,
     mistakes,
   }

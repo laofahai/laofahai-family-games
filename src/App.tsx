@@ -22,6 +22,8 @@ import { WhoPlaying } from '@/platform/WhoPlaying'
 import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
+import { hydrateBadges, recordPlayed, type BadgeDef } from '@/platform/badges'
+import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { refreshContent } from '@/platform/content'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
@@ -71,6 +73,7 @@ export default function App() {
 
   const [players, setPlayers] = useState<Player[]>(getPlayers)
   const [playerId, setPlayerId] = useState<string>(getCurrentPlayer)
+  const [newBadges, setNewBadges] = useState<BadgeDef[]>([])
   const currentPlayer = players.find((p) => p.id === playerId)
 
   // 大人（爸妈/管理员）能看到所有游戏；孩子只看到「自己的」私人游戏（owner），看不到兄弟姐妹的
@@ -89,6 +92,14 @@ export default function App() {
     setPlayerId(id)
     setCurrentPlayer(id)
     void hydratePlayer(id) // 连了同步码的人，切到 TA 就先把云端进度拉回合并
+    void hydrateBadges(id) // 勋章也跟着拉回来
+  }
+
+  // 进一个游戏：记「这个人玩过它」（探索勋章用），顺手评出新勋章弹庆祝
+  const enterGame = (screenKey: Screen, gameId: string) => {
+    const fresh = recordPlayed(playerId, gameId)
+    if (fresh.length) setNewBadges(fresh)
+    setScreen(screenKey)
   }
 
   // 进场时：① 把云端最新题库拉回来缓存（离线/未配置则沿用缓存或打包副本）
@@ -96,6 +107,7 @@ export default function App() {
   useEffect(() => {
     void refreshContent()
     void hydratePlayer(playerId)
+    void hydrateBadges(playerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -144,6 +156,7 @@ export default function App() {
           onClose={() => setShowMe(false)}
         />
       )}
+      <BadgeUnlock badges={newBadges} onClose={() => setNewBadges([])} />
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         {screen === 'home' && (
           <header className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -207,18 +220,8 @@ export default function App() {
                     key={game.id}
                     type="button"
                     onClick={() => {
-                      if (game.id === 'undercover') setScreen('undercover')
-                      else if (game.id === 'charades') setScreen('charades')
-                      else if (game.id === 'story') setScreen('story')
-                      else if (game.id === 'knowYou') setScreen('knowYou')
-                      else if (game.id === 'draw') setScreen('draw')
-                      else if (game.id === 'price') setScreen('price')
-                      else if (game.id === 'shiliuTown') setScreen('shiliuTown')
-                      else if (game.id === 'yiyiBureau') setScreen('yiyiBureau')
-                      else if (game.id === 'truthLie') setScreen('truthLie')
-                      else if (game.id === 'dice') setScreen('dice')
-                      else if (game.id === 'sound') setScreen('sound')
-                      else if (game.id === 'memory') setScreen('memory')
+                      if (!isActive) return
+                      enterGame(game.id as Screen, game.id)
                     }}
                     className={cn(
                       'group flex min-h-[150px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md',

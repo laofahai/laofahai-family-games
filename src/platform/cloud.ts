@@ -81,6 +81,45 @@ export async function setCodeRevoked(adminCode: string, code: string, revoked: b
   return !error
 }
 
+// ── 管理员：查看/找回家人的「个人码」────────────────────────────────
+export interface ProfileRow {
+  id: string
+  name: string
+  emoji: string | null
+  kind: string
+  sync_code: string | null
+  created_at: string
+}
+
+export async function adminListProfiles(adminCode: string): Promise<ProfileRow[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('admin_list_profiles', { p_admin_code: adminCode })
+  if (error || !Array.isArray(data)) return []
+  return data as ProfileRow[]
+}
+
+/** 把某个档案的个人码重置成新码（忘码/换好记的）。 */
+export async function adminResetProfileCode(
+  adminCode: string,
+  id: string,
+  newCode: string
+): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('admin_reset_profile_code', {
+    p_admin_code: adminCode,
+    p_id: id,
+    p_new_code: newCode,
+  })
+  return !error
+}
+
+/** 删除某个档案（连同进度/错题本/勋章）。 */
+export async function adminDeleteProfile(adminCode: string, id: string): Promise<boolean> {
+  if (!supabase) return false
+  const { error } = await supabase.rpc('admin_delete_profile', { p_admin_code: adminCode, p_id: id })
+  return !error
+}
+
 // ── 个人同步（进度跨设备）──────────────────────────────────────────
 export async function claimProfile(
   syncCode: string,

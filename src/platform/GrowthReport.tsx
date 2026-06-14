@@ -5,7 +5,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Award, Flame, RotateCcw, Target, Trash2, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { clearMistakes, getReport, hydrateLearn, type LearnGame, type Report } from '@/platform/learning'
+import { clearMistakes, getReport, hydrateLearn, KID_PLAYER, type LearnGame, type Report } from '@/platform/learning'
+import { hydrateBadges } from '@/platform/badges'
+import { BadgeWallGrid } from '@/platform/BadgeWall'
 
 interface GrowthReportProps {
   game: LearnGame
@@ -29,12 +31,13 @@ export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
   const [report, setReport] = useState<Report>(() => getReport(game))
   const empty = report.totalDone === 0
 
-  // 打开小报时若连了云端码，先把云端最新拉回来再显示
+  // 打开小报时若连了云端码，先把云端最新（学习数据 + 勋章）拉回来再显示
   useEffect(() => {
     let alive = true
     void hydrateLearn(game).then((synced) => {
       if (alive && synced) setReport(getReport(game))
     })
+    void hydrateBadges(KID_PLAYER[game])
     return () => {
       alive = false
     }
@@ -65,7 +68,7 @@ export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           {empty ? (
-            <p className="py-8 text-center text-sm text-ink-500">{cheer(report)}</p>
+            <p className="py-6 text-center text-sm text-ink-500">{cheer(report)}</p>
           ) : (
             <div className="space-y-5">
               {/* 三个大数字 */}
@@ -166,6 +169,11 @@ export function GrowthReport({ game, onClose, onRedo }: GrowthReportProps) {
               </section>
             </div>
           )}
+
+          {/* 勋章墙：白→绿→蓝→紫→橙，越炫越难 */}
+          <div className="border-t border-ink-100 pt-4">
+            <BadgeWallGrid player={KID_PLAYER[game]} learnGame={game} />
+          </div>
         </div>
 
         {/* 底部：鼓励 + 错题重做 */}
