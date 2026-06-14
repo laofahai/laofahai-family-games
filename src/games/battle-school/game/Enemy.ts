@@ -46,6 +46,10 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   lungeHitDone = false
   crown?: Phaser.GameObjects.Text
   shield?: Phaser.GameObjects.Arc // BOSS 护盾光环
+  /** BOSS 学霸护盾是否在线（true=免疫近战；答对题 breakShield 后短暂落下）。 */
+  isShielded = false
+  /** 护盾被打掉、可挨揍的窗口结束时刻（ms，scene.time.now 域）。窗口内 meleeHit 造成真伤害。 */
+  shieldDownUntil = 0
 
   constructor(scene: Phaser.Scene, x: number, y: number, opts: EnemyOpts) {
     super(scene, x, y, texKey(opts.charKey, 'idle'))
@@ -81,6 +85,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.crown = scene.add.text(x, y, '👑', { fontSize: '34px' }).setOrigin(0.5, 1).setDepth(47)
       this.shield = scene.add.circle(x, y - displayH * 0.5, displayH * 0.62, 0x7cc0ff, 0.14).setDepth(44)
       this.shield.setStrokeStyle(3, 0x9fd0ff, 0.5)
+      this.isShielded = true // BOSS 出场即带学霸护盾（免疫近战，答对题才破）
     }
   }
 
@@ -175,20 +180,65 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
-   * 受近战命中：小怪扣血+击退+闪红；BOSS 免疫（返回 'immune'）。返回结果给场景做表演。
-   * @param kb 横向击退力度（不同招式不同；缺省用小怪默认）。
-   * @param launch 上挑力度（第 3 招更强；缺省默认）。
+   * 受近战命中：
+   *   · 小怪：扣血+击退+闪红（kb 横向击退、launch 上挑，按招式不同；缺省用默认）。
+   *   · BOSS：护盾在线时免疫（返回 'immune'，护盾闪一下）；
+   *     破盾窗口内（shieldDownUntil 之前）造成真伤害（'hurt'/'dead'）。
+   * 返回结果给场景做表演。
    */
   meleeHit(dmg: number, fromX: number, kb?: number, launch?: number): 'hurt' | 'dead' | 'immune' {
     if (this.dead) return 'dead'
     if (this.isBoss) {
-      // 学霸护盾：普通攻击无效，护盾闪一下。
-      if (this.shield) {
-        this.scene.tweens.add({ targets: this.shield, alpha: 0.5, scale: 1.12, duration: 120, yoyo: true })
+      const now = this.scene.time.now
+      const vulnerable = !this.isShielded && now < this.shieldDownUntil
+      if (!vulnerable) {
+        // 学霸护盾在线：普通攻击无效，护盾闪一下。
+        if (this.shield) {
+          this.scene.tweens.add({ targets: this.shield, alpha: 0.5, scale: 1.12, duration: 120, yoyo: true })
+        }
+        return 'immune'
       }
-      return 'immune'
+      // 破盾窗口内：真伤害。
+      return this.applyDamage(dmg, fromX)
     }
     return this.applyDamage(dmg, fromX, kb, launch)
+  }
+
+  /**
+   * 答对 BOSS 知识闸 → 打掉护盾，开 ms 毫秒的「可揍」窗口：
+   *   护盾真的落下（isShielded=false），窗口内 meleeHit 造成真伤害；窗口结束 regenShield 复原。
+   * 纯视觉：碎盾 + 「可揍」金色脉冲（不弹卡片、不留常驻文字，由场景负责具体特效）。
+   */
+  breakShield(ms: number): void {
+    if (!this.isBoss || this.dead) return
+    this.isShielded = false
+    this.shieldDownUntil = this.scene.time.now + ms
+    // 护盾视觉落下：淡出 + 收缩。
+    if (this.shield) {
+      this.scene.tweens.killTweensOf(this.shield)
+      this.scene.tweens.add({ targets: this.shield, alpha: 0, scale: 0.6, duration: 220, ease: 'Quad.easeOut' })
+    }
+    // 窗口结束自动复原（die 后不再复原由 regenShield 内判 dead 兜底）。
+    this.scene.time.delayedCall(ms, () => this.regenShield())
+  }
+
+  /** 护盾再生：窗口结束（且未答对再次延长、且未死）→ 护盾回来，重新免疫。 */
+  private regenShield(): void {
+    if (!this.isBoss || this.dead) return
+    if (this.scene.time.now < this.shieldDownUntil) return // 被新的一次 breakShield 续期了
+    this.isShielded = true
+    if (this.shield) {
+      this.scene.tweens.killTweensOf(this.shield)
+      this.shield.setScale(1)
+      this.scene.tweens.add({ targets: this.shield, alpha: 0.14, duration: 260, ease: 'Quad.easeOut' })
+      // 再生时护盾涨一下（提示「又硬了」）。
+      this.scene.tweens.add({ targets: this.shield, scale: 1.18, duration: 160, yoyo: true })
+    }
+  }
+
+  /** 护盾当前是否落下（破盾窗口内、可被近战）。供场景门控答题闸/表演。 */
+  isShieldDown(now: number): boolean {
+    return this.isBoss && !this.isShielded && now < this.shieldDownUntil
   }
 
   /** 知识伤害（答题打 BOSS / AoE 打小怪）：无视护盾。 */
@@ -237,9 +287,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   private cleanup(): void {
+    this.destroy()
+  }
+
+  /** 销毁时连同名牌/皇冠/护盾一起清理（避免换关/清场时残留装饰）。 */
+  destroy(fromScene?: boolean): void {
     this.crown?.destroy()
     this.shield?.destroy()
-    this.plate.destroy()
-    this.destroy()
+    this.plate?.destroy()
+    super.destroy(fromScene)
   }
 }

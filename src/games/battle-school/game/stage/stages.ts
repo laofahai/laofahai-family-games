@@ -1,126 +1,122 @@
-// 手工编排的关卡布局（StageDef）。至少两张：STAGE_1 / STAGE_2，都是「真能玩」的 Mario 风：
-// 够得到的悬空平台、公平的地面坑、几根水管、带内容的 ?-砖、几处敌人刷新点、1~2 个伪装陷阱、终点旗(=Boss锚点)。
+// 关卡蓝图库（stages）：横版长地图的设计意图。每关从近端走到远端关底 Boss。
+//   设计长度 ~13000px（约旧版 3600 的 3.6 倍）：Boss 在最远端，沿途散布多段平台/坑/管道/
+//   ?块/刷怪点/陷阱，玩家要打穿好几簇同学才到关底老师。
 //
-// ── ArenaScene 怎么消费这张表（集成说明）──────────────────────────────────
-//   1. 选关：const def = STAGES[level % STAGES.length]（或按 level 自定映射）。
-//   2. 解算：import { resolveStage } from './stage/randomize'
-//            const resolved = resolveStage(def, makeRng(seed))   // seed 联机共享 → 各端同布局
-//   3. 建世界：在 buildLevelWorld 里——
-//        · 地面：按 resolved.pits 把铺满世界的实心地「挖洞」（真坑 real=true 处不放碰撞地、放 Pit 触发区）。
-//        · resolved.platforms → new Platform / staticGroup 加实心矩形（y 是「距地面线高度」，
-//          实际世界 y = groundY - p.y）。
-//        · resolved.pipes → new Pipe(scene, x, groundY, h, w)；resolved.qBlocks → new QBlock(...)。
-//        · resolved.traps → new DisguisedTrap(...)（armed=false 的就是哑的，照常铺看着正常）。
-//        · resolved.spawns → 记下来，按你现有波次系统在这些 x 刷小怪（count 个）。
-//        · resolved.flagX → 终点旗 + Boss 在此登场（替代/对接现有 spawnBoss 的 x）。
-//   4. 主角入场用 resolved.heroStartX。
-// 详见 entities.ts 顶部的「集成接口」。
-//
-// 坐标全部基于 WORLD_W=3600（与 ArenaScene 常量一致）。y 字段=距地面线高度（见 StageDef 注释）。
-// 跳跃弧：单跳最高≈169px、水平跨度≈260px → 平台高 ≤150、跨越坑宽 ≤200、管高 ≤150（留余量）。
+//   可达性约束（按 Hero 跳跃弧 ≈169px 高 / ≈260px 远）：
+//     · 平台离地高 h ≤ 150；同段相邻平台间距 gap ≤ 230；
+//     · 坑宽 w ≤ 210；管道高 ≤ 140；?块离地高 110–150（跳起能顶到）。
+//   刷怪点（spawns）沿全程铺 ~8 个，保证到 Boss 前有"好几场"小怪遭遇（非 2–3 波）。
 
 import type { StageDef } from './StageDef'
 
-const WORLD_W = 3600
+export const WORLD_W = 13000 // 关卡总长（世界宽，px）。相机/物理/地面/背景都按它铺满。
 
-/**
- * 第一关「热身操场」：节奏平缓，教会玩家跳台阶、跨小坑、顶 ?-砖、越水管。
- * 左侧 0~520 是无坑安全入场区（主角 200 起步，给入场无敌缓冲）。
- */
+const HERO_START_X = 220
+const FLAG_X = WORLD_W - 520 // Boss 锚点（关底，留缓冲不贴世界边）
+
+/** 第一关：操场——平缓起步，台阶+坑+管道+?块循序，刷怪点 8 处，Boss 在远端。 */
 export const STAGE_1: StageDef = {
-  id: 'stage-1',
   worldW: WORLD_W,
-  heroStartX: 200,
+  heroStartX: HERO_START_X,
+  flagX: FLAG_X,
   platforms: [
-    // 一组上升台阶（每级抬 ~110，单跳可逐级上）。
-    { x: 700, y: 110, w: 140, fixed: true },
-    { x: 900, y: 130, w: 140, fixed: false },
-    // 坑上方的「奖励高台」，鼓励玩家跳上去拿 ?-砖。
-    { x: 1500, y: 140, w: 180, fixed: true },
-    // 中段连跳两块小浮台（非固定，随机层可能微调，仍可达）。
-    { x: 2050, y: 120, w: 120, fixed: false },
-    { x: 2260, y: 120, w: 120, fixed: false },
-    // 临近终点的高台（站上去俯冲 Boss 区）。
-    { x: 3050, y: 130, w: 160, fixed: true },
+    // 起步台阶（教学：先放矮平台）。
+    { xFrom: 900, xTo: 1700, w: { min: 150, max: 210 }, h: { min: 70, max: 110 }, count: { min: 2, max: 3 }, gap: { min: 180, max: 220 } },
+    // 浮岛群（跨第一个坑用）。
+    { xFrom: 2300, xTo: 3200, w: { min: 140, max: 190 }, h: { min: 90, max: 140 }, count: { min: 2, max: 3 }, gap: { min: 190, max: 230 } },
+    { xFrom: 4200, xTo: 5200, w: { min: 150, max: 200 }, h: { min: 80, max: 130 }, count: { min: 2, max: 4 }, gap: { min: 180, max: 220 } },
+    // 阶梯爬升。
+    { xFrom: 6200, xTo: 7200, w: { min: 130, max: 170 }, h: { min: 70, max: 150 }, count: { min: 3, max: 4 }, gap: { min: 170, max: 210 } },
+    { xFrom: 8200, xTo: 9300, w: { min: 150, max: 200 }, h: { min: 90, max: 140 }, count: { min: 2, max: 3 }, gap: { min: 190, max: 230 } },
+    { xFrom: 10200, xTo: 11400, w: { min: 150, max: 210 }, h: { min: 80, max: 130 }, count: { min: 2, max: 4 }, gap: { min: 180, max: 220 } },
   ],
   pits: [
-    // 第一个坑：固定真坑，宽 160（< 200 可跨）。两侧有落脚地。
-    { x: 1180, w: 160, fixed: true },
-    // 第二个坑：非固定，随机层可能填平；偏向真坑。
-    { x: 1760, w: 150, fixed: false, trapBias: 0.6 },
-    // 终点前小坑：非固定，偏安全（trapBias 低）。
-    { x: 2700, w: 140, fixed: false, trapBias: 0.35 },
+    { xFrom: 2050, xTo: 2300, w: { min: 150, max: 200 }, realChance: 1 },
+    { xFrom: 5300, xTo: 5600, w: { min: 150, max: 190 }, realChance: 1 },
+    { xFrom: 7600, xTo: 7900, w: { min: 150, max: 200 }, realChance: 1 },
+    { xFrom: 9600, xTo: 9900, w: { min: 140, max: 190 }, realChance: 1 },
+    { xFrom: 11600, xTo: 11900, w: { min: 150, max: 200 }, realChance: 1 },
   ],
   pipes: [
-    { x: 1080, h: 110 }, // 第一个坑前的水管：可跳上去再跨坑。
-    { x: 2480, h: 130, teleportTo: 3000 }, // 带传送桩（实体侧暂不真传送）。
+    { xFrom: 1750, xTo: 2000, h: { min: 90, max: 130 }, count: { min: 1, max: 1 } },
+    { xFrom: 5700, xTo: 6100, h: { min: 90, max: 140 }, count: { min: 1, max: 2 } },
+    { xFrom: 9900, xTo: 10200, h: { min: 90, max: 130 }, count: { min: 1, max: 1 } },
   ],
   qBlocks: [
-    { x: 760, y: 130, content: 'coin', fixed: true }, // 台阶上方，新手必经。
-    { x: 1560, y: 140, content: 'energy', fixed: false }, // 奖励高台上：非固定，可能变 buff/coin。
-    { x: 2160, y: 150, content: 'random', contentPool: ['coin', 'energy', 'buff'], fixed: false },
+    { xFrom: 1200, xTo: 1500, h: { min: 110, max: 140 }, count: { min: 1, max: 2 }, reward: 'coin' },
+    { xFrom: 3400, xTo: 3700, h: { min: 120, max: 150 }, count: { min: 1, max: 1 }, reward: 'energy' },
+    { xFrom: 6600, xTo: 7000, h: { min: 110, max: 145 }, count: { min: 1, max: 2 }, reward: 'coin' },
+    { xFrom: 8600, xTo: 8900, h: { min: 120, max: 150 }, count: { min: 1, max: 1 }, reward: 'energy' },
+    { xFrom: 10800, xTo: 11200, h: { min: 110, max: 145 }, count: { min: 1, max: 2 }, reward: 'coin' },
   ],
   spawns: [
-    { x: 1000, count: 1, fixed: true }, // 开局热身怪。
-    { x: 1650, count: 2, minCount: 1, maxCount: 3, fixed: false },
-    { x: 2900, count: 2, minCount: 2, maxCount: 3, fixed: false }, // 终点前的小队。
+    { atX: 1100, count: { min: 2, max: 3 } },
+    { atX: 2600, count: { min: 2, max: 3 } },
+    { atX: 3900, count: { min: 3, max: 4 } },
+    { atX: 5400, count: { min: 2, max: 3 } },
+    { atX: 6800, count: { min: 3, max: 4 } },
+    { atX: 8400, count: { min: 2, max: 4 } },
+    { atX: 10000, count: { min: 3, max: 4 } },
+    { atX: 11500, count: { min: 2, max: 3 } },
   ],
-  disguisedTraps: [
-    // 看着是普通地面的一段：非固定，随机层决定这局是否真塌 + 触发点。
-    { x: 1900, w: 120, kind: 'collapse', fixed: false, armBias: 0.5 },
+  traps: [
+    { xFrom: 3700, xTo: 4100, count: { min: 1, max: 1 } },
+    { xFrom: 7200, xTo: 7500, count: { min: 1, max: 1 } },
+    { xFrom: 10300, xTo: 10700, count: { min: 1, max: 2 } },
   ],
-  flagX: 3380, // 终点旗 = Boss 锚点。
 }
 
-/**
- * 第二关「断桥险道」：更密集的坑与平台跳跃，水管更高，两个伪装陷阱，节奏更紧。
- */
+/** 第二关：更密——平台更高、坑更多、刷怪更密，仍卡在可达弧内。 */
 export const STAGE_2: StageDef = {
-  id: 'stage-2',
   worldW: WORLD_W,
-  heroStartX: 200,
+  heroStartX: HERO_START_X,
+  flagX: FLAG_X,
   platforms: [
-    // 开局就要跳浮台过第一个坑。
-    { x: 560, y: 120, w: 130, fixed: true },
-    { x: 820, y: 130, w: 120, fixed: false },
-    // 双层平台（下层落脚 → 上层拿砖）。
-    { x: 1350, y: 90, w: 150, fixed: true },
-    { x: 1380, y: 150, w: 100, fixed: false },
-    // 连续浮台跨大坑（每块间距 ~210，需稳跳；非固定但高度锁可达）。
-    { x: 1900, y: 130, w: 110, fixed: false },
-    { x: 2120, y: 130, w: 110, fixed: false },
-    { x: 2340, y: 130, w: 110, fixed: false },
-    // 终点前高台。
-    { x: 3080, y: 140, w: 170, fixed: true },
+    { xFrom: 800, xTo: 1800, w: { min: 130, max: 180 }, h: { min: 80, max: 130 }, count: { min: 2, max: 3 }, gap: { min: 180, max: 220 } },
+    { xFrom: 2400, xTo: 3400, w: { min: 120, max: 170 }, h: { min: 90, max: 150 }, count: { min: 3, max: 4 }, gap: { min: 170, max: 210 } },
+    { xFrom: 4000, xTo: 5000, w: { min: 130, max: 180 }, h: { min: 100, max: 150 }, count: { min: 3, max: 4 }, gap: { min: 170, max: 215 } },
+    { xFrom: 5800, xTo: 6900, w: { min: 120, max: 170 }, h: { min: 80, max: 140 }, count: { min: 3, max: 4 }, gap: { min: 175, max: 215 } },
+    { xFrom: 7600, xTo: 8800, w: { min: 130, max: 180 }, h: { min: 90, max: 150 }, count: { min: 3, max: 5 }, gap: { min: 170, max: 210 } },
+    { xFrom: 9400, xTo: 10600, w: { min: 130, max: 180 }, h: { min: 80, max: 140 }, count: { min: 3, max: 4 }, gap: { min: 175, max: 215 } },
+    { xFrom: 11000, xTo: 11900, w: { min: 140, max: 190 }, h: { min: 90, max: 140 }, count: { min: 2, max: 3 }, gap: { min: 180, max: 220 } },
   ],
   pits: [
-    { x: 480, w: 130, fixed: true }, // 开局坑，逼玩家立刻跳。
-    { x: 980, w: 170, fixed: false, trapBias: 0.7 }, // 偏真坑。
-    { x: 1980, w: 180, fixed: true }, // 大坑：靠连续浮台过（180 < 200 也可硬跨）。
-    { x: 2600, w: 150, fixed: false, trapBias: 0.5 },
+    { xFrom: 1900, xTo: 2200, w: { min: 160, max: 210 }, realChance: 1 },
+    { xFrom: 3500, xTo: 3800, w: { min: 150, max: 200 }, realChance: 1 },
+    { xFrom: 5100, xTo: 5400, w: { min: 160, max: 200 }, realChance: 1 },
+    { xFrom: 7000, xTo: 7300, w: { min: 150, max: 200 }, realChance: 1 },
+    { xFrom: 8900, xTo: 9200, w: { min: 160, max: 210 }, realChance: 1 },
+    { xFrom: 10700, xTo: 11000, w: { min: 150, max: 200 }, realChance: 1 },
   ],
   pipes: [
-    { x: 700, h: 120 },
-    { x: 1620, h: 140 },
-    { x: 2520, h: 150, teleportTo: 3020 },
+    { xFrom: 1800, xTo: 1900, h: { min: 100, max: 140 }, count: { min: 1, max: 1 } },
+    { xFrom: 5400, xTo: 5800, h: { min: 100, max: 140 }, count: { min: 1, max: 2 } },
+    { xFrom: 9200, xTo: 9400, h: { min: 100, max: 140 }, count: { min: 1, max: 1 } },
   ],
   qBlocks: [
-    { x: 1370, y: 150, content: 'random', contentPool: ['energy', 'buff'], fixed: false },
-    { x: 2120, y: 150, content: 'coin', fixed: true },
-    { x: 3120, y: 150, content: 'buff', fixed: false }, // 终点前奖励。
+    { xFrom: 1000, xTo: 1300, h: { min: 115, max: 145 }, count: { min: 1, max: 2 }, reward: 'energy' },
+    { xFrom: 3900, xTo: 4200, h: { min: 120, max: 150 }, count: { min: 1, max: 1 }, reward: 'coin' },
+    { xFrom: 6400, xTo: 6800, h: { min: 115, max: 145 }, count: { min: 1, max: 2 }, reward: 'energy' },
+    { xFrom: 9300, xTo: 9700, h: { min: 120, max: 150 }, count: { min: 1, max: 1 }, reward: 'coin' },
+    { xFrom: 11200, xTo: 11600, h: { min: 115, max: 145 }, count: { min: 1, max: 2 }, reward: 'energy' },
   ],
   spawns: [
-    { x: 760, count: 1, fixed: true },
-    { x: 1450, count: 2, minCount: 1, maxCount: 3, fixed: false },
-    { x: 2200, count: 2, minCount: 2, maxCount: 3, fixed: false },
-    { x: 2950, count: 3, minCount: 2, maxCount: 4, fixed: false },
+    { atX: 1000, count: { min: 3, max: 4 } },
+    { atX: 2500, count: { min: 2, max: 3 } },
+    { atX: 4100, count: { min: 3, max: 4 } },
+    { atX: 5500, count: { min: 3, max: 4 } },
+    { atX: 7100, count: { min: 2, max: 4 } },
+    { atX: 8500, count: { min: 3, max: 4 } },
+    { atX: 9800, count: { min: 3, max: 5 } },
+    { atX: 11300, count: { min: 2, max: 3 } },
   ],
-  disguisedTraps: [
-    { x: 1180, w: 130, kind: 'spike', fixed: false, armBias: 0.6 },
-    { x: 2780, w: 120, kind: 'collapse', fixed: true }, // 固定必塌（教学：让玩家见识一次）。
+  traps: [
+    { xFrom: 2200, xTo: 2500, count: { min: 1, max: 1 } },
+    { xFrom: 6000, xTo: 6400, count: { min: 1, max: 2 } },
+    { xFrom: 8200, xTo: 8600, count: { min: 1, max: 1 } },
+    { xFrom: 10200, xTo: 10600, count: { min: 1, max: 2 } },
   ],
-  flagX: 3400,
 }
 
-/** 所有手工关卡（ArenaScene 按 level 取用）。 */
+/** 关卡轮转表：ArenaScene 用 level % STAGES.length 取一关。 */
 export const STAGES: StageDef[] = [STAGE_1, STAGE_2]

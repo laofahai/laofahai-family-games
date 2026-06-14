@@ -65,7 +65,9 @@ export function Hud({
             第 {hud.level}/{hud.totalLevels} 关 · {hud.biome}
           </div>
           <div className="rounded-full bg-black/35 px-3 py-1 text-right text-xs text-white/90 backdrop-blur">
-            {hud.isBossWave ? '🎓 关底·老师！' : `第 ${hud.waveIndex}/${hud.waveTotal} 波 · 剩 ${hud.waveRemaining} 人`}
+            {hud.isBossWave
+              ? '🎓 关底·老师！'
+              : `推进 ${hud.waveIndex}%${hud.waveRemaining > 0 ? ` · 场上 ${hud.waveRemaining} 同学` : ''}`}
           </div>
           {hud.combo >= 2 && (
             <div className="rounded-full bg-amber-400/90 px-3 py-1 text-right text-xs font-bold text-amber-950 backdrop-blur">

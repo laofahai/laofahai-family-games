@@ -16,10 +16,15 @@ import { playSfx, isMuted, toggleMuted, unlockAudio } from '@/games/shared/sound
 import { saveLevel } from '../storage'
 import { type GameBridge, type GameControls, type MoveDir, type SkillKind, type SceneConfig, type HudState } from './bridge'
 import { preloadSprites, registerAnims, pickClassmateKey, pickHeroKey, pickTeacherKey } from './assets'
-import { Hero, COMBO_MOVES, type MoveSpec } from './Hero'
+import { Hero, HERO_MAX_HP, COMBO_MOVES, type MoveSpec } from './Hero'
 import { Enemy } from './Enemy'
 import { FloatingQuiz } from './FloatingQuiz'
 import { themeForLevel, type Theme } from './themes'
+import { makeRng } from './rng'
+import { STAGES } from './stage/stages'
+import { resolveStage } from './stage/randomize'
+import type { ResolvedStage } from './stage/StageDef'
+import { buildPlatform, buildPipe, Pit, QBlockState, TrapState, stompResult } from './stage/entities'
 
 /** 学科 → 冲击波/光效配色（答对按科目配色）。 */
 const SUBJECT_COLOR: Record<string, number> = {
@@ -37,14 +42,19 @@ function subjectColor(subject: string): number {
   return SUBJECT_COLOR[subject] ?? 0x7cc0ff
 }
 
-const WORLD_W = 3600 // 世界宽（比屏宽，相机横向滚动）
+// 关卡用横版长地图：世界宽由当前关蓝图（STAGES）决定（~13000px）。
+// 这个常量是「兜底/相机初值」，create 后会被 this.worldW（= 关蓝图 worldW）覆盖。
 const GROUND_RATIO = 0.82 // 地面线在视口高度的占比
 const HERO_MELEE_DMG = 1
 const MOB_HIT_DMG = 1 // 小怪打主角的伤害
 const BOSS_HIT_DMG = 1
-const BOSS_KNOWLEDGE_DMG = 1 // 答对一题扣 BOSS 1 血
+const BOSS_KNOWLEDGE_DMG = 1 // 破盾窗口内一次近战扣 BOSS 1 血（答题只负责破盾，伤害靠揍）
+const PIT_FALL_DMG = 1 // 掉坑扣血（非死，回到最近安全点）
+const SHIELD_BREAK_MS = 4500 // 答对题后 BOSS 护盾落下、可被近战的窗口
 const ENERGY_PER_KILL = 0.34 // 每杀一个小怪涨多少能量
 const ENERGY_PER_HIT = 0.08 // 每命中一次涨多少
+const ENERGY_PER_COIN = 0.18 // ?块金币涨能量
+const ENERGY_PER_QENERGY = 0.4 // ?块能量块涨能量
 const QUIZ_SECONDS = 15
 const MAX_WEATHER = 80 // 天气粒子上限
 
@@ -62,10 +72,23 @@ export class ArenaScene extends Phaser.Scene {
   private W = 800
   private H = 450
   private groundY = 360
+  private worldW = 13000 // 当前关世界宽（由关蓝图 worldW 决定，create/startLevel 时赋值）
+  private lastViewW = 0 // onResize 防抖：上次重画时的视口宽（不变则早退，避免背景抖动）
+  private lastViewH = 0
 
   private hero!: Hero
   private enemies!: Phaser.Physics.Arcade.Group
   private platforms!: Phaser.Physics.Arcade.StaticGroup
+
+  // ── 横版长地图（确定性关卡：同 seed 同布局；联机将来用共享 seed）──────────
+  private runSeed = 0 // 本局随机种子（场景启动时生成一次）
+  private stage!: ResolvedStage // 当前关解析后的地形
+  private pits: Pit[] = [] // 真坑（掉落扣血回位）
+  private qBlocks: QBlockState[] = [] // ?块（顶一下出奖励）
+  private traps: TrapState[] = [] // 伪装陷阱（踩中触发一次）
+  private pendingSpawnSlots: { atX: number; count: number }[] = [] // 还没触发的沿路刷怪点
+  private lastSafeX = 220 // 掉坑后回到的最近安全 x（脚踏实地时更新）
+  private bossSpawned = false // 关底 Boss 是否已生成（推进到 flagX 附近触发）
 
   // 输入
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys
@@ -82,11 +105,6 @@ export class ArenaScene extends Phaser.Scene {
 
   // 局面状态（场景持有，唯一事实来源）
   private level = 0 // 0-based
-  private waveIndex = 0 // 0-based，含 BOSS 波（=最后一波）
-  private waveTotal = 1
-  private waveDefs: number[] = [] // 每波小怪数；BOSS 波用 -1 标记
-  private waveActive = false // 当前波是否已生成且未清空
-  private pendingSpawns = 0 // 本波还有几个敌人在排队（delayedCall）未生成；>0 时不算清波
   private energy = 0
   private combo = 0
   private skill: SkillKind = 'nova'
@@ -130,6 +148,14 @@ export class ArenaScene extends Phaser.Scene {
     this.boss = undefined
     this.slowmoUntil = 0
     this.weatherParticles = []
+    this.bossSpawned = false
+    this.pendingSpawnSlots = []
+    this.pits = []
+    this.qBlocks = []
+    this.traps = []
+    // 本局随机种子（生成一次）。Date.now 即可——同一局所有关用它 + level 偏移派生，
+    // 保证一局内地形确定；将来联机只需两端用「共享 seed」替换这里即可两端布局一致。
+    this.runSeed = Date.now() >>> 0
   }
 
   preload(): void {
@@ -141,19 +167,24 @@ export class ArenaScene extends Phaser.Scene {
     registerAnims(this.anims)
     this.W = this.scale.width
     this.H = this.scale.height
-    this.physics.world.setBounds(0, 0, WORLD_W, this.H)
+    this.lastViewW = this.W
+    this.lastViewH = this.H
     this.physics.world.gravity.y = 1800
 
     this.bgSky = this.add.graphics().setScrollFactor(0).setDepth(0)
     this.bgFar = this.add.container(0, 0).setDepth(1)
     this.bgNear = this.add.container(0, 0).setDepth(2)
 
+    // 解析当前关地形（确定性：seed + level）→ 拿到 worldW 后再铺世界/相机/物理边界。
+    this.resolveCurrentStage()
+
     // 地面与平台。
     this.platforms = this.physics.add.staticGroup()
     this.buildLevelWorld()
 
-    // 主角（头顶挂玩家名）。按玩家性别选精灵（女=herog / 男=hero）。
-    this.hero = new Hero(this, 200, this.groundY, this.playerName, pickHeroKey(this.cfg.player, this.playerName))
+    // 主角出生在近端 heroStartX，头顶挂玩家名，按性别选精灵（女=herog / 男=hero）。
+    this.hero = new Hero(this, this.stage.heroStartX, this.groundY, this.playerName, pickHeroKey(this.cfg.player, this.playerName))
+    this.lastSafeX = this.stage.heroStartX
     this.physics.add.collider(this.hero, this.platforms)
 
     // 敌人组。
@@ -162,18 +193,18 @@ export class ArenaScene extends Phaser.Scene {
 
     // 主角攻击命中区 vs 敌人。
     this.physics.add.overlap(this.hero.hitbox, this.enemies, (_hb, e) => this.onMeleeOverlap(e as Enemy))
-    // 敌人 lunge 接触主角 → 敌人打主角。
+    // 敌人 lunge 接触主角 → 敌人打主角（含踩怪判定）。
     this.physics.add.overlap(this.hero, this.enemies, (_h, e) => this.onEnemyTouch(e as Enemy))
 
-    // 相机跟随主角，限制在世界内。
-    this.cameras.main.setBounds(0, 0, WORLD_W, this.H)
+    // 相机跟随主角，限制在世界内（铺满长地图全宽）。
+    this.cameras.main.setBounds(0, 0, this.worldW, this.H)
     this.cameras.main.startFollow(this.hero, true, 0.1, 0.1, -this.W * 0.18, this.groundY - this.H * 0.62)
     this.cameras.main.setDeadzone(this.W * 0.3, this.H)
 
     this.setupInput()
     this.exposeControls()
 
-    // 开第一波。
+    // 开关。
     this.startLevel(this.level)
     this.bridge.emit('ready', undefined)
     this.pushHud()
@@ -189,30 +220,80 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   // ── 世界/场景 ───────────────────────────────────────────────────────
-  /** create 时建一次世界（地面碰撞体 + 首张背景）。后续换关只重画背景。 */
+  /** 解析当前关地形（确定性）：从 STAGES 取一关，用 seed+level 派生的 Rng 落定坐标。 */
+  private resolveCurrentStage(): void {
+    const def = STAGES[this.level % STAGES.length]
+    // 同一局内每关用 (runSeed + level) 派生独立 Rng；同 seed 同布局（联机用共享 seed 即可一致）。
+    const resolved = resolveStage(def, makeRng((this.runSeed + this.level * 0x9e3779b1) >>> 0))
+    this.stage = resolved
+    this.worldW = resolved.worldW
+  }
+
+  /** 建一关世界（地面碰撞体 + 背景 + 地形物件：平台/管道/?块/坑/陷阱）。 */
   private buildLevelWorld(): void {
     this.theme = themeForLevel(this.level)
     this.groundY = Math.round(this.H * GROUND_RATIO)
+    this.physics.world.setBounds(0, 0, this.worldW, this.H + 400) // 高度留余地：掉坑能短暂落到地下再回位
     this.drawBackground()
-    // 地面碰撞体（不可见静态矩形，铺满世界宽）。
-    this.platforms.clear(true, true)
-    const ground = this.add.rectangle(WORLD_W / 2, this.groundY + 40, WORLD_W, 80, 0x000000, 0)
-    this.platforms.add(ground)
-    const gb = ground.body as Phaser.Physics.Arcade.StaticBody
-    gb.updateFromGameObject()
+    this.buildTerrain()
     this.setupWeather()
   }
 
-  /** 重画背景（幂等：清空两层容器 + 天空层后重绘当前 theme）。 */
+  /** 铺地形：分段地面（坑处断开）+ 平台/管道/?块/坑/陷阱的碰撞体与触发器。 */
+  private buildTerrain(): void {
+    this.platforms.clear(true, true)
+    this.pits = []
+    this.qBlocks = []
+    this.traps = []
+    const s = this.stage
+
+    // 真坑：这些 x 段不铺地面（掉下去触发 onFall）。非真坑当装饰、地面照铺。
+    const realPits = s.pits.filter((p) => p.real)
+    // 把世界宽按真坑切成若干「实心地面段」，逐段铺不可见地面碰撞体。
+    const cuts = realPits
+      .map((p) => ({ from: p.x, to: p.x + p.w }))
+      .sort((a, b) => a.from - b.from)
+    let cursor = 0
+    for (const cut of cuts) {
+      if (cut.from > cursor) this.addGroundSegment(cursor, cut.from)
+      cursor = Math.max(cursor, cut.to)
+    }
+    if (cursor < this.worldW) this.addGroundSegment(cursor, this.worldW)
+
+    // 坑的视觉/落坑判定对象（真坑参与 onFall，非真坑仅视觉）。
+    for (const p of s.pits) this.pits.push(new Pit(this, p, this.groundY))
+
+    // 浮空平台（主角与敌人共用的碰撞体）。
+    for (const p of s.platforms) {
+      buildPlatform(this, this.platforms, p, this.groundY, this.theme.ground, this.theme.groundLine)
+    }
+    // 管道（实心障碍）。
+    for (const p of s.pipes) buildPipe(this, this.platforms, p, this.groundY)
+    // ?块（顶一下出奖励）。
+    for (const q of s.qBlocks) this.qBlocks.push(new QBlockState(this, this.platforms, q, this.groundY))
+    // 伪装陷阱（踩中触发一次）。
+    for (const t of s.traps) this.traps.push(new TrapState(this, t, this.groundY))
+  }
+
+  /** 在 [from,to] 这段铺一条不可见地面碰撞体（脚踏实地处；坑处不铺）。 */
+  private addGroundSegment(from: number, to: number): void {
+    const w = to - from
+    if (w <= 0) return
+    const ground = this.add.rectangle(from + w / 2, this.groundY + 40, w, 80, 0x000000, 0)
+    this.platforms.add(ground)
+    ;(ground.body as Phaser.Physics.Arcade.StaticBody).updateFromGameObject()
+  }
+
+  /** 重画背景（幂等：清空两层容器 + 天空层后重绘当前 theme）。装饰用确定性随机（同关同布局，重画不抖）。 */
   private drawBackground(): void {
     this.bgFar.removeAll(true)
     this.bgNear.removeAll(true)
     this.bgSky.clear()
     const t = this.theme
-    // 背景元素位置用「按关卡定种子」的确定性随机：同一关每次重画都生成一致布局，
-    // 即便 onResize/换关重画，树/云/星也不会瞬移乱跳（修复「背景所有元素无规律地动」）。
-    const rng = new Phaser.Math.RandomDataGenerator(['bg', String(this.level)])
-    const rnd = () => rng.frac()
+    // 背景装饰用确定性随机源（seed+level，固定偏移），保证 onResize 重画时布局一致、不抖动
+    // （修复「背景所有元素无规律地动」）。W=本关世界宽（长地图按 worldW 全宽铺）。
+    const bg = makeRng((this.runSeed + this.level * 0x85ebca6b + 0x27d4eb2f) >>> 0)
+    const W = this.worldW
     // 天空渐变（固定层，用横向条带从上到下插值堆出来，铺满视口）。
     const steps = 24
     for (let i = 0; i < steps; i++) {
@@ -227,8 +308,8 @@ export class ArenaScene extends Phaser.Scene {
 
     // 夜晚：月亮 + 星星。
     if (t.night) {
-      for (let i = 0; i < 40; i++) {
-        const star = this.add.circle(rnd() * WORLD_W, rnd() * this.H * 0.6, rnd() * 1.6 + 0.6, 0xffffff, 0.9)
+      for (let i = 0; i < 90; i++) {
+        const star = this.add.circle(bg.float(0, W), bg.float(0, this.H * 0.6), bg.float(0.6, 2.2), 0xffffff, 0.9)
         star.setScrollFactor(0.2)
         this.bgFar.add(star)
       }
@@ -237,36 +318,36 @@ export class ArenaScene extends Phaser.Scene {
     }
     // 云/雾。
     if (t.cloud) {
-      for (let i = 0; i < 7; i++) {
-        const cx = rnd() * WORLD_W
-        const cy = this.H * (0.1 + rnd() * 0.28)
-        const cloud = this.add.ellipse(cx, cy, 120 + rnd() * 120, 44 + rnd() * 30, t.cloud, 0.55)
+      for (let i = 0; i < 24; i++) {
+        const cx = bg.float(0, W)
+        const cy = this.H * (0.1 + bg.float(0, 0.28))
+        const cloud = this.add.ellipse(cx, cy, 120 + bg.float(0, 120), 44 + bg.float(0, 30), t.cloud, 0.55)
         cloud.setScrollFactor(0.35)
         this.bgFar.add(cloud)
       }
     }
-    // 远景剪影（按地形铺一排）。
+    // 远景剪影（按地形铺一排，全宽）。
     const horizon = this.groundY
-    for (let x = -100; x < WORLD_W + 100; x += 220) {
-      const far = this.drawDeco(x + rnd() * 80, horizon, t.decoFar, 0.7, t)
+    for (let x = -100; x < W + 100; x += 220) {
+      const far = this.drawDeco(x + bg.float(0, 80), horizon, t.decoFar, 0.7, t)
       far.setScrollFactor(0.5)
       this.bgFar.add(far)
     }
-    // 近景装饰（更大、更靠下、视差更快）。
-    for (let x = 0; x < WORLD_W; x += 360) {
-      const near = this.drawDeco(x + rnd() * 120, horizon, t.decoNear, 1.15, t)
+    // 近景装饰（更大、更靠下、视差更快，全宽）。
+    for (let x = 0; x < W; x += 360) {
+      const near = this.drawDeco(x + bg.float(0, 120), horizon, t.decoNear, 1.15, t)
       near.setScrollFactor(0.9)
       this.bgNear.add(near)
     }
-    // 地面（铺色 + 地平线）。
+    // 地面（铺色 + 地平线，全宽）。
     const groundG = this.add.graphics()
     groundG.fillStyle(t.ground, 1)
-    groundG.fillRect(0, horizon, WORLD_W, this.H - horizon + 80)
+    groundG.fillRect(0, horizon, W, this.H - horizon + 80)
     groundG.lineStyle(4, t.groundLine, 1)
-    groundG.lineBetween(0, horizon, WORLD_W, horizon)
+    groundG.lineBetween(0, horizon, W, horizon)
     // 地面纹理（虚线/草点）。
     groundG.fillStyle(t.groundLine, 0.5)
-    for (let x = 0; x < WORLD_W; x += 60) groundG.fillRect(x, horizon + 18, 26, 4)
+    for (let x = 0; x < W; x += 60) groundG.fillRect(x, horizon + 18, 26, 4)
     groundG.setScrollFactor(1)
     groundG.setDepth(3)
     this.bgNear.add(groundG)
@@ -390,67 +471,62 @@ export class ArenaScene extends Phaser.Scene {
     this.cfg.onControls(controls)
   }
 
-  // ── 关卡/波次 ───────────────────────────────────────────────────────
+  // ── 关卡（横版长地图：从近端走到远端关底）─────────────────────────────
   private startLevel(level: number): void {
+    const levelChanged = level !== this.level
     this.level = level
     this.theme = themeForLevel(level)
-    // 重画背景（biome 切换）+ 重铺天气。drawBackground 幂等，不会泄漏旧对象。
-    this.drawBackground()
-    this.setupWeather()
-    // 设计波次：2–3 波小怪 + 1 波 BOSS（最后）。
-    const mobWaves = Phaser.Math.Between(2, 3)
-    this.waveDefs = []
-    for (let i = 0; i < mobWaves; i++) {
-      // 每波 1–5（偏 2–4）。
-      this.waveDefs.push(this.weightedWaveSize())
+    // 换关：重解析地形 + 重建世界（地面/平台/坑/管道/?块/陷阱）+ 相机/物理边界。
+    if (levelChanged) {
+      this.resolveCurrentStage()
+      this.physics.world.setBounds(0, 0, this.worldW, this.H + 400)
+      this.cameras.main.setBounds(0, 0, this.worldW, this.H)
+      this.buildLevelWorld()
+    } else {
+      // 同关（首关/重开）：背景与地形已在 create 建好，只重画背景层 + 重铺天气。
+      this.drawBackground()
+      this.setupWeather()
     }
-    this.waveDefs.push(-1) // BOSS 波
-    this.waveTotal = this.waveDefs.length
-    this.waveIndex = 0
     this.boss = undefined
+    this.bossSpawned = false
     this.bossQuizCdUntil = 0
-    // 把主角放回左侧入场，给一段入场无敌（避免刚进关贴脸刷怪连扣）。
-    this.hero.setPosition(220, this.groundY)
+    // 沿路刷怪点（已按 atX 升序）排队，主角推进到 atX 时成簇刷怪。
+    this.pendingSpawnSlots = this.stage.spawns.map((s) => ({ atX: s.atX, count: s.count }))
+    // 主角回到近端出生点，给一段入场无敌（避免刚进关贴脸刷怪连扣）。
+    this.hero.setPosition(this.stage.heroStartX, this.groundY)
+    this.lastSafeX = this.stage.heroStartX
     this.hero.invulnUntil = this.time.now + 1200
     this.cameras.main.flash(280, 255, 255, 255)
-    this.spawnCurrentWave()
+    this.floatText(this.hero.x, this.hero.y - 170, '冲向关底·打穿同学群!', '#ffe08a', 22)
     this.pushHud()
   }
 
-  private weightedWaveSize(): number {
-    // 权重偏向 2–3（仍保留 1 和 5 的可能，符合「1–5、偏 2–4」需求且不至于太挤）。
-    const pool = [1, 2, 2, 2, 3, 3, 3, 4, 4, 5]
-    return pool[Phaser.Math.Between(0, pool.length - 1)]
-  }
-
-  private spawnCurrentWave(): void {
-    const def = this.waveDefs[this.waveIndex]
-    this.waveActive = true
-    if (def === -1) {
-      this.pendingSpawns = 1
-      this.spawnBoss()
-    } else {
-      // 记下还要生成几个；逐个延时入场，每个生成后 pendingSpawns--（清波判定要等都生成完）。
-      this.pendingSpawns = def
-      for (let i = 0; i < def; i++) {
-        // 大多从右入场，偶尔从左包抄。
-        const fromLeft = Math.random() < 0.22 && i > 0
-        this.time.delayedCall(i * 240, () => this.spawnMob(fromLeft))
-      }
+  /** 主角推进到某刷怪点 atX → 成簇刷 count 个小怪（散在主角前方一带）。 */
+  private maybeTriggerSpawns(): void {
+    if (this.over) return
+    const heroX = this.hero.x
+    // 触发所有已越过的刷怪点（队列已升序；推进式弹出）。
+    while (this.pendingSpawnSlots.length && heroX >= this.pendingSpawnSlots[0].atX) {
+      const slot = this.pendingSpawnSlots.shift()!
+      this.spawnCluster(slot.atX, slot.count)
     }
-    this.pushHud()
   }
 
-  private spawnMob(fromLeft: boolean): void {
-    this.pendingSpawns = Math.max(0, this.pendingSpawns - 1)
+  /** 在 atX 前方一带成簇刷 count 个同学小怪。 */
+  private spawnCluster(atX: number, count: number): void {
+    if (this.over) return
+    const camW = this.cameras.main.width || this.W
+    // 大多刷在主角前方（推进方向）半屏开外，错开 x 避免叠在一起。
+    const base = Math.max(atX, this.hero.x + Math.max(camW * 0.42, 320))
+    for (let i = 0; i < count; i++) {
+      const x = Phaser.Math.Clamp(base + i * Phaser.Math.Between(70, 150), 80, this.worldW - 80)
+      this.time.delayedCall(i * 160, () => this.spawnMob(x))
+    }
+  }
+
+  private spawnMob(x: number): void {
     if (this.over) return
     const name = this.mobNames[Phaser.Math.Between(0, this.mobNames.length - 1)]
-    // 以【主角】为基准在安全距离外生成（不依赖相机/视口尺寸，避免首帧未测量导致贴脸刷怪）。
-    const camW = this.cameras.main.width || this.W
-    const gap = Math.max(camW * 0.6, 420) // 至少离主角一屏多
-    const x = fromLeft
-      ? Math.max(60, this.hero.x - gap - Phaser.Math.Between(0, 120))
-      : Math.min(WORLD_W - 60, this.hero.x + gap + Phaser.Math.Between(0, 160))
     const hp = Phaser.Math.Between(1, 2)
     const speed = Phaser.Math.Between(70, 120)
     const e = new Enemy(this, x, this.groundY, { charKey: pickClassmateKey(name), name, isBoss: false, hp, speed })
@@ -458,13 +534,19 @@ export class ArenaScene extends Phaser.Scene {
     this.physics.add.collider(e, this.platforms)
   }
 
+  /** 关底 Boss：推进到 flagX 附近触发（生成在远端关底，不再贴脸跟刷）。 */
+  private maybeSpawnBoss(): void {
+    if (this.bossSpawned || this.over) return
+    if (this.hero.x < this.stage.flagX - this.W * 0.55) return
+    this.bossSpawned = true
+    this.spawnBoss()
+  }
+
   private spawnBoss(): void {
-    this.pendingSpawns = 0
     if (this.over) return
     const def = this.bosses[this.level]
-    const camW = this.cameras.main.width || this.W
-    const x = Math.min(WORLD_W - 80, this.hero.x + Math.max(camW * 0.65, 480))
-    // 老师 Boss 按名字性别选精灵（女=teacherF / 男=teacher）。
+    // Boss 出现在旗杆/校门（关卡远端），按名字性别选精灵（女=teacherF / 男=teacher）。
+    const x = Phaser.Math.Clamp(this.stage.flagX, this.hero.x + 240, this.worldW - 80)
     const e = new Enemy(this, x, this.groundY, { charKey: pickTeacherKey(def.name), name: def.name, isBoss: true, hp: def.hp, speed: 70 })
     this.enemies.add(e)
     this.physics.add.collider(e, this.platforms)
@@ -602,13 +684,46 @@ export class ArenaScene extends Phaser.Scene {
       const cry = battleCry('crit', this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 160, cry, '#ffd23f', 22)
     }
-    if (result === 'dead') this.onEnemyKilled(enemy)
+    if (result === 'dead') {
+      if (enemy.isBoss) this.onBossDefeated()
+      else this.onEnemyKilled(enemy)
+    }
     this.pushHud()
   }
 
   private onEnemyTouch(enemy: Enemy): void {
     if (this.frozen || enemy.dead) return
     const now = this.time.now
+
+    // 踩怪：主角下落踩在敌人头顶 → 小怪踩杀、Boss（护盾在线）只弹起。优先于接触伤害判定。
+    const heroBody = this.hero.body as Phaser.Physics.Arcade.Body
+    const enemyTopY = enemy.y - enemy.displayHeight
+    const killable = !enemy.isBoss || enemy.isShieldDown(now)
+    const stomp = stompResult(this.hero.y, heroBody.velocity.y, enemyTopY, this.hero.x, enemy.x, enemy.displayWidth * 0.5, killable)
+    if (stomp !== 'none') {
+      // 踩中：主角弹起。
+      heroBody.setVelocityY(-460)
+      this.hero.invulnUntil = Math.max(this.hero.invulnUntil, now + 220)
+      if (stomp === 'kill') {
+        const res = enemy.knowledgeHit(enemy.isBoss ? BOSS_KNOWLEDGE_DMG : 99, this.hero.x)
+        this.hitstop(60)
+        this.cameras.main.shake(90, 0.004)
+        this.spawnBurst(enemy.x, enemyTopY + 20, 0xffe08a, 10)
+        this.floatText(enemy.x, enemyTopY, '踩!', '#ffd23f', 22)
+        playSfx('slap')
+        if (res === 'dead') {
+          if (enemy.isBoss) this.onBossDefeated()
+          else this.onEnemyKilled(enemy)
+        }
+      } else {
+        // bounce：踩到护盾 Boss 弹开（无伤），提示去破盾。
+        this.floatText(enemy.x, enemyTopY, '护盾·弹开!', '#7cc0ff', 18)
+        playSfx('hit')
+      }
+      this.pushHud()
+      return
+    }
+
     if (!enemy.isLunging(now)) return // 只有在攻击窗口才造成伤害
     // 跳跃可躲：敌人攻击在身体/地面高度，主角跳起来（脚底高过攻击线）就越过这一击。
     if (!enemy.lungeHitsAt(this.hero.y)) {
@@ -638,10 +753,14 @@ export class ArenaScene extends Phaser.Scene {
     this.pushHud()
   }
 
-  // ── BOSS 知识闸 + 答题结算 ───────────────────────────────────────────
+  // ── BOSS 知识闸 + 破盾循环 ───────────────────────────────────────────
+  // 循环：BOSS 出场带学霸护盾（免疫近战）→ 逼近主角弹知识闸（题卡）→ 答对则 breakShield，
+  //      护盾落下约 SHIELD_BREAK_MS，这段窗口内用普攻揍它扣血 → 窗口结束护盾再生、知识闸恢复。
   private maybeBossQuiz(): void {
     if (!this.boss || this.boss.dead || this.pending || this.frozen) return
     const now = this.time.now
+    // 破盾窗口内不弹题（让玩家专心揍）；护盾在线才弹知识闸。
+    if (!this.boss.isShielded) return
     if (now < this.bossQuizCdUntil) return
     // BOSS 逼近主角（攻击距离内）时触发知识闸。
     const dist = Math.abs(this.boss.x - this.hero.x)
@@ -692,25 +811,26 @@ export class ArenaScene extends Phaser.Scene {
     const def = this.bosses[this.level]
     if (!boss || boss.dead) return
     if (correct) {
-      const res = boss.knowledgeHit(BOSS_KNOWLEDGE_DMG, this.hero.x)
+      // 答对 → 破盾：护盾真的落下一段窗口，这段时间普攻能扣它血。纯视觉（无卡片、无常驻文案）。
+      boss.breakShield(SHIELD_BREAK_MS)
       const color = subjectColor(def.subject)
       this.hitstop(120)
-      this.slowmo(160, 0.45) // 重创老师：微慢镜
-      this.cameras.main.shake(240, 0.011)
+      this.slowmo(160, 0.45) // 破盾定格般的微慢镜
+      this.cameras.main.shake(220, 0.010)
       this.cameras.main.flash(180, 180, 230, 255)
-      // 纯视觉表达「答对→破防→可近战」：护盾碎裂爆 + BOSS 身上「可揍」高亮脉冲（替代啰嗦文字 #25）。
+      // 纯视觉「答对→破盾→可近战」：碎盾爆 + 「可揍」金色脉冲 + 科目配色冲击波（无卡片、无教学句 #25）。
       this.shieldShatter(boss, color)
       this.meleeReadyPulse(boss)
-      this.shockwave(boss.x, boss.y - boss.displayHeight * 0.5, color) // 答对按科目配色冲击波
+      this.shockwave(boss.x, boss.y - boss.displayHeight * 0.5, color)
       this.spawnBurst(boss.x, boss.y - boss.displayHeight * 0.6, color, 24)
-      // 短促招式名战吼（保留），不再有「答对，知识重创老师」之类的教学句。
+      // 一条短促自动消失的「破盾!」飘字（非卡片，~0.8s 自动飘走）。
+      this.floatText(boss.x, boss.y - boss.displayHeight - 10, '破盾!', '#ffd23f', 26)
       const cry = skillCry(def.subject, this.band)
       if (cry) this.floatText(this.hero.x, this.hero.y - 170, cry, '#ffd23f', 24)
       playSfx('skill')
       playSfx('correct')
-      if (res === 'dead') this.onBossDefeated()
     } else {
-      // 答错：BOSS 反打主角。纯视觉（红闪 + 抖屏 + 老师吐槽气泡），不再有「答错了！被老师抓到」横幅。
+      // 答错：BOSS 反打主角（护盾仍在）。纯视觉（红闪+抖屏+老师吐槽气泡），无横幅。
       const hurt = this.hero.takeHit(BOSS_HIT_DMG, boss.x)
       this.cameras.main.shake(160, 0.008)
       this.cameras.main.flash(140, 255, 80, 80)
@@ -801,6 +921,7 @@ export class ArenaScene extends Phaser.Scene {
   }
 
   private onBossDefeated(): void {
+    if (!this.boss || this.over) return // 防重入（近战/AoE 同帧多次触发）
     const def = this.bosses[this.level]
     playSfx('win')
     this.cameras.main.flash(400, 255, 240, 180)
@@ -813,9 +934,16 @@ export class ArenaScene extends Phaser.Scene {
       if (this.level + 1 >= this.totalLevels) {
         this.win()
       } else {
+        this.clearAllEnemies()
         this.startLevel(this.level + 1)
       }
     })
+  }
+
+  /** 换关前清掉场上所有残留敌人（含还没倒地的）。 */
+  private clearAllEnemies(): void {
+    ;(this.enemies.getChildren() as Enemy[]).slice().forEach((e) => e.destroy(true))
+    this.enemies.clear(true, true)
   }
 
   // ── 胜负 ─────────────────────────────────────────────────────────────
@@ -1028,19 +1156,24 @@ export class ArenaScene extends Phaser.Scene {
 
   // ── HUD 推送 ─────────────────────────────────────────────────────────
   private pushHud(): void {
-    const alive = (this.enemies.getChildren() as Enemy[]).filter((e) => !e.dead).length
-    const remaining = alive + this.pendingSpawns // 含还在排队入场的
-    const isBossWave = this.waveDefs[this.waveIndex] === -1
+    const alive = this.hero
+      ? (this.enemies?.getChildren() as Enemy[] | undefined)?.filter((e) => !e.dead).length ?? 0
+      : 0
+    const bossPresent = !!(this.boss && !this.boss.dead)
+    // 横版长地图：用「到关底的推进进度」表达 waveIndex/waveTotal（进度条），
+    // waveRemaining = 当前场上同学数，isBossWave = 关底 Boss 已现身。
+    const span = this.stage ? this.stage.flagX - this.stage.heroStartX : 1
+    const progressed = this.hero ? Phaser.Math.Clamp((this.hero.x - (this.stage?.heroStartX ?? 0)) / span, 0, 1) : 0
     const hud: HudState = {
-      hp: this.hero.hp,
-      maxHp: this.hero.maxHp,
+      hp: this.hero?.hp ?? 0,
+      maxHp: this.hero?.maxHp ?? HERO_MAX_HP,
       level: this.level + 1,
       totalLevels: this.totalLevels,
-      waveIndex: this.waveIndex + 1,
-      waveTotal: this.waveTotal,
-      waveRemaining: remaining,
-      isBossWave,
-      bossHp: this.boss && !this.boss.dead ? this.boss.hp : 0,
+      waveIndex: Math.round(progressed * 100), // 复用为「推进百分比」
+      waveTotal: 100,
+      waveRemaining: alive,
+      isBossWave: bossPresent,
+      bossHp: bossPresent ? this.boss!.hp : 0,
       bossMaxHp: this.boss ? this.boss.maxHp : 0,
       bossName: this.boss ? this.boss.enemyName : '',
       energy: this.energy,
@@ -1055,9 +1188,11 @@ export class ArenaScene extends Phaser.Scene {
   private onResize(): void {
     const w = this.scale.width
     const h = this.scale.height
-    // Scale.RESIZE 模式会在尺寸「其实没变」时也反复派发 resize；尺寸没变就直接返回，
-    // 否则每次都重画背景（重铺天空/天气）→ 背景一直在抖。只有真变化才重铺。
-    if (w === this.W && h === this.H) return
+    // 防抖：Scale.RESIZE 会在尺寸其实没变时也反复派发 resize；尺寸没变就早退，
+    // 否则每次重画背景 → 背景一直抖。只有真变化才重铺。
+    if (w === this.lastViewW && h === this.lastViewH) return
+    this.lastViewW = w
+    this.lastViewH = h
     this.W = w
     this.H = h
     this.cameras.main.setDeadzone(this.W * 0.3, this.H)
@@ -1116,11 +1251,18 @@ export class ArenaScene extends Phaser.Scene {
       if (may && e.isLunging(now)) attacking++
     }
 
-    // BOSS 知识闸（逼近触发）。
+    // BOSS 知识闸（护盾在线 + 逼近触发）。
     this.maybeBossQuiz()
 
-    // 波次推进：当前波清空 → 下一波。
-    this.checkWaveCleared()
+    // 横版长地图推进：到刷怪点成簇刷怪、到关底刷 Boss、坑/陷阱/?块判定。
+    if (!frozen) {
+      this.maybeTriggerSpawns()
+      this.maybeSpawnBoss()
+      this.checkPits()
+      this.checkTraps()
+      this.checkQBlocks()
+      this.updateSafeX()
+    }
 
     // 节流推 HUD（每 ~150ms 一次），让剩余人数/能量/BOSS 血实时但不过频。
     if (this.time.now >= this.hudThrottleAt) {
@@ -1129,24 +1271,86 @@ export class ArenaScene extends Phaser.Scene {
     }
   }
 
-  private checkWaveCleared(): void {
-    if (!this.waveActive || this.pending || this.over) return
-    if (this.pendingSpawns > 0) return // 本波还有敌人在排队入场，不算清波
-    const alive = (this.enemies.getChildren() as Enemy[]).filter((e) => !e.dead).length
-    if (alive > 0) return
-    // 当前波已清。
-    this.waveActive = false
-    if (this.waveDefs[this.waveIndex] === -1) {
-      // BOSS 波清空但 BOSS 未死不会到这（boss 在 enemies 里）；BOSS 死走 onBossDefeated。
+  /** 记录最近的「安全 x」（脚踏实地、不在坑上）——掉坑后回到这里。 */
+  private updateSafeX(): void {
+    const body = this.hero.body as Phaser.Physics.Arcade.Body
+    const onGround = body.blocked.down || body.touching.down
+    if (!onGround) return
+    // 脚下别正好在坑沿（留点边距），否则回位又掉。
+    const overPit = this.pits.some((p) => p.real && this.hero.x > p.x - 40 && this.hero.x < p.x + p.w + 40)
+    if (!overPit) this.lastSafeX = this.hero.x
+  }
+
+  /** 掉坑判定：主角脚底越过坑沿且水平在真坑内 → 扣血 + 回到最近安全点（非死，全家向）。 */
+  private checkPits(): void {
+    if (this.hero.y <= this.groundY + 60) return // 还没掉下去多少，先不判
+    for (const p of this.pits) {
+      if (!p.real) continue
+      if (!p.contains(this.hero.x, this.hero.y, this.groundY)) continue
+      this.onFall()
       return
     }
-    // 还有下一波。
-    if (this.waveIndex + 1 < this.waveTotal) {
-      this.waveIndex += 1
-      const next = this.waveDefs[this.waveIndex]
-      this.floatText(this.hero.x, this.hero.y - 170, next === -1 ? '关底·老师来了!' : `第 ${this.waveIndex + 1} 波!`, '#ffe08a', 24)
-      this.time.delayedCall(700, () => this.spawnCurrentWave())
+  }
+
+  /** 落坑：扣血、回到最近安全 x、短无敌。HP 空才算输（不是即死）。 */
+  private onFall(): void {
+    const hurt = this.hero.takeHit(PIT_FALL_DMG, this.hero.x)
+    // 回到最近安全点（即使无敌期内也要捞回来，避免无限下坠）。
+    const body = this.hero.body as Phaser.Physics.Arcade.Body
+    this.hero.setPosition(Phaser.Math.Clamp(this.lastSafeX, 60, this.worldW - 60), this.groundY - 40)
+    body.setVelocity(0, 0)
+    this.hero.invulnUntil = Math.max(this.hero.invulnUntil, this.time.now + 900)
+    this.cameras.main.shake(160, 0.006)
+    this.cameras.main.flash(140, 120, 140, 200)
+    this.floatText(this.hero.x, this.hero.y - 150, `掉坑 -${PIT_FALL_DMG}`, '#9fd0ff', 22)
+    playSfx('hit')
+    this.combo = 0
+    this.pushHud()
+    if (hurt && this.hero.isDead()) this.lose()
+  }
+
+  /** 伪装陷阱判定：踩中 → 扣血 + 击退（非死）。 */
+  private checkTraps(): void {
+    for (const t of this.traps) {
+      if (!t.checkTrigger(this.hero.x, this.hero.y, this.groundY)) continue
+      const hurt = this.hero.takeHit(1, this.hero.x - this.hero.facing * 50)
+      this.cameras.main.shake(150, 0.007)
+      this.cameras.main.flash(120, 220, 80, 60)
+      this.floatText(this.hero.x, this.hero.y - 150, '陷阱! -1', '#ff8a5a', 22)
+      playSfx('hit')
+      this.combo = 0
       this.pushHud()
+      if (hurt && this.hero.isDead()) { this.lose(); return }
     }
+  }
+
+  /** ?块判定：主角上升时头顶撞到未顶过的 ?块 → 顶出奖励（金币=能量小 / 能量块=能量大）。 */
+  private checkQBlocks(): void {
+    const body = this.hero.body as Phaser.Physics.Arcade.Body
+    if (body.velocity.y >= -40) return // 必须在上升中（顶头）
+    const headY = this.hero.y - this.hero.displayHeight
+    for (const q of this.qBlocks) {
+      if (q.popped) continue
+      const blockBottom = this.groundY - q.h
+      if (Math.abs(this.hero.x - q.x) > 34) continue // 水平要对上
+      if (Math.abs(headY - blockBottom) > 28) continue // 头顶贴到块底
+      if (!q.pop()) continue
+      this.onQBlockPop(q.x, blockBottom, q.reward)
+      // 顶到把上冲速度卸掉（更像撞到东西）。
+      body.setVelocityY(60)
+    }
+  }
+
+  /** ?块发奖励：金币（能量小涨）/ 能量块（能量大涨）+ 弹出特效。 */
+  private onQBlockPop(x: number, y: number, reward: 'coin' | 'energy'): void {
+    const isEnergy = reward === 'energy'
+    this.gainEnergy(isEnergy ? ENERGY_PER_QENERGY : ENERGY_PER_COIN)
+    const color = isEnergy ? 0x35d6a4 : 0xffd23f
+    const icon = this.add.circle(x, y - 8, 12, color, 1).setDepth(60)
+    this.tweens.add({ targets: icon, y: y - 56, alpha: 0, duration: 560, ease: 'Quad.easeOut', onComplete: () => icon.destroy() })
+    this.spawnBurst(x, y - 8, color, 8)
+    this.floatText(x, y - 24, isEnergy ? '能量块!' : '金币 +', isEnergy ? '#7CFFB0' : '#ffd23f', 20)
+    playSfx('correct')
+    this.pushHud()
   }
 }
