@@ -15,7 +15,7 @@ import { StoryGame } from '@/games/story/StoryGame'
 import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
-import { isUnlocked } from '@/platform/access'
+import { isAdmin, isUnlocked } from '@/platform/access'
 import { UnlockGate } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
 import { WhoPlaying } from '@/platform/WhoPlaying'
@@ -59,10 +59,6 @@ export default function App() {
   const [bandId, setBandId] = useState<string>(loadBand)
 
   const band = AGE_BANDS.find((b) => b.id === bandId) ?? AGE_BANDS[0]
-  const visibleGames = useMemo(
-    () => games.filter((g) => band.id === 'all' || ageOverlaps(g.age, band.range)),
-    [band]
-  )
 
   const chooseBand = (id: string) => {
     setBandId(id)
@@ -76,6 +72,18 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>(getPlayers)
   const [playerId, setPlayerId] = useState<string>(getCurrentPlayer)
   const currentPlayer = players.find((p) => p.id === playerId)
+
+  // 大人（爸妈/管理员）能看到所有游戏；孩子只看到「自己的」私人游戏（owner），看不到兄弟姐妹的
+  const isGrownup = playerId === 'dad' || playerId === 'mom' || isAdmin()
+  const visibleGames = useMemo(
+    () =>
+      games.filter(
+        (g) =>
+          (band.id === 'all' || ageOverlaps(g.age, band.range)) &&
+          (!g.owner || isGrownup || g.owner.includes(playerId))
+      ),
+    [band, playerId, isGrownup]
+  )
 
   const choosePlayer = (id: string) => {
     setPlayerId(id)

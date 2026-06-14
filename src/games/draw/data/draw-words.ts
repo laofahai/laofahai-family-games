@@ -429,4 +429,154 @@ export const drawWords: DrawWord[] = [
   { text: '骑虎难下', hint: '成语', difficulty: 'hard' },
   { text: '过河拆桥', hint: '成语', difficulty: 'hard' },
   { text: '人山人海', hint: '成语', difficulty: 'hard' },
+
+  // ==================== 第三批补充 ====================
+  // easy · 动物
+  { text: '小鸭子', hint: '动物', difficulty: 'easy' },
+  { text: '小马', hint: '动物', difficulty: 'easy' },
+  { text: '蚂蚁', hint: '动物', difficulty: 'easy' },
+  { text: '小狗', hint: '动物', difficulty: 'easy' },
+  { text: '金鱼', hint: '动物', difficulty: 'easy' },
+  // easy · 水果
+  { text: '哈密瓜', hint: '水果', difficulty: 'easy' },
+  { text: '木瓜', hint: '水果', difficulty: 'easy' },
+  { text: '猕猴桃', hint: '水果', difficulty: 'easy' },
+  // easy · 食物
+  { text: '热狗', hint: '食物', difficulty: 'easy' },
+  { text: '果酱', hint: '食物', difficulty: 'easy' },
+  { text: '爆米花', hint: '食物', difficulty: 'easy' },
+  { text: '布丁', hint: '食物', difficulty: 'easy' },
+  // easy · 日常物品
+  { text: '碗', hint: '日常物品', difficulty: 'easy' },
+  { text: '叉子', hint: '日常物品', difficulty: 'easy' },
+  { text: '橡皮', hint: '日常物品', difficulty: 'easy' },
+  { text: '尺子', hint: '日常物品', difficulty: 'easy' },
+  { text: '枕头', hint: '日常物品', difficulty: 'easy' },
+  { text: '钱包', hint: '日常物品', difficulty: 'easy' },
+  // easy · 身体部位
+  { text: '鼻子', hint: '身体部位', difficulty: 'easy' },
+  { text: '脚', hint: '身体部位', difficulty: 'easy' },
+  { text: '牙齿', hint: '身体部位', difficulty: 'easy' },
+  { text: '头发', hint: '身体部位', difficulty: 'easy' },
+  // easy · 植物
+  { text: '荷花', hint: '植物', difficulty: 'easy' },
+  { text: '玫瑰', hint: '植物', difficulty: 'easy' },
+  { text: '竹子', hint: '植物', difficulty: 'easy' },
+  // easy · 自然
+  { text: '海浪', hint: '自然', difficulty: 'easy' },
+  { text: '池塘', hint: '自然', difficulty: 'easy' },
+  // easy · 动作
+  { text: '点头', hint: '动作', difficulty: 'easy' },
+  { text: '指路', hint: '动作', difficulty: 'easy' },
+  // easy · 交通工具
+  { text: '吊车', hint: '交通工具', difficulty: 'easy' },
+
+  // medium · 动物
+  { text: '熊', hint: '动物', difficulty: 'medium' },
+  { text: '鳄鱼', hint: '动物', difficulty: 'medium' },
+  { text: '猫咪睡觉', hint: '动物', difficulty: 'medium' },
+  { text: '小鸟筑巢', hint: '动物', difficulty: 'medium' },
+  // medium · 职业
+  { text: '建筑工人', hint: '职业', difficulty: 'medium' },
+  { text: '渔夫', hint: '职业', difficulty: 'medium' },
+  { text: '舞蹈家', hint: '职业', difficulty: 'medium' },
+  // medium · 食物
+  { text: '三明治', hint: '食物', difficulty: 'medium' },
+  { text: '煎饼', hint: '食物', difficulty: 'medium' },
+  { text: '糖醋排骨', hint: '食物', difficulty: 'medium' },
+  // medium · 日常物品
+  { text: '显微镜', hint: '日常物品', difficulty: 'medium' },
+  { text: '电脑', hint: '日常物品', difficulty: 'medium' },
+  { text: '钢琴', hint: '日常物品', difficulty: 'medium' },
+  { text: '指南针', hint: '日常物品', difficulty: 'medium' },
+  // medium · 动作
+  { text: '擦窗户', hint: '动作', difficulty: 'medium' },
+  { text: '量身高', hint: '动作', difficulty: 'medium' },
+  { text: '搭积木', hint: '动作', difficulty: 'medium' },
+  // medium · 地点
+  { text: '机场', hint: '地点', difficulty: 'medium' },
+  { text: '喷泉', hint: '地点', difficulty: 'medium' },
+  { text: '溜冰场', hint: '地点', difficulty: 'medium' },
+  // medium · 运动
+  { text: '棒球', hint: '运动', difficulty: 'medium' },
+  { text: '体操', hint: '运动', difficulty: 'medium' },
+  // medium · 交通工具
+  { text: '油轮', hint: '交通工具', difficulty: 'medium' },
+
+  // hard · 成语
+  { text: '叶公好龙', hint: '成语', difficulty: 'hard' },
+  { text: '塞翁失马', hint: '成语', difficulty: 'hard' },
+  { text: '螳螂捕蝉', hint: '成语', difficulty: 'hard' },
+  { text: '草船借箭', hint: '成语', difficulty: 'hard' },
+
+  // ==================== 第四批补充 ====================
+  // easy · 食物 / 水果（现有 easy 食物偏少）
+  { text: '棒冰', hint: '食物', difficulty: 'easy' },
+  { text: '甜筒', hint: '食物', difficulty: 'easy' },
+  { text: '果冻', hint: '食物', difficulty: 'easy' },
+  { text: '辣椒', hint: '食物', difficulty: 'easy' },
+  { text: '蓝莓', hint: '水果', difficulty: 'easy' },
+  { text: '椰子', hint: '水果', difficulty: 'easy' },
+  // easy · 日常物品
+  { text: '水壶', hint: '日常物品', difficulty: 'easy' },
+  { text: '镜子', hint: '日常物品', difficulty: 'easy' },
+  { text: '扇子', hint: '日常物品', difficulty: 'easy' },
+  { text: '围巾', hint: '日常物品', difficulty: 'easy' },
+  { text: '裙子', hint: '日常物品', difficulty: 'easy' },
+  { text: '钉子', hint: '日常物品', difficulty: 'easy' },
+  // easy · 身体部位（现有较少）
+  { text: '舌头', hint: '身体部位', difficulty: 'easy' },
+  { text: '眉毛', hint: '身体部位', difficulty: 'easy' },
+  // easy · 动物
+  { text: '蝌蚪', hint: '动物', difficulty: 'easy' },
+  { text: '麻雀', hint: '动物', difficulty: 'easy' },
+  // easy · 自然 / 植物
+  { text: '小溪', hint: '自然', difficulty: 'easy' },
+  { text: '树叶', hint: '植物', difficulty: 'easy' },
+  // easy · 动作
+  { text: '踢腿', hint: '动作', difficulty: 'easy' },
+  { text: '画画', hint: '动作', difficulty: 'easy' },
+
+  // medium · 影视动画（2026 年孩子认识、好画）
+  { text: '黑猫警长', hint: '影视动画', difficulty: 'medium' },
+  { text: '机器猫', hint: '影视动画', difficulty: 'medium' },
+  { text: '美羊羊', hint: '影视动画', difficulty: 'medium' },
+  { text: '蜡笔小新', hint: '影视动画', difficulty: 'medium' },
+  // medium · 职业
+  { text: '空姐', hint: '职业', difficulty: 'medium' },
+  { text: '护士', hint: '职业', difficulty: 'medium' },
+  { text: '司机', hint: '职业', difficulty: 'medium' },
+  // medium · 运动
+  { text: '蹦床', hint: '运动', difficulty: 'medium' },
+  { text: '骑自行车', hint: '运动', difficulty: 'medium' },
+  { text: '击剑', hint: '运动', difficulty: 'medium' },
+  // medium · 地点
+  { text: '餐厅', hint: '地点', difficulty: 'medium' },
+  { text: '寺庙', hint: '地点', difficulty: 'medium' },
+  { text: '车站', hint: '地点', difficulty: 'medium' },
+  // medium · 节日（现有偏少）
+  { text: '生日蛋糕', hint: '节日', difficulty: 'medium' },
+  { text: '舞龙', hint: '节日', difficulty: 'medium' },
+  { text: '南瓜灯', hint: '节日', difficulty: 'medium' },
+  // medium · 动物
+  { text: '蜘蛛', hint: '动物', difficulty: 'medium' },
+  { text: '海龟', hint: '动物', difficulty: 'medium' },
+  { text: '水母', hint: '动物', difficulty: 'medium' },
+  // medium · 动作
+  { text: '擦桌子', hint: '动作', difficulty: 'medium' },
+  { text: '洗碗', hint: '动作', difficulty: 'medium' },
+
+  // hard · 成语
+  { text: '抛砖引玉', hint: '成语', difficulty: 'hard' },
+  { text: '一鸣惊人', hint: '成语', difficulty: 'hard' },
+  { text: '龙争虎斗', hint: '成语', difficulty: 'hard' },
+  { text: '骑驴找驴', hint: '成语', difficulty: 'hard' },
+  // hard · 网络热词
+  { text: '盲盒', hint: '网络热词', difficulty: 'hard' },
+  { text: '剁手', hint: '网络热词', difficulty: 'hard' },
+  { text: '扫码', hint: '网络热词', difficulty: 'hard' },
+  // hard · 概念
+  { text: '充电', hint: '概念', difficulty: 'hard' },
+  { text: '排队', hint: '概念', difficulty: 'hard' },
+  { text: '搬家', hint: '概念', difficulty: 'hard' },
 ]

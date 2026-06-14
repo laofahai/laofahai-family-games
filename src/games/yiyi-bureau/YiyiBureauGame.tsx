@@ -38,7 +38,21 @@ interface State {
   checked: boolean
   lastCorrect?: boolean
   records: BureauRecord[]
+  streak: number // 当前连对
+  maxStreak: number // 本局最高连对
 }
+
+// 答对的花式鼓励（按连击升级，带点搞笑）
+function cheer(streak: number): string {
+  if (streak >= 6) return `🔥×${streak} 神挡杀神，全场跪了！`
+  if (streak === 5) return '🔥🔥🔥 五连击！你是不是开挂了'
+  if (streak === 4) return '🔥🔥 四连击！手根本停不下来'
+  if (streak === 3) return '🔥 三连击！这波很秀'
+  if (streak === 2) return '连对 2 个，手感来了 ✌️'
+  return '答对啦！'
+}
+// 答错的温柔吐槽（不打击，鼓励再来）
+const OOPS = ['哎呀，就差一点点～', '这题有点狡猾，记下它！', '没关系，下一题翻盘！', '差之毫厘，再战它！']
 
 type Action =
   | { type: 'SET_MODE'; value: BureauMode }
@@ -98,14 +112,21 @@ function reducer(state: State, action: Action): State {
         checked: false,
         lastCorrect: undefined,
         records: [],
+        streak: 0,
+        maxStreak: 0,
       }
     case 'SELECT': {
       const question = state.questions[state.index]
+      const correct = action.value === question.answer
+      // 茶水间(spark)不计连击；其余答对累加、答错清零
+      const streak = isSpark(question) ? state.streak : correct ? state.streak + 1 : 0
       return {
         ...state,
         selected: action.value,
         checked: true,
-        lastCorrect: action.value === question.answer,
+        lastCorrect: correct,
+        streak,
+        maxStreak: Math.max(state.maxStreak, streak),
       }
     }
     case 'NEXT': {
@@ -143,6 +164,8 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
     index: 0,
     checked: false,
     records: [],
+    streak: 0,
+    maxStreak: 0,
   })
   const [showHint, setShowHint] = useState(false)
   const [review, setReview] = useState(0)
@@ -272,7 +295,7 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             className="min-h-12 w-full gap-2"
           >
             <LineChart className="h-4 w-4" />
-            成长小报 · 错题本
+            我的战绩 · 再战卡
           </Button>
         </div>
       </Card>
@@ -294,6 +317,7 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
           </CardTitle>
           <CardDescription>
             完成 {correctCount} / {scored.length} 个任务，积满 {correctCount} 点行动力。
+            {state.maxStreak >= 2 && ` 最高连对 ${state.maxStreak} 个，🔥 火力全开！`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -347,7 +371,7 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             className="min-h-12 w-full gap-2"
           >
             <LineChart className="h-4 w-4" />
-            看成长小报 · 错题本
+            看我的战绩 · 再战卡
           </Button>
         </div>
       </Card>
@@ -366,8 +390,15 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
       </div>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-sm">
-            第 {state.index + 1} / {state.questions.length} 个
+          <span className="flex items-center gap-1.5">
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-sm">
+              第 {state.index + 1} / {state.questions.length} 个
+            </span>
+            {state.streak >= 2 && (
+              <span className="animate-pulse rounded-full bg-melon-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                🔥 连对 {state.streak}
+              </span>
+            )}
           </span>
           <span className={cn('rounded-full px-3 py-1 text-xs font-semibold', KIND_TONE[question.kind])}>
             {question.badge}
@@ -429,8 +460,8 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             {spark
               ? question.explanation
               : state.lastCorrect
-                ? `漂亮，任务搞定！${question.explanation}`
-                : question.explanation}
+                ? `${cheer(state.streak)} ${question.explanation}`
+                : `${OOPS[state.index % OOPS.length]} ${question.explanation}`}
           </div>
         )}
 

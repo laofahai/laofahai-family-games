@@ -637,6 +637,116 @@ export const wordBank: WordPair[] = [
 
   { id: 'animal-23', tag: '动物', words: [{ text: '蜻蜓', pinyin: 'qing ting' }, { text: '豆娘', pinyin: 'dou niang' }] },
   { id: 'animal-24', tag: '动物', words: [{ text: '猫头鹰', pinyin: 'mao tou ying' }, { text: '老鹰', pinyin: 'lao ying' }] },
+
+  { id: 'food-30', tag: '食物', words: [{ text: '粉丝', pinyin: 'fen si' }, { text: '河粉', pinyin: 'he fen' }] },
+  { id: 'food-31', tag: '食物', words: [{ text: '凉皮', pinyin: 'liang pi' }, { text: '凉粉', pinyin: 'liang fen' }] },
+  { id: 'food-32', tag: '食物', words: [{ text: '拉面', pinyin: 'la mian' }, { text: '乌冬面', pinyin: 'wu dong mian' }] },
+  { id: 'food-33', tag: '食物', words: [{ text: '馄饨', pinyin: 'hun tun' }, { text: '锅贴', pinyin: 'guo tie' }] },
+  { id: 'food-34', tag: '食物', words: [{ text: '草莓酱', pinyin: 'cao mei jiang' }, { text: '沙拉酱', pinyin: 'sha la jiang' }] },
+
+  { id: 'school-25', tag: '学校', words: [{ text: '蜡笔', pinyin: 'la bi' }, { text: '油画棒', pinyin: 'you hua bang' }] },
+  { id: 'school-26', tag: '学校', words: [{ text: '直尺', pinyin: 'zhi chi' }, { text: '三角尺', pinyin: 'san jiao chi' }] },
+  { id: 'school-27', tag: '学校', words: [{ text: '订书机', pinyin: 'ding shu ji' }, { text: '回形针', pinyin: 'hui xing zhen' }] },
+
+  { id: 'toy-21', tag: '玩具', words: [{ text: '跳棋', pinyin: 'tiao qi' }, { text: '飞行棋', pinyin: 'fei xing qi' }] },
+  { id: 'toy-22', tag: '玩具', words: [{ text: '象棋', pinyin: 'xiang qi' }, { text: '围棋', pinyin: 'wei qi' }] },
+  { id: 'toy-23', tag: '玩具', words: [{ text: '魔方', pinyin: 'mo fang' }, { text: '骰子', pinyin: 'shai zi' }] },
+  { id: 'toy-24', tag: '玩具', words: [{ text: '扑克', pinyin: 'pu ke' }, { text: '麻将', pinyin: 'ma jiang' }] },
+
+  { id: 'sport-21', tag: '运动', words: [{ text: '单杠', pinyin: 'dan gang' }, { text: '双杠', pinyin: 'shuang gang' }] },
+  { id: 'sport-22', tag: '运动', words: [{ text: '跷跷板', pinyin: 'qiao qiao ban' }, { text: '秋千', pinyin: 'qiu qian' }] },
+  { id: 'sport-23', tag: '运动', words: [{ text: '滑梯', pinyin: 'hua ti' }, { text: '蹦床', pinyin: 'beng chuang' }] },
+
+  { id: 'fruit-14', tag: '水果', words: [{ text: '石榴', pinyin: 'shi liu' }, { text: '山竹', pinyin: 'shan zhu' }] },
+  { id: 'fruit-15', tag: '水果', words: [{ text: '莲雾', pinyin: 'lian wu' }, { text: '释迦', pinyin: 'shi jia' }] },
+  { id: 'fruit-16', tag: '水果', words: [{ text: '西梅', pinyin: 'xi mei' }, { text: '蔓越莓', pinyin: 'man yue mei' }] },
+  { id: 'fruit-17', tag: '水果', words: [{ text: '牛油果', pinyin: 'niu you guo' }, { text: '番石榴', pinyin: 'fan shi liu' }] },
+
+  { id: 'veggie-12', tag: '蔬菜', words: [{ text: '苦瓜', pinyin: 'ku gua' }, { text: '西葫芦', pinyin: 'xi hu lu' }] },
+  { id: 'veggie-13', tag: '蔬菜', words: [{ text: '莴笋', pinyin: 'wo sun' }, { text: '山药', pinyin: 'shan yao' }] },
+  { id: 'veggie-14', tag: '蔬菜', words: [{ text: '西兰花', pinyin: 'xi lan hua' }, { text: '花菜', pinyin: 'hua cai' }] },
+
+  { id: 'clothes-24', tag: '服饰', words: [{ text: '围裙', pinyin: 'wei qun' }, { text: '手帕', pinyin: 'shou pa' }] },
+  { id: 'clothes-25', tag: '服饰', words: [{ text: '卫衣', pinyin: 'wei yi' }, { text: '卫裤', pinyin: 'wei ku' }] },
+  { id: 'clothes-26', tag: '服饰', words: [{ text: '棉袄', pinyin: 'mian ao' }, { text: '打底裤', pinyin: 'da di ku' }] },
+
+  { id: 'weather-21', tag: '天气', words: [{ text: '雨夹雪', pinyin: 'yu jia xue' }, { text: '沙尘暴', pinyin: 'sha chen bao' }] },
+  { id: 'weather-22', tag: '天气', words: [{ text: '朝阳', pinyin: 'zhao yang' }, { text: '夕阳', pinyin: 'xi yang' }] },
+
+  { id: 'animal-25', tag: '动物', words: [{ text: '鸵鸟', pinyin: 'tuo niao' }, { text: '火鸡', pinyin: 'huo ji' }] },
+  { id: 'animal-26', tag: '动物', words: [{ text: '海狮', pinyin: 'hai shi' }, { text: '海象', pinyin: 'hai xiang' }] },
+  { id: 'animal-27', tag: '动物', words: [{ text: '水獭', pinyin: 'shui ta' }, { text: '浣熊', pinyin: 'huan xiong' }] },
+  { id: 'animal-28', tag: '动物', words: [{ text: '壁虎', pinyin: 'bi hu' }, { text: '蜥蜴', pinyin: 'xi yi' }] },
+
+  { id: 'music-15', tag: '乐器', words: [{ text: '长号', pinyin: 'chang hao' }, { text: '圆号', pinyin: 'yuan hao' }] },
+  { id: 'music-16', tag: '乐器', words: [{ text: '唢呐', pinyin: 'suo na' }, { text: '短笛', pinyin: 'duan di' }] },
+
+  { id: 'plant-11', tag: '植物', words: [{ text: '牵牛花', pinyin: 'qian niu hua' }, { text: '喇叭花', pinyin: 'la ba hua' }] },
+  { id: 'plant-12', tag: '植物', words: [{ text: '三叶草', pinyin: 'san ye cao' }, { text: '四叶草', pinyin: 'si ye cao' }] },
+  { id: 'plant-13', tag: '植物', words: [{ text: '牡丹', pinyin: 'mu dan' }, { text: '芍药', pinyin: 'shao yao' }] },
+
+  { id: 'home-27', tag: '家庭', words: [{ text: '摇椅', pinyin: 'yao yi' }, { text: '躺椅', pinyin: 'tang yi' }] },
+  { id: 'home-28', tag: '家庭', words: [{ text: '茶几', pinyin: 'cha ji' }, { text: '餐桌', pinyin: 'can zhuo' }] },
+
+  { id: 'tool-11', tag: '工具', words: [{ text: '菜刀', pinyin: 'cai dao' }, { text: '锅铲', pinyin: 'guo chan' }] },
+  { id: 'tool-12', tag: '工具', words: [{ text: '蒸笼', pinyin: 'zheng long' }, { text: '砂锅', pinyin: 'sha guo' }] },
+
+  { id: 'home-29', tag: '家庭', words: [{ text: '拖鞋', pinyin: 'tuo xie' }, { text: '凉鞋', pinyin: 'liang xie' }] },
+  { id: 'home-30', tag: '家庭', words: [{ text: '插座', pinyin: 'cha zuo' }, { text: '开关', pinyin: 'kai guan' }] },
+  { id: 'home-31', tag: '家庭', words: [{ text: '衣架', pinyin: 'yi jia' }, { text: '晾衣绳', pinyin: 'liang yi sheng' }] },
+  { id: 'home-32', tag: '家庭', words: [{ text: '电热毯', pinyin: 'dian re tan' }, { text: '暖手宝', pinyin: 'nuan shou bao' }] },
+
+  { id: 'object-27', tag: '物品', words: [{ text: '橡皮筋', pinyin: 'xiang pi jin' }, { text: '发圈', pinyin: 'fa quan' }] },
+  { id: 'object-28', tag: '物品', words: [{ text: '订书针', pinyin: 'ding shu zhen' }, { text: '图钉', pinyin: 'tu ding' }] },
+  { id: 'object-29', tag: '物品', words: [{ text: '指甲剪', pinyin: 'zhi jia jian' }, { text: '小剪刀', pinyin: 'xiao jian dao' }] },
+  { id: 'object-30', tag: '物品', words: [{ text: '雨衣', pinyin: 'yu yi' }, { text: '斗篷', pinyin: 'dou peng' }] },
+
+  { id: 'food-35', tag: '食物', words: [{ text: '面条', pinyin: 'mian tiao' }, { text: '粉丝', pinyin: 'fen si' }] },
+  { id: 'food-36', tag: '食物', words: [{ text: '肉夹馍', pinyin: 'rou jia mo' }, { text: '汉堡', pinyin: 'han bao' }] },
+  { id: 'food-37', tag: '食物', words: [{ text: '蛋挞', pinyin: 'dan ta' }, { text: '泡芙', pinyin: 'pao fu' }] },
+  { id: 'food-38', tag: '食物', words: [{ text: '煎饼', pinyin: 'jian bing' }, { text: '可丽饼', pinyin: 'ke li bing' }] },
+
+  { id: 'fruit-18', tag: '水果', words: [{ text: '葡萄', pinyin: 'pu tao' }, { text: '荔枝', pinyin: 'li zhi' }] },
+  { id: 'fruit-19', tag: '水果', words: [{ text: '火龙果', pinyin: 'huo long guo' }, { text: '人参果', pinyin: 'ren shen guo' }] },
+
+  { id: 'veggie-15', tag: '蔬菜', words: [{ text: '土豆', pinyin: 'tu dou' }, { text: '红薯', pinyin: 'hong shu' }] },
+  { id: 'veggie-16', tag: '蔬菜', words: [{ text: '蘑菇', pinyin: 'mo gu' }, { text: '木耳', pinyin: 'mu er' }] },
+
+  { id: 'animal-29', tag: '动物', words: [{ text: '蝙蝠', pinyin: 'bian fu' }, { text: '燕子', pinyin: 'yan zi' }] },
+  { id: 'animal-30', tag: '动物', words: [{ text: '蟋蟀', pinyin: 'xi shuai' }, { text: '蚂蚱', pinyin: 'ma zha' }] },
+  { id: 'animal-31', tag: '动物', words: [{ text: '蜘蛛', pinyin: 'zhi zhu' }, { text: '螃蟹', pinyin: 'pang xie' }] },
+
+  { id: 'clothes-27', tag: '服饰', words: [{ text: '靴子', pinyin: 'xue zi' }, { text: '马丁靴', pinyin: 'ma ding xue' }] },
+  { id: 'clothes-28', tag: '服饰', words: [{ text: '帆布鞋', pinyin: 'fan bu xie' }, { text: '板鞋', pinyin: 'ban xie' }] },
+
+  { id: 'traffic-25', tag: '交通', words: [{ text: '救护车', pinyin: 'jiu hu che' }, { text: '消防车', pinyin: 'xiao fang che' }] },
+  { id: 'traffic-26', tag: '交通', words: [{ text: '热气球', pinyin: 're qi qiu' }, { text: '直升机', pinyin: 'zhi sheng ji' }] },
+
+  { id: 'nature-24', tag: '自然', words: [{ text: '钟乳石', pinyin: 'zhong ru shi' }, { text: '冰柱', pinyin: 'bing zhu' }] },
+  { id: 'nature-25', tag: '自然', words: [{ text: '沙漠', pinyin: 'sha mo' }, { text: '草地', pinyin: 'cao di' }] },
+
+  { id: 'place-21', tag: '地点', words: [{ text: '游泳池', pinyin: 'you yong chi' }, { text: '温泉', pinyin: 'wen quan' }] },
+  { id: 'place-22', tag: '地点', words: [{ text: '阁楼', pinyin: 'ge lou' }, { text: '地下室', pinyin: 'di xia shi' }] },
+
+  { id: 'toy-25', tag: '玩具', words: [{ text: '不倒翁', pinyin: 'bu dao weng' }, { text: '弹簧人', pinyin: 'tan huang ren' }] },
+  { id: 'toy-26', tag: '玩具', words: [{ text: '橡皮章', pinyin: 'xiang pi zhang' }, { text: '印泥', pinyin: 'yin ni' }] },
+
+  { id: 'sport-24', tag: '运动', words: [{ text: '攀岩', pinyin: 'pan yan' }, { text: '蹦极', pinyin: 'beng ji' }] },
+  { id: 'sport-25', tag: '运动', words: [{ text: '冲浪', pinyin: 'chong lang' }, { text: '划船', pinyin: 'hua chuan' }] },
+
+  { id: 'drink-12', tag: '饮品', words: [{ text: '酸梅汤', pinyin: 'suan mei tang' }, { text: '凉茶', pinyin: 'liang cha' }] },
+  { id: 'drink-13', tag: '饮品', words: [{ text: '热可可', pinyin: 're ke ke' }, { text: '热牛奶', pinyin: 're niu nai' }] },
+
+  { id: 'music-17', tag: '乐器', words: [{ text: '手风琴', pinyin: 'shou feng qin' }, { text: '口风琴', pinyin: 'kou feng qin' }] },
+  { id: 'music-18', tag: '乐器', words: [{ text: '编钟', pinyin: 'bian zhong' }, { text: '锣', pinyin: 'luo' }] },
+
+  { id: 'school-28', tag: '学校', words: [{ text: '量角器', pinyin: 'liang jiao qi' }, { text: '圆规', pinyin: 'yuan gui' }] },
+  { id: 'school-29', tag: '学校', words: [{ text: '荧光笔', pinyin: 'ying guang bi' }, { text: '记号笔', pinyin: 'ji hao bi' }] },
+
+  { id: 'body-23', tag: '身体', words: [{ text: '酒窝', pinyin: 'jiu wo' }, { text: '虎牙', pinyin: 'hu ya' }] },
+  { id: 'body-24', tag: '身体', words: [{ text: '锁骨', pinyin: 'suo gu' }, { text: '肋骨', pinyin: 'lei gu' }] },
+
+  { id: 'emotion-11', tag: '情绪', words: [{ text: '伤心', pinyin: 'shang xin' }, { text: '失落', pinyin: 'shi luo' }] },
 ]
 
 export const wordTags = Array.from(new Set(wordBank.map((pair) => pair.tag)))

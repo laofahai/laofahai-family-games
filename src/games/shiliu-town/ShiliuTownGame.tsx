@@ -29,7 +29,20 @@ interface State {
   checked: boolean
   lastCorrect?: boolean
   records: AnswerRecord[]
+  streak: number
+  maxStreak: number
 }
+
+// 答对的花式鼓励（按连击升级，带点搞笑）
+function cheer(streak: number): string {
+  if (streak >= 6) return `🔥×${streak} 小镇之光，无人能挡！`
+  if (streak === 5) return '🔥🔥🔥 五连对！你是小镇学霸吧'
+  if (streak === 4) return '🔥🔥 四连对！手气爆棚'
+  if (streak === 3) return '🔥 三连对！厉害了'
+  if (streak === 2) return '连对 2 题，越来越顺 ✌️'
+  return '答对啦，小镇能量 +2！'
+}
+const OOPS = ['哎呀差一点～再看一眼', '这题有点小狡猾', '没事，下题翻盘！', '再想想，你可以的']
 
 type Action =
   | { type: 'SET_MODE'; value: TownMode }
@@ -100,6 +113,8 @@ function reducer(state: State, action: Action): State {
         checked: false,
         lastCorrect: undefined,
         records: [],
+        streak: 0,
+        maxStreak: 0,
       }
     case 'TOGGLE_CLUE': {
       const next = new Set(state.selectedClues)
@@ -128,11 +143,16 @@ function reducer(state: State, action: Action): State {
     }
     case 'SELECT_ANSWER': {
       const question = state.questions[state.index]
+      const correct = isAnswerCorrect(question, action.value)
+      // 轻松一下(spark)不计连击；其余最终答对累加、答错清零
+      const streak = question.kind === 'spark' ? state.streak : correct ? state.streak + 1 : 0
       return {
         ...state,
         selectedAnswer: action.value,
         checked: true,
-        lastCorrect: isAnswerCorrect(question, action.value),
+        lastCorrect: correct,
+        streak,
+        maxStreak: Math.max(state.maxStreak, streak),
       }
     }
     case 'NEXT': {
@@ -195,6 +215,8 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
     selectedClues: new Set<string>(),
     checked: false,
     records: [],
+    streak: 0,
+    maxStreak: 0,
   })
   const [showHint, setShowHint] = useState(false)
   const [showReport, setShowReport] = useState(false)
@@ -334,7 +356,7 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
             className="min-h-12 w-full gap-2"
           >
             <LineChart className="h-4 w-4" />
-            成长小报 · 错题本
+            我的战绩 · 再战卡
           </Button>
         </div>
       </Card>
@@ -359,6 +381,7 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
           </CardTitle>
           <CardDescription>
             答对 {correctCount} / {state.records.length} 题，得到 {energy} 点小镇能量。
+            {state.maxStreak >= 2 && ` 最高连对 ${state.maxStreak} 题，🔥 太顺了！`}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -412,7 +435,7 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
             className="min-h-12 w-full gap-2"
           >
             <LineChart className="h-4 w-4" />
-            看成长小报 · 错题本
+            看我的战绩 · 再战卡
           </Button>
         </div>
       </Card>
@@ -429,8 +452,15 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
       </div>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-sm">
-            第 {state.index + 1} / {state.questions.length} 题
+          <span className="flex items-center gap-1.5">
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-600 shadow-sm">
+              第 {state.index + 1} / {state.questions.length} 题
+            </span>
+            {state.streak >= 2 && (
+              <span className="animate-pulse rounded-full bg-melon-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                🔥 连对 {state.streak}
+              </span>
+            )}
           </span>
           <span className="rounded-full bg-melon-100 px-3 py-1 text-xs font-semibold text-melon-700">
             {KIND_LABEL[question.kind]}
@@ -525,8 +555,8 @@ export function ShiliuTownGame({ onExit }: ShiliuTownGameProps) {
             <Feedback
               checked={state.checked}
               correct={state.lastCorrect}
-              success="答对了，小镇能量 +2。"
-              fail={question.explanation}
+              success={cheer(state.streak)}
+              fail={`${OOPS[state.index % OOPS.length]} ${question.explanation}`}
             />
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button

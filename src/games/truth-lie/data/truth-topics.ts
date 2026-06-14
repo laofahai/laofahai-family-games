@@ -138,4 +138,37 @@ export const truthTopics: TruthTopic[] = [
   { text: '你嘴上不承认、心里却很在意的一件事', category: 'secret', emoji: '🫥' },
   { text: '你偷偷为家里某个人做过、没邀功的事', category: 'secret', emoji: '🤐' },
   { text: '你藏在心底、想等以后再实现的小愿望', category: 'secret', emoji: '🔮' },
+
+  // ===== 第三轮追加 =====
+  // 童年回忆
+  { text: '你小时候挑食、偷偷把不爱吃的藏起来或喂给谁', category: 'childhood', emoji: '🥦' },
+  { text: '你小时候最崇拜、想长大变成的那个人', category: 'childhood', emoji: '🦸' },
+  { text: '你小时候被吓哭或被逗笑得停不下来的一次', category: 'childhood', emoji: '😭' },
+  { text: '你小时候第一次自己出门或走丢的经历', category: 'childhood', emoji: '🚶' },
+
+  // 学校与工作
+  { text: '你上学/上班时最盼着听到的那句话', category: 'schoolWork', emoji: '🔔' },
+  { text: '你蒙对答案或瞎写却歪打正着的一次', category: 'schoolWork', emoji: '🎲' },
+  { text: '你和同学/同事一起偷偷干过的「小动作」', category: 'schoolWork', emoji: '🤝' },
+
+  // 吃吃喝喝
+  { text: '你为了减肥或健康放弃过、又偷偷破戒的食物', category: 'food', emoji: '🍰' },
+  { text: '你嘴上嫌弃、身体却很诚实一直在吃的东西', category: 'food', emoji: '😏' },
+  { text: '你记忆里某个味道，一闻就想起某个人或某段时光', category: 'food', emoji: '🌰' },
+
+  // 玩乐爱好
+  { text: '你私藏的「单曲循环歌单」里有什么', category: 'fun', emoji: '🔁' },
+  { text: '你坚持了很久、别人不知道的一个小习惯', category: 'fun', emoji: '📆' },
+  { text: '你最想拥有的一项「超能力」或新技能', category: 'fun', emoji: '🦸‍♀️' },
+
+  // 糗事现场
+  { text: '你把笑话讲砸、冷场到全场安静的一次', category: 'embarrassing', emoji: '🦗' },
+  { text: '你以为没人看见、其实被全程目击的一次', category: 'embarrassing', emoji: '🎥' },
+  { text: '你和别人撞衫、撞名字或撞同款的尴尬一次', category: 'embarrassing', emoji: '👯' },
+  { text: '你嘴瓢说错话、越解释越乱的一次', category: 'embarrassing', emoji: '🫠' },
+
+  // 小心思
+  { text: '你心里偷偷给自己鼓过劲、没说出口的那句话', category: 'secret', emoji: '💪' },
+  { text: '你一直想对家里某个人说、却没说出口的话', category: 'secret', emoji: '🗣️' },
+  { text: '你独处时才会做、被看见会有点害羞的小事', category: 'secret', emoji: '🚪' },
 ]
