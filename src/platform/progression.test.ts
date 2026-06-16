@@ -93,14 +93,34 @@ describe('levelBounds — 经验条区间', () => {
     expect(b12.ceil).toBe(last + 4000) // 17000
   })
 
-  // ⚠ 已知 quirk（如实记录，未改业务代码）：Lv.13 起（level-1 >= 表长）floor 退化为 0，
-  //   而 ceil 仍按 4000 外推正确。即经验条下界在 Lv.13+ 是错的（应为 17000，实为 0）。
-  //   断言锁住「当前真实行为」，以便将来若修复 progression.ts 时该测试会提醒同步更新。
-  it('外推第二档起（Lv.13+）：ceil 正确但 floor 退化为 0（当前实现的已知行为）', () => {
+  it('外推第二档（Lv.13）：floor/ceil 均按 4000 步长正确外推 [17000, 21000)', () => {
     const last = THRESHOLDS[THRESHOLDS.length - 1] // 13000
     const b13 = levelBounds(last + 4000 + 100) // 17100 → Lv.13
     expect(b13.level).toBe(13)
-    expect(b13.ceil).toBe(last + 8000) // 21000，正确
-    expect(b13.floor).toBe(0) // 退化（理想应为 17000）—— 记录现状，非测试放水
+    expect(b13.floor).toBe(last + 4000) // 17000：当前等级起点（= Lv.12 的 ceil），不再退化为 0
+    expect(b13.ceil).toBe(last + 8000) // 21000
+    expect(b13.ceil - b13.floor).toBe(4000) // 外推步长恒为 4000
+  })
+
+  it('更高外推档（Lv.20）：floor/ceil 仍自洽 [45000, 49000)', () => {
+    const last = THRESHOLDS[THRESHOLDS.length - 1] // 13000
+    const xp = last + 4000 * 8 + 500 // 45500 → Lv.20（13000 + 8*4000 = 45000 起）
+    const b20 = levelBounds(xp)
+    expect(b20.level).toBe(20)
+    expect(b20.floor).toBe(45000)
+    expect(b20.ceil).toBe(49000)
+    expect(b20.floor).toBeLessThanOrEqual(xp)
+    expect(xp).toBeLessThan(b20.ceil)
+  })
+
+  it('Lv.13+ 全程 floor<=xp<ceil 且 floor 永不退化为 0', () => {
+    for (let xp = 17000; xp <= 60000; xp += 311) {
+      const { level, floor, ceil } = levelBounds(xp)
+      expect(level).toBe(levelForXp(xp))
+      expect(floor).toBeLessThanOrEqual(xp)
+      expect(xp).toBeLessThan(ceil)
+      expect(floor).toBeGreaterThanOrEqual(17000) // Lv.13 起点，绝不塌缩成 0
+      expect(ceil - floor).toBe(4000) // 外推区步长恒定
+    }
   })
 })

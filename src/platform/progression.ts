@@ -104,12 +104,18 @@ export function titleForLevel(level: number): string {
 /** 进入「下一级」还差的 XP 区间，供 UI 画经验条。已是外推区间时按 4000 计。 */
 export function levelBounds(xp: number): { level: number; floor: number; ceil: number } {
   const level = levelForXp(xp)
-  const floor = level - 1 < LEVEL_THRESHOLDS.length ? LEVEL_THRESHOLDS[level - 1] : 0
+  const last = LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1]
+  // floor = 当前等级起点 = 「达到该 level 所需累计 XP」= ceil(level-1)。
+  // 表内（level-1 在表内）直接查表；外推区（level-1 >= 表长，即 Lv.13+）
+  // 用与 ceil 相同的 4000 步长规则推出上一级阈值，而非塌缩成 0。
+  const floor =
+    level - 1 < LEVEL_THRESHOLDS.length
+      ? LEVEL_THRESHOLDS[level - 1]
+      : last + 4000 * (level - LEVEL_THRESHOLDS.length)
   const ceil =
     level < LEVEL_THRESHOLDS.length
       ? LEVEL_THRESHOLDS[level]
-      : LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1] +
-        4000 * (level - LEVEL_THRESHOLDS.length + 1)
+      : last + 4000 * (level - LEVEL_THRESHOLDS.length + 1)
   return { level, floor, ceil }
 }
 
