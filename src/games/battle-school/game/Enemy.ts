@@ -12,7 +12,7 @@ import Phaser from 'phaser'
 import { texKey, walkAnimKey } from './assets'
 import { Nameplate } from './Nameplate'
 
-const MOB_DISPLAY_H = 128
+const MOB_DISPLAY_H = 96 // 同学比主角矮一截（更像小孩；碰撞体也更小，更容易挤过来）
 const BOSS_DISPLAY_H = 188
 const MOB_SPEED = 90 // 小怪基础移动速度（每个体略随机）
 const BOSS_SPEED = 70
