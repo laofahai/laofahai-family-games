@@ -50,6 +50,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   isShielded = false
   /** 护盾被打掉、可挨揍的窗口结束时刻（ms，scene.time.now 域）。窗口内 meleeHit 造成真伤害。 */
   shieldDownUntil = 0
+  /**
+   * #28 老师主动招施放中（telegraph/active/recover 任一阶段）：由 ArenaScene 置位。
+   * 为 true 时本类的走位/lunge 让位——老师定身站桩，命中框/躲避判定全交给场景驱动。
+   */
+  bossBusy = false
 
   constructor(scene: Phaser.Scene, x: number, y: number, opts: EnemyOpts) {
     super(scene, x, y, texKey(opts.charKey, 'idle'))
@@ -101,6 +106,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const dist = Math.abs(dx)
     this.facing = dx >= 0 ? 1 : -1
     this.flipX = this.facing === 1 // 精灵默认朝右；面朝左侧主角时不翻
+
+    // #28：老师正在施放主动招——定身站桩（不走不扑），命中/躲避由 ArenaScene 驱动。
+    if (this.isBoss && this.bossBusy) {
+      body.setVelocityX(0)
+      this.updateAnim(now, body, false)
+      this.syncProps()
+      this.plate.update(this.x, this.y - this.displayHeight, this.hp / this.maxHp)
+      return
+    }
 
     const inLunge = now < this.lungeUntil
     if (frozen) {

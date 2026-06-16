@@ -21,6 +21,7 @@ import { Enemy } from './Enemy'
 import { FloatingQuiz } from './FloatingQuiz'
 import { themeForLevel, type Theme } from './themes'
 import { makeRng } from './rng'
+import { movesForBoss, MOVE_POOL, type TeacherMove } from './bossMoves'
 import { STAGES } from './stage/stages'
 import { resolveStage } from './stage/randomize'
 import type { ResolvedStage } from './stage/StageDef'
@@ -59,6 +60,18 @@ const QUIZ_SECONDS = 15
 const MAX_WEATHER = 80 // 天气粒子上限
 
 type Pending = { source: 'boss' | 'skill'; question: BattleQuestion; resolved: boolean }
+
+// #28 老师主动招：v1 已实现结算的效果类型（其余效果先不入选，避免空招）。
+const BOSS_MOVE_IMPL: ReadonlySet<TeacherMove['effect']> = new Set([
+  'ground-shock', // 拍桌子（跳起躲）
+  'projectile', // 粉笔头（走位躲）
+  'cone', // 唾沫横飞 / 罚跑十圈（走位躲）
+  'aoe-drop', // 作业山 / 危险实验（走开落点）
+  'root', // 出来罚站 / 全文背诵（狂点挣脱）
+])
+
+type BossPhase = 'idle' | 'telegraph' | 'active' | 'recover'
+type BossProjectile = { obj: Phaser.GameObjects.Arc; vx: number; dieAt: number; hit: boolean; dmg: number }
 
 export class ArenaScene extends Phaser.Scene {
   private cfg!: SceneConfig
@@ -114,6 +127,19 @@ export class ArenaScene extends Phaser.Scene {
   private floatingQuiz?: FloatingQuiz // 学霸大招的轻量飘浮快题（Phaser 原生）
   private quizTimer?: Phaser.Time.TimerEvent
   private bossQuizCdUntil = 0 // BOSS 答题闸冷却（避免连弹）
+  // ── #28 老师主动攻击状态机 ──────────────────────────────────────────
+  private bossMoveSet: TeacherMove[] = [] // 本 Boss 招式组（spawnBoss 时种子化选定）
+  private bossPhase: BossPhase = 'idle'
+  private bossMove?: TeacherMove // 当前招
+  private bossMoveIdx = 0 // 轮转下标
+  private bossPhaseUntil = 0 // 当前阶段截止时刻
+  private bossNextMoveAt = 0 // 下次可发招时刻（冷却闸）
+  private bossMoveObjs: Phaser.GameObjects.GameObject[] = [] // 当前招的预警视觉（收招/清场销毁）
+  private bossProjectiles: BossProjectile[] = [] // 在飞的粉笔头
+  private bossDropXs: number[] = [] // 作业山落点（telegraph 锁定）
+  private bossLockX = 0 // 罚站锁定的主角 x（telegraph 时）
+  private heroRootedUntil = 0 // 罚站：主角被钉到此刻（狂点可缩短）
+  private heroRootRing?: Phaser.GameObjects.Arc // 罚站视觉环
   private frozenUntil = 0 // hitstop：全局冻结到此刻
   private slowmoUntil = 0 // 微慢镜结束时刻（大招/重击）
   private over = false
@@ -490,6 +516,7 @@ export class ArenaScene extends Phaser.Scene {
     this.boss = undefined
     this.bossSpawned = false
     this.bossQuizCdUntil = 0
+    this.resetBossCombat() // #28：换关清掉上一关老师招式残留
     // 沿路刷怪点（已按 atX 升序）排队，主角推进到 atX 时成簇刷怪。
     this.pendingSpawnSlots = this.stage.spawns.map((s) => ({ atX: s.atX, count: s.count }))
     // 主角回到近端出生点，给一段入场无敌（避免刚进关贴脸刷怪连扣）。
@@ -551,6 +578,8 @@ export class ArenaScene extends Phaser.Scene {
     this.enemies.add(e)
     this.physics.add.collider(e, this.platforms)
     this.boss = e
+    this.resetBossCombat()
+    this.initBossMoves(def) // #28：种子化挑这位老师的主动招组
     // BOSS 出场吼。
     const taunt = def.taunts[Phaser.Math.Between(0, def.taunts.length - 1)]
     this.floatText(e.x, e.y - e.displayHeight - 30, `${def.name}：「${taunt}」`, '#ffe08a', 20)
@@ -565,6 +594,7 @@ export class ArenaScene extends Phaser.Scene {
 
   private doJump(): void {
     if (this.frozen) return
+    if (this.tryStruggle(this.time.now)) return // #28 罚站中：这下用来挣脱，不起跳
     if (this.hero.canJump()) {
       this.hero.jump()
       playSfx('jump')
@@ -573,6 +603,7 @@ export class ArenaScene extends Phaser.Scene {
 
   private doAttack(): void {
     if (this.frozen) return
+    if (this.tryStruggle(this.time.now)) return // #28 罚站中：这下用来挣脱，不出招
     const step = this.hero.startAttack()
     if (step < 0) return // 没挥出（硬直/已在攻击中）
     const move = COMBO_MOVES[step]
@@ -758,6 +789,7 @@ export class ArenaScene extends Phaser.Scene {
   //      护盾落下约 SHIELD_BREAK_MS，这段窗口内用普攻揍它扣血 → 窗口结束护盾再生、知识闸恢复。
   private maybeBossQuiz(): void {
     if (!this.boss || this.boss.dead || this.pending || this.frozen) return
+    if (this.bossPhase !== 'idle') return // #28：老师正在施放主动招，先不弹知识闸
     const now = this.time.now
     // 破盾窗口内不弹题（让玩家专心揍）；护盾在线才弹知识闸。
     if (!this.boss.isShielded) return
@@ -927,6 +959,7 @@ export class ArenaScene extends Phaser.Scene {
     this.cameras.main.flash(400, 255, 240, 180)
     this.floatText(this.hero.x, this.hero.y - 180, `${def.name}：「${def.winLine}」`, '#7CFFB0', 22)
     this.boss = undefined
+    this.resetBossCombat() // #28：清掉残留预警/弹体/罚站
     // 存档：已通过本关。
     saveLevel(this.cfg.player, this.level + 1)
     // 下一关 or 通关。
@@ -944,6 +977,349 @@ export class ArenaScene extends Phaser.Scene {
   private clearAllEnemies(): void {
     ;(this.enemies.getChildren() as Enemy[]).slice().forEach((e) => e.destroy(true))
     this.enemies.clear(true, true)
+  }
+
+  // ── #28 老师主动攻击：telegraph → active → recover 状态机 ─────────────
+  // 招式池(纯数据)在 bossMoves.ts；这里驱动节奏与命中/躲避。每招先给 ≥500ms 看得见的预警，
+  // 玩家据 move.dodge 用 跳(ground-shock)/走位(projectile·cone·aoe-drop)/狂点(root) 躲。
+  // 破盾窗口=玩家进攻回合，老师不发招。冻结/答题时整套时钟暂停（预警不被吃掉）。
+
+  /** spawnBoss 时种子化挑这位老师的招式组（只保留 v1 已实现的效果，保底 ≥2 招）。 */
+  private initBossMoves(def: BossDef): void {
+    const rng = makeRng((this.runSeed + this.level * 0x632be59b + 0x9e3779b1) >>> 0)
+    const pick = <T,>(arr: T[]): T => rng.pick(arr)
+    let set = movesForBoss({ subject: def.subject, band: this.band, pick }).filter((m) =>
+      BOSS_MOVE_IMPL.has(m.effect),
+    )
+    const want = this.band === 'low' ? 2 : 3
+    for (const m of MOVE_POOL) {
+      if (set.length >= want) break
+      if (!m.subject && BOSS_MOVE_IMPL.has(m.effect) && !set.some((s) => s.id === m.id)) set.push(m)
+    }
+    this.bossMoveSet = set
+    this.bossMoveIdx = 0
+    this.bossPhase = 'idle'
+    this.bossMove = undefined
+    this.bossNextMoveAt = this.time.now + (this.band === 'low' ? 3400 : 2400) // 出场缓冲
+  }
+
+  /** 清掉一切老师招式残留（换关/Boss死/胜负/重开调用）。 */
+  private resetBossCombat(): void {
+    this.bossPhase = 'idle'
+    this.bossMove = undefined
+    this.bossMoveSet = []
+    this.bossMoveIdx = 0
+    this.heroRootedUntil = 0
+    this.heroRootRing?.destroy()
+    this.heroRootRing = undefined
+    this.bossDropXs = []
+    this.clearBossMoveObjs()
+    for (const p of this.bossProjectiles) p.obj.destroy()
+    this.bossProjectiles = []
+    if (this.boss) this.boss.bossBusy = false
+  }
+
+  private clearBossMoveObjs(): void {
+    // 先杀掉对象身上在跑的 tween（radius/alpha，含 repeat:-1）——否则销毁后 tween 还写属性会抛错。
+    for (const o of this.bossMoveObjs) {
+      this.tweens.killTweensOf(o)
+      o.destroy()
+    }
+    this.bossMoveObjs = []
+  }
+
+  private updateBossMoves(now: number, deltaMs: number): void {
+    const boss = this.boss
+    if (!boss || boss.dead) {
+      if (this.bossPhase !== 'idle' || this.bossProjectiles.length) this.resetBossCombat()
+      return
+    }
+    // 冻结/答题：整套时钟暂停——把所有截止时刻顺延一帧，解冻后接着走。
+    if (this.pending != null || now < this.frozenUntil || this.over) {
+      this.bossPhaseUntil += deltaMs
+      this.bossNextMoveAt += deltaMs
+      if (this.heroRootedUntil > now) this.heroRootedUntil += deltaMs
+      for (const p of this.bossProjectiles) p.dieAt += deltaMs
+      return
+    }
+    this.updateBossProjectiles(now)
+    this.updateRootRing(now)
+    // 破盾窗口 = 玩家进攻回合：老师不发新招（让玩家专心揍）。
+    if (boss.isShieldDown(now)) {
+      if (this.bossPhase === 'idle') this.bossNextMoveAt = Math.max(this.bossNextMoveAt, now + 700)
+      return
+    }
+    switch (this.bossPhase) {
+      case 'idle':
+        if (now < this.bossNextMoveAt || this.bossMoveSet.length === 0) break
+        if (Math.abs(boss.x - this.hero.x) > 560) {
+          this.bossNextMoveAt = now + 350 // 太远：先逼近，稍后再判
+          break
+        }
+        this.startBossMove(now)
+        break
+      case 'telegraph':
+        if (now >= this.bossPhaseUntil) this.enterBossActive(now)
+        break
+      case 'active':
+        if (now >= this.bossPhaseUntil) this.enterBossRecover(now)
+        break
+      case 'recover':
+        if (now >= this.bossPhaseUntil) this.endBossMove(now)
+        break
+    }
+  }
+
+  private startBossMove(now: number): void {
+    const boss = this.boss!
+    const move = this.bossMoveSet[this.bossMoveIdx % this.bossMoveSet.length]
+    this.bossMoveIdx++
+    this.bossMove = move
+    this.bossPhase = 'telegraph'
+    this.bossPhaseUntil = now + move.telegraphMs
+    boss.bossBusy = true
+    // 招名预警飘字（橙）+ 起手抖动。
+    this.floatText(boss.x, boss.y - boss.displayHeight - 12, `老师·${move.label}!`, '#ffb84d', 22)
+    this.tweens.add({ targets: boss, scaleY: boss.scaleY * 1.06, duration: move.telegraphMs * 0.5, yoyo: true })
+    this.telegraphBossMove(move)
+    playSfx('tap')
+  }
+
+  /** 预警视觉：按 effect 给看得见的起手 tell（同时锁定落点/钉点）。 */
+  private telegraphBossMove(move: TeacherMove): void {
+    const boss = this.boss!
+    const gY = this.groundY - 4
+    const range = move.range ?? 220
+    if (move.effect === 'ground-shock') {
+      const ring = this.add.circle(boss.x, gY, 20, 0xff6b6b, 0.12).setDepth(30)
+      ring.setStrokeStyle(3, 0xff6b6b, 0.85)
+      this.tweens.add({ targets: ring, radius: range, duration: move.telegraphMs, ease: 'Quad.easeIn' })
+      this.bossMoveObjs.push(ring)
+    } else if (move.effect === 'cone') {
+      const midY = boss.y - boss.displayHeight * 0.5
+      const zone = this.add
+        .rectangle(boss.x + boss.facing * range * 0.5, midY, range, 64, 0xffd23f, 0.12)
+        .setDepth(30)
+      zone.setStrokeStyle(2, 0xffd23f, 0.7)
+      this.tweens.add({ targets: zone, alpha: 0.24, duration: move.telegraphMs * 0.5, yoyo: true, repeat: -1 })
+      this.bossMoveObjs.push(zone)
+    } else if (move.effect === 'aoe-drop') {
+      const n = move.count ?? 3
+      const r = move.range ?? 140
+      this.bossDropXs = []
+      for (let i = 0; i < n; i++) {
+        const mx = this.hero.x + (i - (n - 1) / 2) * (r * 1.1)
+        this.bossDropXs.push(mx)
+        const mark = this.add.circle(mx, gY, r * 0.5, 0xff8a3d, 0.12).setDepth(30)
+        mark.setStrokeStyle(3, 0xff8a3d, 0.85)
+        this.tweens.add({ targets: mark, alpha: 0.3, duration: 240, yoyo: true, repeat: -1 })
+        this.bossMoveObjs.push(mark)
+      }
+    } else if (move.effect === 'root') {
+      this.bossLockX = this.hero.x
+      const ring = this.add.circle(this.hero.x, gY, (move.range ?? 260) * 0.5, 0xb06bff, 0.1).setDepth(30)
+      ring.setStrokeStyle(3, 0xb06bff, 0.85)
+      this.tweens.add({ targets: ring, radius: 40, duration: move.telegraphMs, ease: 'Quad.easeIn' })
+      this.bossMoveObjs.push(ring)
+    } else if (move.effect === 'projectile') {
+      const dot = this.add.circle(boss.x + boss.facing * 22, boss.y - boss.displayHeight * 0.6, 5, 0xffffff, 0.95).setDepth(46)
+      this.tweens.add({ targets: dot, scale: 1.9, duration: move.telegraphMs * 0.5, yoyo: true, repeat: -1 })
+      this.bossMoveObjs.push(dot)
+    }
+  }
+
+  private enterBossActive(now: number): void {
+    const move = this.bossMove!
+    this.bossPhase = 'active'
+    this.bossPhaseUntil = now + Math.max(80, move.activeMs)
+    this.resolveBossActive(move)
+    this.clearBossMoveObjs() // 预警视觉收掉（弹体已独立存在）
+  }
+
+  /** 命中结算（单次快照）：预警阶段是反应窗口，active 起手这一刻判定是否躲过。 */
+  private resolveBossActive(move: TeacherMove): void {
+    const boss = this.boss!
+    const dmg = move.damage ?? 1
+    const heroBody = this.hero.body as Phaser.Physics.Arcade.Body
+    const airborne = !heroBody.blocked.down && !heroBody.touching.down
+    const dx = this.hero.x - boss.x
+    const range = move.range ?? 220
+    switch (move.effect) {
+      case 'ground-shock': {
+        this.shockwave(boss.x, this.groundY - 6, 0xff6b6b)
+        this.cameras.main.shake(160, 0.006)
+        playSfx('hit')
+        if (!airborne && Math.abs(dx) <= range) this.bossHitHero(dmg, boss.x) // 跳起离地可躲
+        else this.dodgeFlash()
+        break
+      }
+      case 'cone': {
+        this.spawnBurst(boss.x + boss.facing * range * 0.4, boss.y - boss.displayHeight * 0.5, 0xffd23f, 14)
+        playSfx('spit')
+        const inFront = Math.sign(dx) === boss.facing || Math.abs(dx) < 40
+        if (inFront && Math.abs(dx) <= range) this.bossHitHero(dmg, boss.x) // 走位/退出扇区可躲
+        else this.dodgeFlash()
+        break
+      }
+      case 'aoe-drop': {
+        const r = (move.range ?? 140) * 0.6
+        let hit = false
+        for (const mx of this.bossDropXs) {
+          this.dropBurst(mx)
+          if (Math.abs(this.hero.x - mx) <= r) hit = true
+        }
+        this.cameras.main.shake(180, 0.006)
+        playSfx('hit')
+        if (hit) this.bossHitHero(dmg, this.hero.x) // 走开落点可躲
+        else this.dodgeFlash()
+        break
+      }
+      case 'root': {
+        if (Math.abs(this.hero.x - this.bossLockX) <= (move.range ?? 260) * 0.5) {
+          this.applyRoot(this.time.now, move.durationMs ?? 1400)
+        } else this.dodgeFlash()
+        break
+      }
+      case 'projectile': {
+        this.fireBossProjectiles(move)
+        break
+      }
+    }
+  }
+
+  private enterBossRecover(now: number): void {
+    const move = this.bossMove!
+    this.bossPhase = 'recover'
+    this.bossPhaseUntil = now + Math.max(120, move.recoverMs)
+    const boss = this.boss
+    if (boss) this.tweens.add({ targets: boss, scaleY: boss.scaleY * 0.96, duration: 120, yoyo: true })
+  }
+
+  private endBossMove(now: number): void {
+    this.bossPhase = 'idle'
+    this.bossMove = undefined
+    this.clearBossMoveObjs()
+    if (this.boss) this.boss.bossBusy = false
+    const cd = this.band === 'low' ? Phaser.Math.Between(3000, 4200) : Phaser.Math.Between(2000, 3200)
+    this.bossNextMoveAt = now + cd
+  }
+
+  /** 老师命中主角（断连击 + 红闪抖屏 + 扣血；无敌期内不结算）。 */
+  private bossHitHero(dmg: number, fromX: number): void {
+    const hurt = this.hero.takeHit(dmg, fromX)
+    if (!hurt) return
+    this.combo = 0
+    this.hitstop(70)
+    this.cameras.main.shake(150, 0.007)
+    this.cameras.main.flash(120, 255, 80, 80)
+    this.floatText(this.hero.x, this.hero.y - 150, `-${dmg}`, '#ff6b6b', 22)
+    playSfx('hit')
+    this.pushHud()
+    if (this.hero.isDead()) this.lose()
+  }
+
+  private dodgeFlash(): void {
+    this.floatText(this.hero.x, this.hero.y - this.hero.displayHeight - 20, '躲过!', '#9fe0ff', 18)
+  }
+
+  /** 作业/教具从头顶砸到地面的视觉（aoe-drop）。 */
+  private dropBurst(x: number): void {
+    const o = this.add.rectangle(x, this.groundY - 230, 26, 22, 0xff8a3d, 0.95).setDepth(60)
+    this.tweens.add({
+      targets: o,
+      y: this.groundY - 12,
+      duration: 200,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.spawnBurst(x, this.groundY - 14, 0xff8a3d, 8)
+        o.destroy()
+      },
+    })
+  }
+
+  private applyRoot(now: number, durationMs: number): void {
+    this.heroRootedUntil = now + durationMs
+    this.heroRootRing?.destroy()
+    const ring = this.add.circle(this.hero.x, this.groundY - 4, 44, 0xb06bff, 0).setDepth(47)
+    ring.setStrokeStyle(4, 0xc89bff, 0.9)
+    this.heroRootRing = ring
+    this.floatText(this.hero.x, this.hero.y - this.hero.displayHeight - 16, '罚站! 狂点挣脱', '#c89bff', 20)
+    playSfx('hit')
+  }
+
+  private updateRootRing(now: number): void {
+    const ring = this.heroRootRing
+    if (!ring) return
+    if (now >= this.heroRootedUntil) {
+      ring.destroy()
+      this.heroRootRing = undefined
+      return
+    }
+    ring.setPosition(this.hero.x, this.groundY - 4)
+    ring.setScale(Phaser.Math.Clamp((this.heroRootedUntil - now) / 1400, 0.2, 1))
+  }
+
+  /** 罚站中：每次按 跳/巴掌 都算挣扎（缩短定身、不执行该动作）。返回是否消耗了这次输入。 */
+  private tryStruggle(now: number): boolean {
+    if (now >= this.heroRootedUntil) return false
+    this.heroRootedUntil -= 320
+    this.spawnBurst(this.hero.x, this.hero.y - this.hero.displayHeight * 0.5, 0xc89bff, 4)
+    if (now >= this.heroRootedUntil) {
+      this.heroRootedUntil = 0
+      this.heroRootRing?.destroy()
+      this.heroRootRing = undefined
+      this.floatText(this.hero.x, this.hero.y - this.hero.displayHeight - 16, '挣脱!', '#9fe0ff', 18)
+    }
+    return true
+  }
+
+  private fireBossProjectiles(move: TeacherMove): void {
+    const boss = this.boss!
+    const n = move.count ?? 1
+    const speed = move.projectileSpeed ?? 520
+    const range = move.range ?? 900
+    const life = (range / speed) * 1000
+    const oy = boss.y - boss.displayHeight * 0.6
+    for (let i = 0; i < n; i++) {
+      this.time.delayedCall(i * 130, () => {
+        if (!this.boss || this.boss.dead) return
+        const b = this.boss
+        const dir = this.hero.x >= b.x ? 1 : -1
+        const p = this.add.circle(b.x + dir * 22, oy, 7, 0xffffff, 1).setDepth(60)
+        p.setStrokeStyle(2, 0xcfd8e3, 1)
+        this.bossProjectiles.push({ obj: p, vx: dir * speed, dieAt: this.time.now + life, hit: false, dmg: move.damage ?? 1 })
+        playSfx('jump')
+      })
+    }
+  }
+
+  private updateBossProjectiles(now: number): void {
+    if (this.bossProjectiles.length === 0) return
+    const dt = 1 / 60
+    const remain: BossProjectile[] = []
+    for (const pr of this.bossProjectiles) {
+      if (pr.hit || now >= pr.dieAt) {
+        pr.obj.destroy()
+        continue
+      }
+      pr.obj.x += pr.vx * dt
+      const hx = this.hero.x
+      const hy = this.hero.y - this.hero.displayHeight * 0.5
+      if (Math.abs(pr.obj.x - hx) < 26 && Math.abs(pr.obj.y - hy) < this.hero.displayHeight * 0.55) {
+        pr.hit = true
+        this.spawnBurst(pr.obj.x, pr.obj.y, 0xffffff, 8)
+        this.bossHitHero(pr.dmg, pr.obj.x)
+        pr.obj.destroy()
+        continue
+      }
+      const cam = this.cameras.main
+      if (pr.obj.x < cam.scrollX - 60 || pr.obj.x > cam.scrollX + this.W + 60) {
+        pr.obj.destroy()
+        continue
+      }
+      remain.push(pr)
+    }
+    this.bossProjectiles = remain
   }
 
   // ── 胜负 ─────────────────────────────────────────────────────────────
@@ -969,6 +1345,7 @@ export class ArenaScene extends Phaser.Scene {
     this.floatingQuiz = undefined
     this.restoreTimeScale()
     this.slowmoUntil = 0
+    this.resetBossCombat() // #28：胜负收尾清掉老师招式残留
     if (this.pending) {
       this.pending = null
       this.quizTimer?.remove()
@@ -1232,6 +1609,8 @@ export class ArenaScene extends Phaser.Scene {
     } else {
       dir = 0
     }
+    // #28 罚站：被钉住时走不动（狂点 J/巴掌 挣脱，见 tryStruggle）。
+    if (this.time.now < this.heroRootedUntil) dir = 0
     this.hero.drive(dir, frozen)
 
     // 敌人 AI。限制「同时围攻人数」：场上正在 lunge 的 + 本帧新批准的 ≤ MAX_ATTACKERS，
@@ -1251,6 +1630,8 @@ export class ArenaScene extends Phaser.Scene {
       if (may && e.isLunging(now)) attacking++
     }
 
+    // #28 老师主动招状态机（telegraph→active→recover）。先于知识闸，发招期间不弹题。
+    this.updateBossMoves(now, delta)
     // BOSS 知识闸（护盾在线 + 逼近触发）。
     this.maybeBossQuiz()
 
