@@ -59,15 +59,22 @@ const ENERGY_PER_QENERGY = 0.4 // ?块能量块涨能量
 const QUIZ_SECONDS = 15
 const MAX_WEATHER = 80 // 天气粒子上限
 
-type Pending = { source: 'boss' | 'skill'; question: BattleQuestion; resolved: boolean }
+// 答题来源：boss=破盾知识闸 / skill=学霸大招 / rollcall=老师「我点名了」主动招（答错挨罚）。
+type Pending = { source: 'boss' | 'skill' | 'rollcall'; question: BattleQuestion; resolved: boolean; dmg?: number }
 
-// #28 老师主动招：v1 已实现结算的效果类型（其余效果先不入选，避免空招）。
+// #28 老师主动招：已实现结算的效果类型（未列入的先不入选，避免空招）。
+// v1：ground-shock/projectile/cone/aoe-drop/root；v2 增 forced-quiz/disable-skill/gaze-stun/enrage。
+// （damage-down「最差的一届」暂缓：近战仅 1 点，整数砍半无意义。）
 const BOSS_MOVE_IMPL: ReadonlySet<TeacherMove['effect']> = new Set([
   'ground-shock', // 拍桌子（跳起躲）
   'projectile', // 粉笔头（走位躲）
   'cone', // 唾沫横飞 / 罚跑十圈（走位躲）
   'aoe-drop', // 作业山 / 危险实验（走开落点）
   'root', // 出来罚站 / 全文背诵（狂点挣脱）
+  'forced-quiz', // 我点名了 / 随堂测验 / 听写单词（答对免罚，答错/超时挨罚）
+  'disable-skill', // 没收（暂封大招）
+  'gaze-stun', // 眼神杀（短定身，预警时走出视线锥可躲）
+  'enrage', // 拖堂（老师自我狂暴：出招更密 + 红色杀气）
 ])
 
 type BossPhase = 'idle' | 'telegraph' | 'active' | 'recover'
@@ -140,6 +147,10 @@ export class ArenaScene extends Phaser.Scene {
   private bossLockX = 0 // 罚站锁定的主角 x（telegraph 时）
   private heroRootedUntil = 0 // 罚站：主角被钉到此刻（狂点可缩短）
   private heroRootRing?: Phaser.GameObjects.Arc // 罚站视觉环
+  private heroStunUntil = 0 // 眼神杀：主角被定身到此刻（不可挣脱，短时自动解除）
+  private heroSkillDisabledUntil = 0 // 没收：大招被封到此刻
+  private bossEnrageUntil = 0 // 拖堂：老师狂暴（出招更密 + 红色杀气）到此刻
+  private bossEnrageTinted = false // 拖堂红 tint 当前是否挂着（到点恢复一次）
   private frozenUntil = 0 // hitstop：全局冻结到此刻
   private slowmoUntil = 0 // 微慢镜结束时刻（大招/重击）
   private over = false
@@ -594,6 +605,7 @@ export class ArenaScene extends Phaser.Scene {
 
   private doJump(): void {
     if (this.frozen) return
+    if (this.time.now < this.heroStunUntil) return // #28 眼神杀：定住，动不了
     if (this.tryStruggle(this.time.now)) return // #28 罚站中：这下用来挣脱，不起跳
     if (this.hero.canJump()) {
       this.hero.jump()
@@ -603,6 +615,7 @@ export class ArenaScene extends Phaser.Scene {
 
   private doAttack(): void {
     if (this.frozen) return
+    if (this.time.now < this.heroStunUntil) return // #28 眼神杀：定住，出不了招
     if (this.tryStruggle(this.time.now)) return // #28 罚站中：这下用来挣脱，不出招
     const step = this.hero.startAttack()
     if (step < 0) return // 没挥出（硬直/已在攻击中）
@@ -620,6 +633,11 @@ export class ArenaScene extends Phaser.Scene {
 
   private doSkill(): void {
     if (this.frozen) return
+    if (this.time.now < this.heroStunUntil) return // #28 眼神杀：定住，放不了大招
+    if (this.time.now < this.heroSkillDisabledUntil) {
+      this.floatText(this.hero.x, this.hero.y - 150, '技能被没收了!', '#c89bff', 18) // #28 没收
+      return
+    }
     if (this.energy < 1) {
       this.floatText(this.hero.x, this.hero.y - 150, '能量不足', '#9aa6b2', 18)
       return
@@ -834,7 +852,8 @@ export class ArenaScene extends Phaser.Scene {
     this.bridge.emit('quiz:close', undefined)
 
     const correct = choiceId != null && choiceId === p.question.answer
-    this.resolveBossQuiz(correct)
+    if (p.source === 'rollcall') this.resolveRollCall(correct, p.dmg ?? 2) // #28 老师点名
+    else this.resolveBossQuiz(correct)
     this.pushHud()
   }
 
@@ -1012,6 +1031,11 @@ export class ArenaScene extends Phaser.Scene {
     this.heroRootedUntil = 0
     this.heroRootRing?.destroy()
     this.heroRootRing = undefined
+    this.heroStunUntil = 0
+    this.heroSkillDisabledUntil = 0
+    this.bossEnrageUntil = 0
+    if (this.bossEnrageTinted && this.boss && !this.boss.dead) this.boss.clearTint()
+    this.bossEnrageTinted = false
     this.bossDropXs = []
     this.clearBossMoveObjs()
     for (const p of this.bossProjectiles) p.obj.destroy()
@@ -1044,6 +1068,9 @@ export class ArenaScene extends Phaser.Scene {
     }
     this.updateBossProjectiles(now)
     this.updateRootRing(now)
+    // 拖堂杀气：狂暴期维持红 tint（受击红闪后重新染上）；到点恢复一次。
+    if (this.bossEnrageUntil > now) { boss.setTint(0xff7a7a); this.bossEnrageTinted = true }
+    else if (this.bossEnrageTinted) { boss.clearTint(); this.bossEnrageTinted = false }
     // 破盾窗口 = 玩家进攻回合：老师不发新招（让玩家专心揍）。
     if (boss.isShieldDown(now)) {
       if (this.bossPhase === 'idle') this.bossNextMoveAt = Math.max(this.bossNextMoveAt, now + 700)
@@ -1125,7 +1152,17 @@ export class ArenaScene extends Phaser.Scene {
       const dot = this.add.circle(boss.x + boss.facing * 22, boss.y - boss.displayHeight * 0.6, 5, 0xffffff, 0.95).setDepth(46)
       this.tweens.add({ targets: dot, scale: 1.9, duration: move.telegraphMs * 0.5, yoyo: true, repeat: -1 })
       this.bossMoveObjs.push(dot)
+    } else if (move.effect === 'gaze-stun') {
+      // 视线锥预警（紫，朝主角方向）——预警期走出锥/绕背可躲。
+      const midY = boss.y - boss.displayHeight * 0.62
+      const zone = this.add
+        .rectangle(boss.x + boss.facing * range * 0.5, midY, range, 40, 0xb06bff, 0.1)
+        .setDepth(30)
+      zone.setStrokeStyle(2, 0xc89bff, 0.7)
+      this.tweens.add({ targets: zone, alpha: 0.26, duration: move.telegraphMs * 0.5, yoyo: true, repeat: -1 })
+      this.bossMoveObjs.push(zone)
     }
+    // forced-quiz / disable-skill / enrage 无定位躲避：以招名飘字 + 起手抖动为预警（见 startBossMove）。
   }
 
   private enterBossActive(now: number): void {
@@ -1184,6 +1221,44 @@ export class ArenaScene extends Phaser.Scene {
         this.fireBossProjectiles(move)
         break
       }
+      case 'gaze-stun': {
+        // 眼神杀：预警时走出视线锥（背身/离开范围）可躲；命中则短定身（不可挣脱、自动解除）。
+        this.spawnBurst(boss.x + boss.facing * range * 0.5, boss.y - boss.displayHeight * 0.55, 0xb06bff, 10)
+        playSfx('tap')
+        const inFront = Math.sign(dx) === boss.facing || Math.abs(dx) < 40
+        if (inFront && Math.abs(dx) <= range) {
+          const ms = move.durationMs ?? 900
+          this.heroStunUntil = this.time.now + ms
+          this.floatText(this.hero.x, this.hero.y - this.hero.displayHeight - 16, '眼神杀! 定住', '#c89bff', 20)
+          this.hero.setTint(0xc89bff)
+          this.time.delayedCall(ms, () => { if (!this.over) this.hero.clearTint() })
+        } else this.dodgeFlash()
+        break
+      }
+      case 'forced-quiz': {
+        this.startRollCall(move) // 我点名了/随堂测验/听写：弹题，答对免罚、答错/超时挨罚
+        break
+      }
+      case 'disable-skill': {
+        // 没收：在范围内则暂封大招（预警时走远可躲）。
+        if (Math.abs(dx) <= range) {
+          this.heroSkillDisabledUntil = this.time.now + (move.durationMs ?? 5000)
+          this.floatText(this.hero.x, this.hero.y - this.hero.displayHeight - 16, '没收! 大招暂封', '#c89bff', 20)
+          this.spawnBurst(this.hero.x, this.hero.y - this.hero.displayHeight * 0.5, 0xc89bff, 10)
+          playSfx('tap')
+          this.pushHud()
+        } else this.dodgeFlash()
+        break
+      }
+      case 'enrage': {
+        // 拖堂：老师自我狂暴（出招更密 + 红色杀气），无直接命中。
+        this.bossEnrageUntil = this.time.now + (move.durationMs ?? 7000)
+        this.floatText(boss.x, boss.y - boss.displayHeight - 12, '拖堂! 老师变凶', '#ff6b6b', 22)
+        this.shockwave(boss.x, boss.y - boss.displayHeight * 0.5, 0xff6b6b)
+        this.cameras.main.shake(160, 0.006)
+        playSfx('skill')
+        break
+      }
     }
   }
 
@@ -1200,7 +1275,8 @@ export class ArenaScene extends Phaser.Scene {
     this.bossMove = undefined
     this.clearBossMoveObjs()
     if (this.boss) this.boss.bossBusy = false
-    const cd = this.band === 'low' ? Phaser.Math.Between(3000, 4200) : Phaser.Math.Between(2000, 3200)
+    let cd = this.band === 'low' ? Phaser.Math.Between(3000, 4200) : Phaser.Math.Between(2000, 3200)
+    if (now < this.bossEnrageUntil) cd = Math.round(cd * 0.55) // 拖堂：出招更密
     this.bossNextMoveAt = now + cd
   }
 
@@ -1320,6 +1396,44 @@ export class ArenaScene extends Phaser.Scene {
       remain.push(pr)
     }
     this.bossProjectiles = remain
+  }
+
+  /** #28 我点名了：弹一道知识题（React 卡片）。答对免罚、答错/超时挨罚（move.damage）。 */
+  private startRollCall(move: TeacherMove): void {
+    const def = this.bosses[this.level]
+    const q = drawBySubject(def.subject, this.band, 1)[0] ?? drawQuestions({ band: this.band, count: 1 })[0]
+    if (!q) return // 没题就跳过，不卡
+    this.pending = { source: 'rollcall', question: q, resolved: false, dmg: move.damage ?? 2 }
+    this.clearMovementInput()
+    this.hero.drive(0, true)
+    this.bridge.emit('quiz:open', {
+      question: q,
+      source: 'boss',
+      seconds: QUIZ_SECONDS,
+      subjectLabel: subjectLabel(q.subject),
+    })
+    this.floatText(this.hero.x, this.hero.y - 170, '点名! 答对免罚', '#ffd23f', 20)
+    playSfx('tap')
+    this.quizTimer?.remove()
+    this.quizTimer = this.time.delayedCall(QUIZ_SECONDS * 1000, () => this.resolveQuiz(null))
+    this.pushHud()
+  }
+
+  private resolveRollCall(correct: boolean, dmg: number): void {
+    if (correct) {
+      this.floatText(this.hero.x, this.hero.y - 160, '答对·免罚!', '#7CFFB0', 22)
+      playSfx('correct')
+      this.gainEnergy(0.15) // 答对小奖励
+      this.bossPhaseUntil = Math.max(this.bossPhaseUntil, this.time.now + 500) // 老师愣一下露破绽
+    } else {
+      const boss = this.boss
+      const hurt = this.hero.takeHit(dmg, boss ? boss.x : this.hero.x)
+      this.cameras.main.shake(160, 0.008)
+      this.cameras.main.flash(140, 255, 80, 80)
+      this.floatText(this.hero.x, this.hero.y - 150, `点名挨罚 -${dmg}`, '#ff6b6b', 22)
+      playSfx('wrong')
+      if (hurt && this.hero.isDead()) this.lose()
+    }
   }
 
   // ── 胜负 ─────────────────────────────────────────────────────────────
@@ -1609,8 +1723,8 @@ export class ArenaScene extends Phaser.Scene {
     } else {
       dir = 0
     }
-    // #28 罚站：被钉住时走不动（狂点 J/巴掌 挣脱，见 tryStruggle）。
-    if (this.time.now < this.heroRootedUntil) dir = 0
+    // #28 罚站(狂点挣脱)/眼神杀(短定身)：被定住时走不动。
+    if (this.time.now < this.heroRootedUntil || this.time.now < this.heroStunUntil) dir = 0
     this.hero.drive(dir, frozen)
 
     // 敌人 AI。限制「同时围攻人数」：场上正在 lunge 的 + 本帧新批准的 ≤ MAX_ATTACKERS，
