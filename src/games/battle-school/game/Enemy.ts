@@ -11,6 +11,7 @@
 import Phaser from 'phaser'
 import { texKey, walkAnimKey } from './assets'
 import { Nameplate } from './Nameplate'
+import { tintForName } from './tint'
 
 const MOB_DISPLAY_H = 96 // 同学比主角矮一截（更像小孩；碰撞体也更小，更容易挤过来）
 const BOSS_DISPLAY_H = 188
@@ -39,6 +40,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   dead = false
   plate: Nameplate
   private speed: number
+  /** #27 小怪「按名字着色」的固定基色（同名同色）：受击红闪后恢复到它而非清空。boss 不上名字 tint。 */
+  private baseTint?: number
   private nextAttackAt = 0
   private lungeUntil = 0 // lunge 攻击命中窗口结束
   private hurtUntil = 0
@@ -91,6 +94,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       this.shield = scene.add.circle(x, y - displayH * 0.5, displayH * 0.62, 0x7cc0ff, 0.14).setDepth(44)
       this.shield.setStrokeStyle(3, 0x9fd0ff, 0.5)
       this.isShielded = true // BOSS 出场即带学霸护盾（免疫近战，答对题才破）
+    } else {
+      // #27 小怪按名字上一层柔和 tint：同款精灵也能一眼区分（同名同色、异名散开）。
+      // boss 不上名字 tint（靠皇冠/护盾区分，保持原貌）。
+      this.baseTint = tintForName(opts.name)
+      this.setTint(this.baseTint)
     }
   }
 
@@ -266,7 +274,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.hurtUntil = now + 240
     this.lungeUntil = 0 // 打断它的攻击
     this.setTint(0xff5a5a)
-    this.scene.time.delayedCall(220, () => { if (!this.dead) this.clearTint() })
+    // 红闪恢复：小怪回到名字基色，boss 仍清空（无名字 tint）。
+    this.scene.time.delayedCall(220, () => {
+      if (this.dead) return
+      if (this.baseTint != null) this.setTint(this.baseTint)
+      else this.clearTint()
+    })
     // 击退（BOSS 较沉；招式可覆盖力度/上挑）。
     const dir = this.x < fromX ? -1 : 1
     const kbX = kb ?? (this.isBoss ? 120 : 320)
