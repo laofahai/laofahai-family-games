@@ -65,6 +65,8 @@ export interface BattleQuestion {
   choices: { id: string; text: string }[]
   answer: string // 正确选项的 id
   explanation?: string
+  /** 难度档（新批题库带）：quick=简单快速（杂兵用）/ deep=较难需思考（Boss用）。旧题可能没有。 */
+  difficulty?: 'quick' | 'deep'
 }
 
 /** 学科 → 给人看的中文名 + 图标，UI 复用。 */
