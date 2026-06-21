@@ -29,6 +29,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true)
   const [inviteName, setInviteName] = useState('')
   const [copied, setCopied] = useState('')
+  const [err, setErr] = useState('')
 
   const refresh = async () => {
     if (!admin) return
@@ -48,22 +49,42 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   }
 
   const resetCode = async (p: ProfileRow) => {
-    if (!admin || busy) return
+    if (busy) return
+    if (!admin) {
+      setErr('这台设备不是管理员，无法操作')
+      return
+    }
     if (!window.confirm(`把「${p.name}」的个人码换一个新的？旧码立刻失效。`)) return
     setBusy(true)
-    const next = numericCode()
-    await adminResetProfileCode(admin, p.id, next)
-    await refresh()
-    setBusy(false)
+    setErr('')
+    try {
+      const ok = await adminResetProfileCode(admin, p.id, numericCode())
+      if (!ok) setErr('换码失败，请检查网络后重试')
+      await refresh()
+    } catch {
+      setErr('换码失败，请重试')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const deleteProfile = async (p: ProfileRow) => {
-    if (!admin || busy) return
+    if (busy) return
+    if (!admin) {
+      setErr('这台设备不是管理员，无法操作')
+      return
+    }
     if (!window.confirm(`删除「${p.name}」？TA 的进度、错题本、勋章都会一起清掉，且不可恢复。`)) return
     setBusy(true)
-    await adminDeleteProfile(admin, p.id)
-    await refresh()
-    setBusy(false)
+    setErr('')
+    try {
+      await adminDeleteProfile(admin, p.id)
+      await refresh()
+    } catch {
+      setErr('删除失败，请重试')
+    } finally {
+      setBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -72,20 +93,48 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   }, [])
 
   const mintInvite = async () => {
-    if (!admin || busy) return
+    if (busy) return
+    if (!admin) {
+      setErr('这台设备不是管理员，无法发码。请在解锁页用管理码登录。')
+      return
+    }
     setBusy(true)
-    await mintCode(admin, numericCode(), inviteName.trim() || '邀请码', false)
-    setInviteName('')
-    await refresh()
-    setBusy(false)
+    setErr('')
+    try {
+      const ok = await mintCode(admin, numericCode(), inviteName.trim() || '邀请码', false)
+      if (!ok) {
+        setErr('生成失败，请检查网络后重试')
+        return
+      }
+      setInviteName('')
+      await refresh()
+    } catch {
+      setErr('生成失败，请重试')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const mintAdmin = async () => {
-    if (!admin || busy) return
+    if (busy) return
+    if (!admin) {
+      setErr('这台设备不是管理员，无法发码。请在解锁页用管理码登录。')
+      return
+    }
     setBusy(true)
-    await mintCode(admin, numericCode(), '管理员', true)
-    await refresh()
-    setBusy(false)
+    setErr('')
+    try {
+      const ok = await mintCode(admin, numericCode(), '管理员', true)
+      if (!ok) {
+        setErr('生成失败，请检查网络后重试')
+        return
+      }
+      await refresh()
+    } catch {
+      setErr('生成失败，请重试')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const toggle = async (code: string, revoked: boolean) => {
@@ -127,6 +176,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
           <Button onClick={mintAdmin} disabled={busy} variant="outline" className="min-h-11 w-full text-sm">
             生成管理员码
           </Button>
+          {err && <p className="text-xs text-rose-500">{err}</p>}
         </div>
 
         <div className="mt-4 space-y-2">

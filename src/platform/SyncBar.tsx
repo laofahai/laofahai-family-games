@@ -28,25 +28,31 @@ export function SyncBar({ playerId }: { playerId: string }) {
 
   const connect = async (raw: string) => {
     const c = raw.replace(/\D/g, '')
-    if (c.length < 4 || busy || !player) {
-      if (c.length < 4) setErr('个人码至少 4 位数字')
+    if (c.length < 4) {
+      setErr('个人码至少 4 位数字')
       return
     }
+    if (busy) return
     setBusy(true)
     setErr('')
-    const id = await claimProfile(c, player.name, player.emoji, player.kind)
-    if (!id) {
-      setErr('连不上，检查网络或换个码再试')
+    // 兜底身份信息：即使一时取不到 player（列表没加载好）也能发码，绝不静默无反应
+    try {
+      const id = await claimProfile(c, player?.name ?? name, player?.emoji ?? '🙂', player?.kind ?? 'guest')
+      if (!id) {
+        setErr('连不上，检查网络或换个码再试')
+        return
+      }
+      setSyncCode(c, playerId)
+      await hydratePlayer(playerId) // 云 → 本地
+      await pushAllLocal(playerId) // 本地 → 云（两边都成并集）
+      setInput('')
+      setOpen(false)
+      refresh()
+    } catch {
+      setErr('出错了，请重试')
+    } finally {
       setBusy(false)
-      return
     }
-    setSyncCode(c, playerId)
-    await hydratePlayer(playerId) // 云 → 本地
-    await pushAllLocal(playerId) // 本地 → 云（两边都成并集）
-    setBusy(false)
-    setInput('')
-    setOpen(false)
-    refresh()
   }
 
   const disconnect = () => {
