@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Check, Eye, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { DrawWord } from '../types'
+import type { DrawSettings, DrawWord } from '../types'
 import { useCountdown } from '../hooks/useCountdown'
 import { DrawCanvas } from '../components/DrawCanvas'
 import { cn } from '@/lib/utils'
@@ -9,12 +9,13 @@ import { cn } from '@/lib/utils'
 interface DrawingStageProps {
   word: DrawWord
   durationSec: number
+  settings: DrawSettings
   onGuessed: () => void
   onGiveUp: () => void
   onTimeout: () => void
 }
 
-export function DrawingStage({ word, durationSec, onGuessed, onGiveUp, onTimeout }: DrawingStageProps) {
+export function DrawingStage({ word, durationSec, settings, onGuessed, onGiveUp, onTimeout }: DrawingStageProps) {
   const [peeking, setPeeking] = useState(false)
   const { secondsLeft, progress } = useCountdown({
     durationSec,
@@ -26,9 +27,15 @@ export function DrawingStage({ word, durationSec, onGuessed, onGiveUp, onTimeout
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-ink-100/70 bg-white/80 p-3">
-        <span className="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700">
-          提示：{word.hint}
-        </span>
+        {settings.showCategory ? (
+          <span className="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700">
+            提示：{word.hint}
+          </span>
+        ) : (
+          <span className="rounded-full bg-ink-100/60 px-3 py-1 text-xs font-medium text-ink-400">
+            🙈 类别已隐藏
+          </span>
+        )}
         <div className="flex items-center gap-3">
           <button
             type="button"

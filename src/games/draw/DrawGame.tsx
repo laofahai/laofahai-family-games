@@ -1,5 +1,6 @@
 import { useReducer, useState } from 'react'
-import type { DrawDifficulty, DrawWord, Duration, RoundOutcome, RoundRecord, Stage } from './types'
+import type { DrawDifficulty, DrawSettings, DrawWord, Duration, RoundOutcome, RoundRecord, Stage } from './types'
+import { DEFAULT_DRAW_SETTINGS } from './types'
 import { roomsAvailable } from '@/platform/rooms'
 import { pickWord } from './utils/pickWord'
 import { DrawRemote } from './DrawRemote'
@@ -18,6 +19,7 @@ interface State {
   stage: Stage
   difficulties: Set<DrawDifficulty>
   durationSec: Duration
+  settings: DrawSettings
   word: DrawWord | null
   /** 本局出现过的词，避免重复 */
   usedTexts: Set<string>
@@ -29,6 +31,7 @@ type Action =
   | { type: 'GOTO_SETUP' }
   | { type: 'TOGGLE_DIFFICULTY'; value: DrawDifficulty }
   | { type: 'SET_DURATION'; value: Duration }
+  | { type: 'SET_SETTING'; key: keyof DrawSettings; value: boolean }
   | { type: 'NEW_ROUND'; word: DrawWord }
   | { type: 'SWAP_WORD'; word: DrawWord }
   | { type: 'START_DRAWING' }
@@ -48,6 +51,8 @@ function reducer(state: State, action: Action): State {
     }
     case 'SET_DURATION':
       return { ...state, durationSec: action.value }
+    case 'SET_SETTING':
+      return { ...state, settings: { ...state.settings, [action.key]: action.value } }
     case 'NEW_ROUND':
       return {
         ...state,
@@ -93,6 +98,7 @@ export function DrawGame({ onExit }: DrawGameProps) {
     stage: introSeen ? 'setup' : 'intro',
     difficulties: new Set<DrawDifficulty>(['easy', 'medium']),
     durationSec: 90,
+    settings: DEFAULT_DRAW_SETTINGS,
     word: null,
     usedTexts: new Set<string>(),
     lastOutcome: 'guessed',
@@ -126,8 +132,10 @@ export function DrawGame({ onExit }: DrawGameProps) {
         <SetupStage
           difficulties={state.difficulties}
           durationSec={state.durationSec}
+          settings={state.settings}
           onToggleDifficulty={(d) => dispatch({ type: 'TOGGLE_DIFFICULTY', value: d })}
           onChangeDuration={(d) => dispatch({ type: 'SET_DURATION', value: d })}
+          onChangeSetting={(key, value) => dispatch({ type: 'SET_SETTING', key, value })}
           onStart={() => dispatch({ type: 'NEW_ROUND', word: nextWord() })}
         />
       </div>
@@ -150,6 +158,7 @@ export function DrawGame({ onExit }: DrawGameProps) {
       <DrawingStage
         word={state.word}
         durationSec={state.durationSec}
+        settings={state.settings}
         onGuessed={() => dispatch({ type: 'END_ROUND', outcome: 'guessed' })}
         onGiveUp={() => dispatch({ type: 'END_ROUND', outcome: 'giveup' })}
         onTimeout={() => dispatch({ type: 'END_ROUND', outcome: 'timeout' })}

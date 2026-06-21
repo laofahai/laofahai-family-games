@@ -15,6 +15,15 @@ export const DIFFICULTY_LABEL: Record<DrawDifficulty, string> = {
 
 export type Duration = 60 | 90 | 120
 
+export interface DrawSettings {
+  /** 画图时给猜的人常显类别提示（如「动物」）。默认关，更有挑战。 */
+  showCategory: boolean
+}
+
+export const DEFAULT_DRAW_SETTINGS: DrawSettings = {
+  showCategory: false,
+}
+
 export type Stage = 'intro' | 'setup' | 'preview' | 'drawing' | 'roundEnd' | 'result'
 
 export type RoundOutcome = 'guessed' | 'giveup' | 'timeout'
