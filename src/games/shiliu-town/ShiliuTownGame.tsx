@@ -61,7 +61,8 @@ const MODE_META: Record<TownMode, { label: string; desc: string; icon: string }>
   detective: { label: '小侦探读题', desc: '先找关键信息，再选算式', icon: '🕵️' },
   shop: { label: '购物小掌柜', desc: '认识钱数、总价、找零、够不够', icon: '🛒' },
   vertical: { label: '竖式挑战', desc: '个位十位对齐，进位借位不慌', icon: '🧮' },
-  mixed: { label: '混合闯关', desc: '读题和购物轮流来', icon: '🎲' },
+  chinese: { label: '语文识字', desc: '拼音、识字、组词、古诗，慢慢念', icon: '📖' },
+  mixed: { label: '混合闯关', desc: '读题、购物、语文、科普轮流来', icon: '🎲' },
 }
 
 const COUNT_OPTIONS = [5, 8, 12]
@@ -71,6 +72,8 @@ const KIND_LABEL = {
   shop: '购物小掌柜',
   spark: '轻松一下',
   vertical: '竖式挑战',
+  chinese: '语文识字',
+  wonder: '科普小课堂',
 }
 
 function sameSet(a: Set<string>, b: string[]): boolean {

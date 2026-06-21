@@ -13,8 +13,8 @@ export const KID_PLAYER: Record<LearnGame, string> = { yiyi: 'yiyi', shiliu: 'sh
 
 // 学科标签：用题目的 kind 归类，给人看的名字
 const SUBJECTS: Record<LearnGame, Record<string, string>> = {
-  yiyi: { math: '数学', chinese: '语文', english: '英语', science: '科学', spark: '趣味' },
-  shiliu: { detective: '推理', shop: '购物', vertical: '竖式', spark: '趣味' },
+  yiyi: { math: '数学', chinese: '语文', english: '英语', science: '科学', chem: '化学', insight: '见识', spark: '趣味' },
+  shiliu: { detective: '推理', shop: '购物', vertical: '竖式', chinese: '语文', wonder: '科普', spark: '趣味' },
 }
 
 export const KID_NAME: Record<LearnGame, string> = { yiyi: '闫一依', shiliu: '闫顺儿' }

@@ -68,7 +68,8 @@ const MODE_META: Record<BureauMode, { label: string; desc: string; icon: typeof 
   planner: { label: '城市策划师', desc: '预算、路线、统计、折扣、面积全是数学硬仗', icon: Compass },
   archive: { label: '任务档案室', desc: '读通知、抓重点、辨真假，中英文情报都要看懂', icon: FolderSearch },
   preview: { label: '初中预告站', desc: '负数、方程、文言、英文短文，提前探个路', icon: Rocket },
-  mixed: { label: '混合任务局', desc: '数学为主，各科随机混搭，最像真实出勤', icon: Shuffle },
+  mixed: { label: '混合任务局', desc: '初中为主，掺化学和前沿见识，最像真实出勤', icon: Shuffle },
+  challenge: { label: '学霸特训局', desc: '专治"太简单"：初中硬题＋化学＋大学级前沿见识', icon: Sparkles },
 }
 
 const COUNT_OPTIONS = [6, 10, 15]
@@ -81,6 +82,8 @@ const KIND_TONE: Record<BureauQuestion['kind'], string> = {
   chinese: 'bg-amber-100 text-amber-700',
   english: 'bg-sky-100 text-sky-700',
   science: 'bg-emerald-100 text-emerald-700',
+  chem: 'bg-rose-100 text-rose-700',
+  insight: 'bg-indigo-100 text-indigo-700',
   spark: 'bg-violet-100 text-violet-700',
 }
 

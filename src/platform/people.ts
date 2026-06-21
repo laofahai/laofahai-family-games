@@ -27,7 +27,7 @@ export const FAMILY: Person[] = [
   { id: 'dad', name: '爸爸', role: 'parent', circle: 'family', relation: '爸爸', emoji: '👨‍💻' },
   { id: 'mom', name: '妈妈', role: 'parent', circle: 'family', relation: '妈妈', emoji: '🛍️' },
   { id: 'yiyi', name: '闫一依', role: 'self', circle: 'family', relation: '姐姐', grade: '六年级', age: { min: 11, max: 13 }, emoji: '🎤' },
-  { id: 'shuner', name: '闫顺儿', role: 'sibling', circle: 'family', relation: '妹妹', grade: '一年级', age: { min: 6, max: 8 }, emoji: '🎀' },
+  { id: 'shuner', name: '闫顺儿', role: 'sibling', circle: 'family', relation: '妹妹', grade: '二年级', age: { min: 7, max: 10 }, emoji: '🎀' },
 ]
 
 // —— 闫一依的班级 ——

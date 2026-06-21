@@ -1,6 +1,6 @@
-export type TownMode = 'detective' | 'shop' | 'vertical' | 'mixed'
+export type TownMode = 'detective' | 'shop' | 'vertical' | 'chinese' | 'mixed'
 
-export type QuestionKind = 'detective' | 'shop' | 'spark' | 'vertical'
+export type QuestionKind = 'detective' | 'shop' | 'spark' | 'vertical' | 'chinese' | 'wonder'
 
 export interface Choice {
   id: string
@@ -59,7 +59,24 @@ export interface VerticalQuestion extends BaseQuestion {
   operator: '+' | '-'
 }
 
-export type TownQuestion = DetectiveQuestion | ShopQuestion | SparkQuestion | VerticalQuestion
+// 语文卡 / 科普卡：简单选择题（卡池在 DB：shiliu-chinese / shiliu-wonder），题干口语、能朗读。
+export interface ChineseQuestion extends BaseQuestion {
+  kind: 'chinese'
+  topic: string
+}
+
+export interface WonderQuestion extends BaseQuestion {
+  kind: 'wonder'
+  topic: string
+}
+
+export type TownQuestion =
+  | DetectiveQuestion
+  | ShopQuestion
+  | SparkQuestion
+  | VerticalQuestion
+  | ChineseQuestion
+  | WonderQuestion
 
 export interface AnswerRecord {
   question: TownQuestion

@@ -1,4 +1,5 @@
 import type {
+  ChineseQuestion,
   DetectiveQuestion,
   ShopItem,
   ShopQuestion,
@@ -7,6 +8,7 @@ import type {
   TownMode,
   TownQuestion,
   VerticalQuestion,
+  WonderQuestion,
 } from '../types'
 import {
   c,
@@ -796,14 +798,57 @@ function makeShopQuestion(id: number): ShopQuestion {
   return shopFactories[id % shopFactories.length](id)
 }
 
+// 语文卡 / 科普卡：DB 卡池(shiliu-chinese / shiliu-wonder)→简单选择题。题干口语、能朗读。
+interface KidCard {
+  topic: string
+  title: string
+  prompt: string
+  right: string
+  wrongs: [string, string]
+  why: string
+}
+
+function kidCard(kind: 'chinese' | 'wonder', poolKey: string, id: number): ChineseQuestion | WonderQuestion {
+  const pool = contentFor<KidCard>(poolKey, [])
+  const card = pickUnseen(`shiliu:${kind}`, pool, (x) => `${x.title}|${x.right}`, 1)[0] ?? pool[0]
+  const choices = shuffle([card.right, ...card.wrongs]).map((t) => c(t, t))
+  return {
+    id: `${kind}-${id}-${card.right}`,
+    kind,
+    topic: card.topic,
+    title: card.title,
+    prompt: card.prompt,
+    hint: '看清题目，慢慢想，不着急。',
+    answer: card.right,
+    answerChoices: choices,
+    explanation: card.why,
+  }
+}
+
+function chineseQuestion(id: number): ChineseQuestion {
+  return kidCard('chinese', 'shiliu-chinese', id) as ChineseQuestion
+}
+
+function wonderQuestion(id: number): WonderQuestion {
+  return kidCard('wonder', 'shiliu-wonder', id) as WonderQuestion
+}
+
 export function buildQuestions(mode: TownMode, count: number): TownQuestion[] {
+  const hasChinese = contentFor('shiliu-chinese', []).length > 0
+  const hasWonder = contentFor('shiliu-wonder', []).length > 0
+
   const questions = Array.from({ length: count }, (_, idx) => {
     if (mode === 'detective') return makeDetectiveQuestion(idx)
     if (mode === 'shop') return makeShopQuestion(idx)
     if (mode === 'vertical') return verticalQuestion(idx)
-    if (idx > 0 && idx % 5 === 4) return verticalQuestion(idx)
-    if (idx > 0 && idx % 6 === 5) return sparkQuestion(idx)
-    return idx % 2 === 0 ? makeDetectiveQuestion(idx) : makeShopQuestion(idx)
+    if (mode === 'chinese') return hasChinese ? chineseQuestion(idx) : makeDetectiveQuestion(idx)
+    // 混合闯关：读题/购物为主，语文~22%、科普~12%、竖式、趣味轮流来
+    const r = Math.random()
+    if (hasChinese && r < 0.22) return chineseQuestion(idx)
+    if (hasWonder && r < 0.34) return wonderQuestion(idx)
+    if (r < 0.46) return verticalQuestion(idx)
+    if (r < 0.54) return sparkQuestion(idx)
+    return Math.random() < 0.5 ? makeDetectiveQuestion(idx) : makeShopQuestion(idx)
   })
 
   return shuffle(questions)

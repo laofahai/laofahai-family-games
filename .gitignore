@@ -35,3 +35,6 @@ dist-ssr
 # 临时产出/agent worktree
 .tmp-*.json
 .claude/
+
+# 内容灌库的中间产物（真源在数据库 + content.sql 快照）
+scripts/content-staging/
