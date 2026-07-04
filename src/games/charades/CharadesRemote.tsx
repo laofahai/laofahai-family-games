@@ -154,9 +154,9 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
               }}
               placeholder="输房号"
               maxLength={6}
-              className="h-12 flex-1 rounded-2xl border border-ink-200 px-3 text-center text-lg tracking-widest outline-none focus:border-melon-400"
+              className="min-h-14 flex-1 rounded-2xl border border-ink-200 px-3 text-center text-xl tracking-widest outline-none focus:border-melon-400"
             />
-            <Button onClick={join} disabled={busy} variant="outline" className="h-12 w-full sm:w-auto">
+            <Button onClick={join} disabled={busy} variant="outline" className="min-h-14 w-full sm:w-auto">
               加入
             </Button>
           </div>
@@ -212,11 +212,11 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
           {isHost ? (
             <Button
               onClick={() => startRound(1)}
-              disabled={busy || members.length < 3}
+              disabled={busy || members.length < 2}
               className="h-12 w-full gap-2 bg-orange-500 text-white hover:bg-orange-600"
             >
               <Shuffle className="h-4 w-4" />
-              {members.length < 3 ? '至少 3 人才能开始' : '开始'}
+              {members.length < 2 ? '至少 2 人才能开始' : '开始'}
             </Button>
           ) : (
             <p className="rounded-2xl border border-dashed border-ink-200 bg-white/60 p-4 text-center text-sm text-ink-500">

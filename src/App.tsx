@@ -195,7 +195,7 @@ export default function App() {
               className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <DoorOpen className="h-4 w-4" />
-              {loadingGame === game.id ? '加载中' : '开房间'}
+              {loadingGame === game.id ? '加载中' : '一起玩儿'}
             </button>
           )}
         </div>

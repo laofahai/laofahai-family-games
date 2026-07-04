@@ -268,9 +268,9 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
               }}
               placeholder="输房号"
               maxLength={6}
-              className="h-12 flex-1 rounded-2xl border border-ink-200 px-3 text-center text-lg tracking-widest outline-none focus:border-melon-400"
+              className="min-h-14 flex-1 rounded-2xl border border-ink-200 px-3 text-center text-xl tracking-widest outline-none focus:border-melon-400"
             />
-            <Button onClick={join} disabled={busy} variant="outline" className="h-12 w-full sm:w-auto">
+            <Button onClick={join} disabled={busy} variant="outline" className="min-h-14 w-full sm:w-auto">
               加入
             </Button>
           </div>

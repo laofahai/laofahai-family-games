@@ -3,6 +3,7 @@ import { Radio, Video, VideoOff } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { mediaPermissionErrorMessage } from '@/platform/mediaError'
 import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from '@/platform/webrtcSignalChannel'
 import {
   canPublishCharadesVideo,
@@ -233,8 +234,8 @@ export function CharadesVideoPanel({
       if (localVideoRef.current) localVideoRef.current.srcObject = stream
       setIsPublishing(true)
       setStatus('你正在视频表演')
-    } catch {
-      setError('摄像头或麦克风没有授权')
+    } catch (e) {
+      setError(mediaPermissionErrorMessage('camera', e))
     }
   }
 

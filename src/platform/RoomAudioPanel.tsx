@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { mediaPermissionErrorMessage } from './mediaError'
 import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from './webrtcSignalChannel'
 import { shouldCreateMeshOffer, webRtcPeerId, type WebRtcSignal, type WebRtcSignalBody } from './webrtcSignaling'
 
@@ -195,8 +196,8 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
       })
       setJoined(true)
       setStatus('语音已开启，正在连接其他人')
-    } catch {
-      setError('麦克风没有授权')
+    } catch (e) {
+      setError(mediaPermissionErrorMessage('microphone', e))
     }
   }
 
