@@ -1,5 +1,5 @@
 // 你来比划 · 远程模式：每人在自己手机上。轮到的人「猜」——他看不到词；
-// 其他人都看到词，开微信视频描述给他听，他大声说出那个词。
+// 其他人都看到词，用内置视频/语音比划给他看，他大声说出那个词。
 // 房主按座位轮流指定「猜的人」，并按座位下发私密 secret（猜的人收到 null，其余收到词）。
 // 同步靠轮询房间快照（rooms.ts）；词只回传给本人，旁人/外人都看不到。
 
@@ -238,56 +238,73 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
     const secret = snap.you?.secret as { word: { text: string } | null } | null | undefined
     const word = secret?.word ?? null
     return (
-      <Card className="paper-grid">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-2xl">
-            {iAmGuesser ? <EyeOff className="h-5 w-5 text-melon-600" /> : <Eye className="h-5 w-5 text-melon-600" />}
-            第 {p.round ?? 1} 轮
-          </CardTitle>
-          <CardDescription>这一轮由【{guesserName}】来猜，其他人开视频描述。</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
-          <CharadesVideoPanel
-            code={code}
-            roomState={snap.state}
-            mySeat={snap.you?.seat}
-            guesserSeat={guesserSeat}
-            myName={name}
-          />
+      <CharadesVideoPanel
+        code={code}
+        roomState={snap.state}
+        mySeat={snap.you?.seat}
+        guesserSeat={guesserSeat}
+        myName={name}
+        topOverlay={
+          !iAmGuesser ? (
+            <div className="rounded-3xl border border-white/70 bg-white/90 px-4 py-3 text-center text-ink-900 shadow-2xl backdrop-blur">
+              <div className="text-xs font-semibold text-orange-600">给 {guesserName} 比划</div>
+              <div className="font-display text-4xl leading-tight sm:text-5xl">{word?.text}</div>
+            </div>
+          ) : null
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-black/50 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur">
+              {iAmGuesser ? <EyeOff className="h-4 w-4 text-orange-300" /> : <Eye className="h-4 w-4 text-orange-300" />}
+              <span>第 {p.round ?? 1} 轮</span>
+              <span className="text-white/60">·</span>
+              <span>{guesserName} 来猜</span>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={doLeave}
+              className="min-h-10 gap-1 bg-black/50 px-3 text-white shadow-lg backdrop-blur hover:bg-black/60"
+            >
+              <LogOut className="h-4 w-4" />
+              退出
+            </Button>
+          </div>
+
           {iAmGuesser ? (
-            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-3xl border border-ink-100/70 bg-white/85 p-6 text-center">
+            <div className="mx-auto flex min-h-[190px] max-w-xl flex-col items-center justify-center gap-3 rounded-3xl border border-white/20 bg-black/60 p-6 text-center text-white shadow-2xl backdrop-blur">
               <div className="text-5xl">🙈</div>
-              <div className="font-display text-2xl text-ink-900">轮到你猜！</div>
-              <div className="text-sm text-ink-500">大家在描述，你大声说出那个词</div>
+              <div className="font-display text-3xl">轮到你猜！</div>
+              <div className="text-sm text-white/70">看视频里的比划，大声说出那个词</div>
             </div>
           ) : (
-            <>
-              <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-3xl border border-ink-100/70 bg-white/85 p-6 text-center">
-                <div className="font-display text-4xl text-ink-900">{word?.text}</div>
-              </div>
-              <p className="rounded-2xl border border-dashed border-ink-200 bg-white/60 p-3 text-center text-sm text-ink-500">
-                描述给【{guesserName}】听，别说出词本身、别用谐音。
-              </p>
-            </>
+            <p className="mx-auto max-w-xl rounded-2xl bg-black/50 p-3 text-center text-sm text-white/75 shadow-lg backdrop-blur">
+              可以开视频/语音一起比划，别说出词本身、别用谐音。
+            </p>
           )}
-          {memberList}
-        </CardContent>
-        <CardFooter className="justify-between gap-2">
-          {leaveBtn}
+
+          <div className="rounded-3xl bg-black/40 p-3 shadow-lg backdrop-blur">
+            {memberList}
+          </div>
+
           {isHost && (
-            <span className="flex gap-2">
-              <Button onClick={swapWord} variant="outline" disabled={busy} className="gap-1">
+            <div className="flex justify-end gap-2">
+              <Button
+                onClick={swapWord}
+                variant="outline"
+                disabled={busy}
+                className="min-h-11 gap-1 border-white/40 bg-white/90 text-ink-800"
+              >
                 换个词
               </Button>
-              <Button onClick={() => startRound(round + 1)} disabled={busy} className="gap-1">
+              <Button onClick={() => startRound(round + 1)} disabled={busy} className="min-h-11 gap-1 bg-orange-500 text-white">
                 <SkipForward className="h-4 w-4" />
                 下一位
               </Button>
-            </span>
+            </div>
           )}
-        </CardFooter>
-      </Card>
+        </div>
+      </CharadesVideoPanel>
     )
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { Radio, Video, VideoOff } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,8 @@ interface CharadesVideoPanelProps {
   mySeat: number | undefined
   guesserSeat: number | undefined
   myName: string
+  topOverlay?: ReactNode
+  children?: ReactNode
 }
 
 export function CharadesVideoPanel({
@@ -30,6 +32,8 @@ export function CharadesVideoPanel({
   mySeat,
   guesserSeat,
   myName,
+  topOverlay,
+  children,
 }: CharadesVideoPanelProps) {
   const peerId = useMemo(() => webRtcPeerId(), [])
   const [isPublishing, setIsPublishing] = useState(false)
@@ -228,7 +232,7 @@ export function CharadesVideoPanel({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: false,
+        audio: true,
       })
       localStreamRef.current = stream
       if (localVideoRef.current) localVideoRef.current.srcObject = stream
@@ -250,61 +254,56 @@ export function CharadesVideoPanel({
   if (roomState !== 'playing') return null
 
   return (
-    <div className="space-y-3 rounded-3xl border border-orange-100 bg-orange-50/60 p-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold text-orange-800">
-          <Radio className="h-4 w-4" />
-          视频表演
+    <div className="fixed inset-0 z-50 overflow-hidden bg-ink-950 text-white">
+      {remoteStream ? (
+        <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
+      ) : isPublishing ? (
+        <video ref={localVideoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink-950 px-8 text-center text-white/75">
+          <Video className="h-12 w-12 text-white/60" />
+          <div className="text-base font-semibold">{status}</div>
+          {presenterName && <div className="text-xs text-white/60">{presenterName} 正在连接</div>}
         </div>
-        {canPublish && (
-          <Button
-            type="button"
-            size="sm"
-            variant={isPublishing ? 'outline' : 'default'}
-            onClick={isPublishing ? stopPublishing : startPublishing}
-            className={cn('gap-1.5', !isPublishing && 'bg-orange-500 text-white hover:bg-orange-600')}
-          >
-            {isPublishing ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-            {isPublishing ? '关闭视频' : '开启视频表演'}
-          </Button>
-        )}
-      </div>
+      )}
 
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-        <div className="relative min-h-[210px] overflow-hidden rounded-2xl bg-ink-950">
-          {remoteStream ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="h-full min-h-[210px] w-full object-cover"
-            />
-          ) : (
-            <div className="flex min-h-[210px] flex-col items-center justify-center gap-2 px-6 text-center text-sm text-white/75">
-              <Video className="h-8 w-8 text-white/60" />
-              <span>{isPublishing ? '等其他人接入观看...' : status}</span>
-              {presenterName && <span className="text-xs text-white/55">{presenterName} 正在连接</span>}
-            </div>
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-black/75 via-black/40 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[46vh] bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+
+      <div className="relative z-10 flex min-h-[100dvh] flex-col gap-3 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black/50 px-3 text-sm font-semibold text-white shadow-lg backdrop-blur">
+            <Radio className="h-4 w-4 text-orange-300" />
+            <span>{isPublishing ? '你正在表演' : '视频/语音'}</span>
+          </div>
+          {canPublish && (
+            <Button
+              type="button"
+              size="sm"
+              variant={isPublishing ? 'outline' : 'default'}
+              onClick={isPublishing ? stopPublishing : startPublishing}
+              className={cn(
+                'min-h-10 gap-1.5 border-white/40 bg-black/50 text-white shadow-lg backdrop-blur hover:bg-black/60',
+                !isPublishing && 'bg-orange-500 text-white hover:bg-orange-600'
+              )}
+            >
+              {isPublishing ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+              {isPublishing ? '关闭视频/语音' : '开启视频/语音'}
+            </Button>
           )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="overflow-hidden rounded-2xl border border-white/80 bg-white">
-            {isPublishing ? (
-              <video ref={localVideoRef} autoPlay muted playsInline className="aspect-video w-full object-cover" />
-            ) : (
-              <div className="flex aspect-video items-center justify-center px-3 text-center text-xs text-ink-500">
-                {canPublish ? '你可以开摄像头表演' : '轮到你猜，不能看到题词'}
-              </div>
-            )}
-          </div>
-          <p className="text-xs leading-relaxed text-orange-700">
-            {canPublish ? '开视频后给猜的人比划，别说出词本身。' : '看别人比划，猜出来就大声说。'}
+        {error && (
+          <p className="max-w-xl rounded-2xl bg-rose-950/80 px-3 py-2 text-sm text-rose-100 shadow-lg backdrop-blur">
+            {error}
           </p>
-        </div>
-      </div>
+        )}
 
-      {error && <p className="text-sm text-rose-500">{error}</p>}
+        {topOverlay && <div className="mx-auto w-full max-w-2xl">{topOverlay}</div>}
+
+        <div className="flex-1" />
+        <div className="mx-auto w-full max-w-5xl">{children}</div>
+      </div>
     </div>
   )
 }
