@@ -13,6 +13,7 @@ import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomAudioPanel } from '@/platform/RoomAudioPanel'
 import { RoomCode } from '@/platform/RoomCode'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
 
@@ -242,6 +243,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，等人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <RemoteVoiceHint />
           {memberList}
           {isHost ? (
@@ -298,6 +300,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>只有你能看到。轮流描述，别说出词本身，找出谁不一样。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <button
             type="button"
             onClick={() => setShowWord((v) => !v)}
@@ -359,6 +362,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>谁是卧底？答案揭晓。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-ink-100/70 bg-white/80 p-4">
               <div className="text-xs text-ink-500">词语组合</div>

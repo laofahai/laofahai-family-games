@@ -12,9 +12,11 @@ import { Label } from '@/components/ui/label'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomAudioPanel } from '@/platform/RoomAudioPanel'
 import { RoomCode } from '@/platform/RoomCode'
 import { contentFor } from '@/platform/content'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
+import { CharadesVideoPanel } from './components/CharadesVideoPanel'
 import type { WordEntry } from './types'
 
 function shuffle<T>(items: T[]) {
@@ -204,6 +206,7 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <RemoteVoiceHint />
           {memberList}
           {isHost ? (
@@ -244,6 +247,14 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>这一轮由【{guesserName}】来猜，其他人开视频描述。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          <CharadesVideoPanel
+            code={code}
+            roomState={snap.state}
+            mySeat={snap.you?.seat}
+            guesserSeat={guesserSeat}
+            myName={name}
+          />
           {iAmGuesser ? (
             <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 rounded-3xl border border-ink-100/70 bg-white/85 p-6 text-center">
               <div className="text-5xl">🙈</div>

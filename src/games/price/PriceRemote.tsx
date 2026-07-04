@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomAudioPanel } from '@/platform/RoomAudioPanel'
 import { RoomCode } from '@/platform/RoomCode'
 import {
   clearSubmissions,
@@ -302,6 +303,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就出第一件商品。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <RemoteVoiceHint />
           {memberList}
           {isHost ? (
@@ -338,6 +340,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>各自出价，只有你看得到自己填的。房主收齐就公布。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <div className="rounded-3xl border border-ink-100/70 bg-white/85 p-5 text-center">
             <div className="font-display text-2xl text-ink-900">{p.name}</div>
             {p.unit && <div className="mt-1 text-sm text-ink-500">{p.unit}</div>}
@@ -408,6 +411,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>{p.name}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           {p.note && (
             <div className="rounded-2xl border border-ink-100/70 bg-white/80 p-4 text-sm text-ink-600">{p.note}</div>
           )}
@@ -469,7 +473,10 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           </CardTitle>
           <CardDescription>谁是家里的「行价王」？</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">{scoreboard(p.scores ?? {}) ?? <p className="text-sm text-ink-500">还没有积分。</p>}</CardContent>
+        <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {scoreboard(p.scores ?? {}) ?? <p className="text-sm text-ink-500">还没有积分。</p>}
+        </CardContent>
         <CardFooter className="justify-between">
           {leaveBtn}
           {isHost && (

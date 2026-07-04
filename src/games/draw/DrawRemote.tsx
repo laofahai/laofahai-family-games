@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomAudioPanel } from '@/platform/RoomAudioPanel'
 import { RoomCode } from '@/platform/RoomCode'
 import { joinDrawChannel, type DrawChannel } from '@/platform/realtime'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
@@ -237,6 +238,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <RemoteVoiceHint />
           {memberList}
           {isHost ? (
@@ -272,6 +274,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
         {iAmDrawer ? (
           <div className="rounded-2xl border border-melon-200 bg-melon-50 p-3 text-center">
             <span className="text-sm text-melon-600">你要画：</span>

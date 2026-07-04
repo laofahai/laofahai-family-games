@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomAudioPanel } from '@/platform/RoomAudioPanel'
 import { RoomCode } from '@/platform/RoomCode'
 import {
   clearSubmissions,
@@ -343,6 +344,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就出第一道题。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <RemoteVoiceHint />
           {memberList}
           {isHost ? (
@@ -390,6 +392,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
             <CardDescription>对照答案，点「对/错」给每个人判分，判完点公布。</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
             {questionCard}
             <div className="rounded-2xl border border-melon-300 bg-melon-50 p-4 text-center">
               <div className="text-xs font-semibold text-melon-600">参考答案</div>
@@ -455,6 +458,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>各自打字猜，只有你看得到自己写的。房主收齐就判分。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           {questionCard}
           {isHost ? (
             <>
@@ -526,6 +530,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
           <div className="rounded-2xl border border-melon-300 bg-melon-50 p-4 text-center">
             <div className="text-xs font-semibold text-melon-600">正确答案</div>
             <div className="mt-1 text-base font-semibold text-ink-900">{p.answer}</div>
@@ -590,7 +595,10 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
           </CardTitle>
           <CardDescription>谁最懂这一家人？</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">{scoreboard(p.scores ?? {}) ?? <p className="text-sm text-ink-500">还没有积分。</p>}</CardContent>
+        <CardContent className="space-y-4">
+          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {scoreboard(p.scores ?? {}) ?? <p className="text-sm text-ink-500">还没有积分。</p>}
+        </CardContent>
         <CardFooter className="justify-between">
           {leaveBtn}
           {isHost && (
