@@ -179,8 +179,8 @@ export const RemoteCanvas = forwardRef<RemoteCanvasHandle, { editable: boolean; 
           )}
         />
         {editable && (
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {COLORS.map((c) => (
                 <button
                   key={c}
@@ -191,7 +191,7 @@ export const RemoteCanvas = forwardRef<RemoteCanvasHandle, { editable: boolean; 
                     setErasing(false)
                   }}
                   className={cn(
-                    'h-9 w-9 rounded-full border-2 transition',
+                    'min-h-11 min-w-11 rounded-full border-2 transition',
                     !erasing && color === c ? 'scale-110 border-ink-700' : 'border-white shadow'
                   )}
                   style={{ backgroundColor: c }}
@@ -202,7 +202,7 @@ export const RemoteCanvas = forwardRef<RemoteCanvasHandle, { editable: boolean; 
                 aria-label="橡皮擦"
                 onClick={() => setErasing(true)}
                 className={cn(
-                  'flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white transition',
+                  'flex min-h-11 min-w-11 items-center justify-center rounded-full border-2 bg-white transition',
                   erasing ? 'scale-110 border-ink-700' : 'border-ink-200 shadow'
                 )}
               >
@@ -214,7 +214,7 @@ export const RemoteCanvas = forwardRef<RemoteCanvasHandle, { editable: boolean; 
                 type="button"
                 onClick={undo}
                 disabled={count === 0}
-                className="flex h-9 items-center gap-1 rounded-full border border-ink-200 bg-white px-3 text-xs font-medium text-ink-700 transition disabled:opacity-40"
+                className="flex min-h-11 items-center gap-1 rounded-full border border-ink-200 bg-white px-4 text-xs font-medium text-ink-700 transition disabled:opacity-40"
               >
                 <Undo2 className="h-4 w-4" />
                 撤销
@@ -223,7 +223,7 @@ export const RemoteCanvas = forwardRef<RemoteCanvasHandle, { editable: boolean; 
                 type="button"
                 onClick={clearAll}
                 disabled={count === 0}
-                className="flex h-9 items-center gap-1 rounded-full border border-ink-200 bg-white px-3 text-xs font-medium text-ink-700 transition disabled:opacity-40"
+                className="flex min-h-11 items-center gap-1 rounded-full border border-ink-200 bg-white px-4 text-xs font-medium text-ink-700 transition disabled:opacity-40"
               >
                 <Trash2 className="h-4 w-4" />
                 清空

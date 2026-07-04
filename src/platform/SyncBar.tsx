@@ -64,7 +64,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
   // 已连接：显示码 + 断开
   if (code) {
     return (
-      <div className="flex flex-wrap items-center gap-2 self-start rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-sky-700">
+      <div className="flex flex-wrap items-center gap-2 self-start rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-700">
         <Cloud className="h-3.5 w-3.5" />
         <span>
           {name} 的个人码 <span className="font-mono font-semibold tracking-widest">{code}</span>（换设备/解锁都用它）
@@ -72,7 +72,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
         <button
           type="button"
           onClick={disconnect}
-          className="rounded-full border border-sky-300 px-2 py-0.5 font-semibold text-sky-600 hover:bg-white"
+          className="min-h-9 rounded-full border border-sky-300 px-3 font-semibold text-sky-600 hover:bg-white"
         >
           断开
         </button>
@@ -89,7 +89,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
           setOpen(true)
           setErr('')
         }}
-        className="flex items-center gap-1.5 self-start rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:border-sky-300"
+        className="flex min-h-11 items-center gap-1.5 self-start rounded-full border border-ink-200 bg-white px-3 text-xs font-semibold text-ink-600 transition hover:border-sky-300"
       >
         <Cloud className="h-3.5 w-3.5 text-sky-500" />
         给「{name}」设个个人码
@@ -113,13 +113,13 @@ export function SyncBar({ playerId }: { playerId: string }) {
           }}
           placeholder="输个人码"
           maxLength={10}
-          className="h-10 w-36 rounded-full border border-ink-200 bg-white px-3 text-center font-mono tracking-widest outline-none focus:border-sky-400"
+          className="h-11 w-36 rounded-full border border-ink-200 bg-white px-3 text-center font-mono tracking-widest outline-none focus:border-sky-400"
         />
         <button
           type="button"
           onClick={() => void connect(input)}
           disabled={busy}
-          className="flex min-h-10 items-center gap-1 rounded-full border border-sky-400 bg-white px-3 font-semibold text-sky-700 disabled:opacity-50"
+          className="flex min-h-11 items-center gap-1 rounded-full border border-sky-400 bg-white px-3 font-semibold text-sky-700 disabled:opacity-50"
         >
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           连上
@@ -128,7 +128,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
           type="button"
           onClick={() => void connect(randomSyncCode())}
           disabled={busy}
-          className="min-h-10 rounded-full border border-dashed border-sky-300 px-3 font-semibold text-sky-600 disabled:opacity-50"
+          className="min-h-11 rounded-full border border-dashed border-sky-300 px-3 font-semibold text-sky-600 disabled:opacity-50"
         >
           生成新码
         </button>
@@ -138,7 +138,7 @@ export function SyncBar({ playerId }: { playerId: string }) {
             setOpen(false)
             setErr('')
           }}
-          className="min-h-10 px-2 text-ink-400"
+          className="min-h-11 px-2 text-ink-400"
         >
           取消
         </button>

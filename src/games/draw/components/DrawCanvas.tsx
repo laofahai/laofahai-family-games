@@ -115,10 +115,10 @@ export function DrawCanvas() {
         onPointerMove={handleMove}
         onPointerUp={handleUp}
         onPointerCancel={handleUp}
-        className="h-[55vh] w-full touch-none rounded-3xl border border-ink-200 bg-white shadow-inner"
+        className="h-[clamp(240px,45svh,420px)] w-full touch-none rounded-3xl border border-ink-200 bg-white shadow-inner"
       />
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {COLORS.map((c) => (
             <button
               key={c}
@@ -129,7 +129,7 @@ export function DrawCanvas() {
                 setErasing(false)
               }}
               className={cn(
-                'h-9 w-9 rounded-full border-2 transition',
+                'min-h-11 min-w-11 rounded-full border-2 transition',
                 !erasing && color === c ? 'scale-110 border-ink-700' : 'border-white shadow'
               )}
               style={{ backgroundColor: c }}
@@ -140,7 +140,7 @@ export function DrawCanvas() {
             aria-label="橡皮擦"
             onClick={() => setErasing(true)}
             className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white transition',
+              'flex min-h-11 min-w-11 items-center justify-center rounded-full border-2 bg-white transition',
               erasing ? 'scale-110 border-ink-700' : 'border-ink-200 shadow'
             )}
           >
@@ -152,7 +152,7 @@ export function DrawCanvas() {
             type="button"
             onClick={undo}
             disabled={strokeCount === 0}
-            className="flex h-9 items-center gap-1 rounded-full border border-ink-200 bg-white px-3 text-xs font-medium text-ink-700 transition disabled:opacity-40"
+            className="flex min-h-11 items-center gap-1 rounded-full border border-ink-200 bg-white px-4 text-xs font-medium text-ink-700 transition disabled:opacity-40"
           >
             <Undo2 className="h-4 w-4" />
             撤销
@@ -161,7 +161,7 @@ export function DrawCanvas() {
             type="button"
             onClick={clear}
             disabled={strokeCount === 0}
-            className="flex h-9 items-center gap-1 rounded-full border border-ink-200 bg-white px-3 text-xs font-medium text-ink-700 transition disabled:opacity-40"
+            className="flex min-h-11 items-center gap-1 rounded-full border border-ink-200 bg-white px-4 text-xs font-medium text-ink-700 transition disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" />
             清空

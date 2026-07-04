@@ -1,5 +1,5 @@
 // 你来比划 · 远程模式：每人在自己手机上。轮到的人「猜」——他看不到词；
-// 其他人都看到词，用内置视频/语音比划给他看，他大声说出那个词。
+// 其他人都看到词，可开启表演摄像头/麦克风比划给他看；猜的人用房间语音或现场说出答案。
 // 房主按座位轮流指定「猜的人」，并按座位下发私密 secret（猜的人收到 null，其余收到词）。
 // 同步靠轮询房间快照（rooms.ts）；词只回传给本人，旁人/外人都看不到。
 
@@ -275,11 +275,11 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
             <div className="mx-auto flex min-h-[190px] max-w-xl flex-col items-center justify-center gap-3 rounded-3xl border border-white/20 bg-black/60 p-6 text-center text-white shadow-2xl backdrop-blur">
               <div className="text-5xl">🙈</div>
               <div className="font-display text-3xl">轮到你猜！</div>
-              <div className="text-sm text-white/70">看视频里的比划，大声说出那个词</div>
+              <div className="text-sm text-white/70">看表演者视频里的比划，用房间语音/现场大声说答案</div>
             </div>
           ) : (
             <p className="mx-auto max-w-xl rounded-2xl bg-black/50 p-3 text-center text-sm text-white/75 shadow-lg backdrop-blur">
-              可以开视频/语音一起比划，别说出词本身、别用谐音。
+              可以开启摄像头/麦克风表演；猜的人用房间语音/现场回答。别说出词本身、别用谐音。
             </p>
           )}
 

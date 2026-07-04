@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import type { PlayerId, PriceItem } from '../types'
 import { CATEGORY_LABEL, PLAYER_MAP } from '../types'
 import { cn } from '@/lib/utils'
+import { parsePositivePriceGuess } from '../remoteRules'
 
 interface GuessingStageProps {
   item: PriceItem
@@ -26,11 +27,11 @@ export function GuessingStage({
 }: GuessingStageProps) {
   const [input, setInput] = useState('')
   const current = players.find((p) => guesses[p] === undefined)
-  const value = Number(input)
-  const valid = input.trim() !== '' && Number.isFinite(value) && value >= 0
+  const value = parsePositivePriceGuess(input)
+  const valid = value != null
 
   function submit() {
-    if (!current || !valid) return
+    if (!current || value == null) return
     onSubmit(current, value)
     setInput('')
   }
@@ -86,7 +87,7 @@ export function GuessingStage({
               <Input
                 type="number"
                 inputMode="decimal"
-                min={0}
+                min={0.01}
                 placeholder="输入你猜的价格"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}

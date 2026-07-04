@@ -22,12 +22,12 @@ export function RoomCode({ code, className }: RoomCodeProps) {
   }
 
   return (
-    <span className={cn('inline-flex items-center gap-2 align-middle', className)}>
+    <span className={cn('inline-flex flex-wrap items-center gap-2 align-middle', className)}>
       <span className="font-mono tracking-[0.3em] text-orange-600">{code}</span>
       <button
         type="button"
         onClick={copy}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 transition hover:bg-orange-100"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-orange-200 bg-orange-50 text-orange-700 transition hover:bg-orange-100"
         aria-label="复制房号"
         title={copied ? '已复制' : '复制房号'}
       >

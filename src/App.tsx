@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { addDeviceLogin, getDeviceLogins, isAdmin, isUnlocked, tryUnlock } from '@/platform/access'
 import { UnlockGate, type UnlockInfo } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
+import { AdminPanel } from '@/platform/AdminPanel'
 import { ACTIVE_GAME_IDS, GAMES, gameSections, type GameMeta } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
@@ -61,6 +62,7 @@ function GameLoading({ name }: { name: string }) {
 export default function App() {
   const [unlocked, setUnlocked] = useState(isUnlocked)
   const [showMe, setShowMe] = useState(false)
+  const [showAdmin, setShowAdmin] = useState(false)
   const [screen, setScreen] = useState<Screen>('home')
   const [remoteEntry, setRemoteEntry] = useState<string | null>(null)
   const [showMoreGames, setShowMoreGames] = useState(false)
@@ -183,7 +185,7 @@ export default function App() {
               void enterGame(game.id as Screen, game.id)
             }}
             disabled={!isActive || loadingGame === game.id}
-            className="inline-flex min-h-9 items-center justify-center rounded-2xl bg-ink-900 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-ink-900 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loadingGame === game.id ? '加载中' : '开始玩'}
           </button>
@@ -192,7 +194,7 @@ export default function App() {
               type="button"
               onClick={() => void enterRemoteGame(game.id as Screen, game.id)}
               disabled={loadingGame === game.id}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <DoorOpen className="h-4 w-4" />
               {loadingGame === game.id ? '加载中' : '一起玩儿'}
@@ -257,7 +259,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen px-4 py-10 md:px-10">
+    <div className="min-h-[100dvh] px-4 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-[calc(env(safe-area-inset-top)+2.5rem)] md:px-10">
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
       {showMe && (
         <IdentitySheet
           players={players}
@@ -289,10 +292,19 @@ export default function App() {
             <div className="flex flex-wrap items-center gap-2 self-start">
               {/* 顶栏成长牌：当前玩家在《觉醒者》里的等级 / 中二称号 / 金币 */}
               <LevelBadge key={`${playerId}:${progressVersion}`} playerId={playerId} compact />
+              {isAdmin() && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdmin(true)}
+                  className="flex min-h-11 items-center gap-2 rounded-full border border-melon-200 bg-melon-50 px-4 text-sm font-semibold text-melon-700 shadow-sm transition hover:border-melon-300"
+                >
+                  管理
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowMe(true)}
-                className="flex items-center gap-2 rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
+                className="flex min-h-11 items-center gap-2 rounded-full border border-ink-200 bg-white px-4 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
               >
                 <UserRound className="h-4 w-4 text-melon-600" />
                 <span className="text-ink-400">我</span>
@@ -319,7 +331,7 @@ export default function App() {
                     type="button"
                     onClick={() => chooseBand(b.id)}
                     className={cn(
-                      'min-h-9 rounded-full border px-4 text-sm font-semibold transition',
+                      'min-h-11 rounded-full border px-4 text-sm font-semibold transition',
                       b.id === band.id
                         ? 'border-melon-500 bg-melon-50 text-melon-700'
                         : 'border-ink-200 bg-white text-ink-600 hover:border-melon-300'
@@ -364,7 +376,7 @@ export default function App() {
               <div className="text-xs text-ink-500">
                 常用 {visibleSections.main.length} 个，轻小游戏 {visibleSections.more.length} 个。
               </div>
-              <div className="text-xs text-ink-500">需要多人各自用手机时，点游戏卡片里的「开房」。</div>
+              <div className="text-xs text-ink-500">需要多人各自用手机时，点游戏卡片里的「一起玩儿」。</div>
             </CardFooter>
           </Card>
         )}

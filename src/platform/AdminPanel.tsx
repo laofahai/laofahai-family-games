@@ -158,7 +158,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
         <p className="mt-1 text-xs text-ink-500">写上给谁，生成数字邀请码发给 TA，在 TA 自己设备上解锁。可随时停用。</p>
 
         <div className="mt-4 space-y-2">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <input
               value={inviteName}
               onChange={(e) => setInviteName(e.target.value)}
@@ -228,20 +228,20 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
               <div className="text-sm text-ink-400">还没有人设过个人码。</div>
             )}
             {profiles.map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-2xl border border-ink-100 bg-white p-3">
-                <div className="flex items-center gap-2">
+              <div key={p.id} className="flex flex-col gap-3 rounded-2xl border border-ink-100 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2">
                   <span className="text-lg">{p.emoji ?? '🙂'}</span>
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-sm font-semibold text-ink-900">{p.name}</div>
                     <div className="font-mono text-lg tracking-widest text-ink-800">{p.sync_code ?? '—'}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {p.sync_code && (
                     <button
                       type="button"
                       onClick={() => void copyCode(p.sync_code!)}
-                      className="flex items-center gap-1 rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-600 hover:border-melon-300"
+                      className="flex min-h-10 items-center gap-1 rounded-full border border-ink-200 px-3 text-xs font-semibold text-ink-600 hover:border-melon-300"
                     >
                       <Copy className="h-3.5 w-3.5" />
                       {copied === p.sync_code ? '已复制' : '复制'}
@@ -251,7 +251,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                     type="button"
                     onClick={() => void resetCode(p)}
                     disabled={busy}
-                    className="flex items-center gap-1 rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold text-ink-500 hover:border-melon-300 disabled:opacity-50"
+                    className="flex min-h-10 items-center gap-1 rounded-full border border-ink-200 px-3 text-xs font-semibold text-ink-500 hover:border-melon-300 disabled:opacity-50"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                     换码
@@ -261,7 +261,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
                     onClick={() => void deleteProfile(p)}
                     disabled={busy}
                     aria-label={`删除 ${p.name}`}
-                    className="flex items-center gap-1 rounded-full border border-ink-200 px-2.5 py-1.5 text-xs font-semibold text-ink-500 hover:border-rose-300 hover:text-rose-500 disabled:opacity-50"
+                    className="flex min-h-10 items-center gap-1 rounded-full border border-ink-200 px-2.5 text-xs font-semibold text-ink-500 hover:border-rose-300 hover:text-rose-500 disabled:opacity-50"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

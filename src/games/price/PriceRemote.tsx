@@ -1,7 +1,7 @@
 // 猜价格 · 远程模式：房主出一件商品，每人在自己手机上私密出价，房主公布谁最接近。
 // 各端轮询房间快照；出价用 member_submit（私密），公布时房主 collect_submissions 汇总算分。
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Crown, LogOut, Shuffle, Tag } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,12 @@ import {
 } from '@/platform/rooms'
 import { contentFor } from '@/platform/content'
 import type { PriceItem } from './types'
+import {
+  canStartPriceRemote,
+  MIN_PRICE_REMOTE_MEMBERS,
+  parsePositivePriceGuess,
+  remotePricePromptKey,
+} from './remoteRules'
 
 function shuffle<T>(items: T[]) {
   const next = [...items]
@@ -57,6 +63,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [guess, setGuess] = useState('')
+  const lastPromptKey = useRef<string | null>(null)
 
   // 房主本地保存：当前商品（含真实价，不进公共 payload）+ 累计分 + 轮次
   const [item, setItem] = useState<PriceItem | null>(null)
@@ -73,6 +80,17 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
   const isHost = snap?.you?.is_host ?? false
   const members = snap?.members ?? []
   const mySubmission = snap?.you?.submission as { guess?: number } | null | undefined
+
+  useEffect(() => {
+    if (!snap || snap.state !== 'playing' || isHost) return
+    const payload = snap.payload as { name?: string; round?: number }
+    const promptKey = remotePricePromptKey(payload.round, payload.name)
+    if (lastPromptKey.current !== promptKey) {
+      lastPromptKey.current = promptKey
+      setGuess('')
+      setErr('')
+    }
+  }, [snap, isHost])
 
   const create = async () => {
     setBusy(true)
@@ -118,8 +136,8 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
     setBusy(true)
     const subs = await collectSubmissions(code)
     const entries = subs
-      .map((s) => ({ ...s, guess: Number((s.submission as { guess?: number } | null)?.guess) }))
-      .filter((s) => Number.isFinite(s.guess))
+      .map((s) => ({ ...s, guess: parsePositivePriceGuess((s.submission as { guess?: number } | null)?.guess ?? '') }))
+      .filter((s): s is typeof s & { guess: number } => s.guess != null)
     let winners: number[] = []
     let sharp = false
     if (entries.length) {
@@ -169,12 +187,15 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
     setScores({})
     setRound(0)
     setJoinCode('')
+    setGuess('')
+    setErr('')
+    lastPromptKey.current = null
   }
 
   const submitGuess = async () => {
     if (!code) return
-    const v = Number(guess)
-    if (!Number.isFinite(v) || v <= 0) {
+    const v = parsePositivePriceGuess(guess)
+    if (v == null) {
       setErr('填个大于 0 的数字')
       return
     }
@@ -309,11 +330,13 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           {isHost ? (
             <Button
               onClick={() => nextItem(1)}
-              disabled={busy || members.length < 2}
+              disabled={busy || !canStartPriceRemote(members.length)}
               className="h-12 w-full gap-2 bg-orange-500 text-white hover:bg-orange-600"
             >
               <Shuffle className="h-4 w-4" />
-              {members.length < 2 ? '至少 2 人才能开始' : '出第一件商品'}
+              {canStartPriceRemote(members.length)
+                ? '出第一件商品'
+                : `至少 ${MIN_PRICE_REMOTE_MEMBERS} 人才能开始`}
             </Button>
           ) : (
             <p className="rounded-2xl border border-dashed border-ink-200 bg-white/60 p-4 text-center text-sm text-ink-500">
@@ -337,7 +360,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
             <Tag className="h-5 w-5 text-melon-600" />
             第 {p.round ?? 1} 件 · 这个多少钱？
           </CardTitle>
-          <CardDescription>各自出价，只有你看得到自己填的。房主收齐就公布。</CardDescription>
+          <CardDescription>各自出价，只有你看得到自己填的。有人提交后房主就能公布。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
@@ -347,7 +370,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           </div>
           {isHost ? (
             <p className="rounded-2xl border border-dashed border-ink-200 bg-white/60 p-3 text-center text-sm text-ink-500">
-              你是出题人，知道价、不参与猜。大家出完价点「公布答案」。
+              你是出题人，知道价、不参与猜。有人提交后可点「公布答案」。
             </p>
           ) : (
             <>

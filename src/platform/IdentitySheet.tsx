@@ -59,7 +59,7 @@ export function IdentitySheet({
       setLoginCode('')
       setLoginOpen(false)
     } else {
-      setLoginErr('码不对，或那是管理码（请在解锁页登录）。')
+      setLoginErr('码不对，或那是纯管理码。纯管理码请先点“锁定”，再在解锁页登录。')
     }
   }
   // 学习游戏=哪个孩子；非孩子只有探索勋章
@@ -95,6 +95,20 @@ export function IdentitySheet({
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {isAdmin() && adminCode() && (
+          <button
+            type="button"
+            onClick={() => setShowAdmin(true)}
+            className="mt-4 flex min-h-12 w-full items-center justify-between rounded-2xl border border-melon-200 bg-melon-50 px-4 text-left text-sm font-semibold text-melon-700 transition hover:border-melon-300"
+          >
+            <span className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4" />
+              管理邀请码和家人个人码
+            </span>
+            <span>›</span>
+          </button>
+        )}
 
         {/* 我是谁 */}
         <div className="mt-4 space-y-2">
@@ -205,7 +219,7 @@ export function IdentitySheet({
             <button
               type="button"
               onClick={() => setLoginOpen(true)}
-              className="text-sm font-semibold text-melon-600 hover:text-melon-700"
+              className="inline-flex min-h-11 items-center rounded-full px-1 text-sm font-semibold text-melon-600 hover:text-melon-700"
             >
               ＋ 用码登录别人
             </button>
@@ -238,31 +252,19 @@ export function IdentitySheet({
         </div>
 
         {/* 管理员 + 锁 */}
-        {(isAdmin() || gateActive()) && (
+        {gateActive() && (
           <div className="mt-5 flex flex-wrap gap-2 border-t border-ink-100 pt-4">
-            {isAdmin() && adminCode() && (
-              <button
-                type="button"
-                onClick={() => setShowAdmin(true)}
-                className="flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 transition hover:border-melon-300"
-              >
-                <KeyRound className="h-3.5 w-3.5 text-melon-600" />
-                管理邀请码
-              </button>
-            )}
-            {gateActive() && (
-              <button
-                type="button"
-                onClick={() => {
-                  lock()
-                  window.location.reload()
-                }}
-                className="flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-500 transition hover:border-rose-300 hover:text-rose-500"
-              >
-                <Lock className="h-3.5 w-3.5" />
-                锁定（退出，下次要重新输码）
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                lock()
+                window.location.reload()
+              }}
+              className="flex min-h-11 items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 text-xs font-semibold text-ink-500 transition hover:border-rose-300 hover:text-rose-500"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              锁定（退出，下次要重新输码）
+            </button>
           </div>
         )}
       </div>

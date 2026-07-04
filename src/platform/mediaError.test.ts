@@ -17,4 +17,10 @@ describe('mediaPermissionErrorMessage', () => {
 
     expect(mediaPermissionErrorMessage('camera', error)).toContain('摄像头')
   })
+
+  it('uses combined wording when camera and microphone are requested together', () => {
+    const error = new DOMException('Permission denied', 'NotAllowedError')
+
+    expect(mediaPermissionErrorMessage('cameraOrMicrophone', error)).toContain('摄像头或麦克风')
+  })
 })

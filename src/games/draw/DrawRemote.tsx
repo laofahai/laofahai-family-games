@@ -16,6 +16,7 @@ import { joinDrawChannel, type DrawChannel } from '@/platform/realtime'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
 import { RemoteCanvas, type DrawMsg, type RemoteCanvasHandle } from './components/RemoteCanvas'
 import { pickWord } from './utils/pickWord'
+import { nextDrawerSeat, roundAfterWordSwap } from './utils/turns'
 import type { DrawDifficulty } from './types'
 
 const ALL_DIFF: ReadonlySet<DrawDifficulty> = new Set<DrawDifficulty>(['easy', 'medium', 'hard'])
@@ -119,13 +120,27 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
 
   const nextDrawer = async () => {
     const round = (snap?.payload.round as number) ?? 1
-    const nextSeat = members[round % members.length]?.seat ?? members[0].seat
+    const nextSeat = nextDrawerSeat(members, drawerSeat)
     await newRound(round + 1, nextSeat)
   }
 
   const swapWord = async () => {
+    if (!code || drawerSeat < 0) return
     const round = (snap?.payload.round as number) ?? 1
-    await newRound(round + 1, drawerSeat) // 同一个画手、换词、清板
+    setBusy(true)
+    const word = pickWord(ALL_DIFF, usedRef.current)
+    usedRef.current.add(word.text)
+    const secrets = Object.fromEntries(
+      members.map((m) => [String(m.seat), m.seat === drawerSeat ? { word: word.text, hint: word.hint } : { word: null }])
+    )
+    chanRef.current?.send({ t: 'clear' })
+    canvasRef.current?.reset()
+    await hostSet(code, {
+      state: 'playing',
+      payload: { drawerSeat, drawerName, round: roundAfterWordSwap(round) },
+      secrets,
+    })
+    setBusy(false)
   }
 
   const doLeave = async () => {
@@ -220,11 +235,23 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
   )
 
   const leaveBtn = (
-    <Button variant="ghost" onClick={doLeave} className="gap-1 text-ink-500">
+    <Button variant="ghost" onClick={doLeave} className="min-h-11 gap-1 text-ink-500">
       <LogOut className="h-4 w-4" />
       退出房间
     </Button>
   )
+
+  const hostControls = isHost ? (
+    <div className="sticky top-2 z-20 -mx-1 flex flex-wrap items-center gap-2 rounded-2xl border border-ink-200 bg-white/95 p-2 shadow-sm backdrop-blur sm:static sm:mx-0 sm:justify-end sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      {leaveBtn}
+      <Button onClick={swapWord} variant="outline" disabled={busy} className="min-h-11 flex-1 sm:flex-none">
+        换个词
+      </Button>
+      <Button onClick={nextDrawer} disabled={busy} className="min-h-11 flex-1 gap-2 sm:flex-none">
+        下一位
+      </Button>
+    </div>
+  ) : null
 
   // ── 大厅 ─────────────────────────────────────────────────────────
   if (snap.state === 'lobby') {
@@ -286,22 +313,11 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
             🎨 实时看 {drawerName} 画，猜到就喊出来！
           </div>
         )}
+        {hostControls}
         <RemoteCanvas key="canvas" ref={canvasRef} editable={iAmDrawer} onSend={iAmDrawer ? sendDraw : undefined} />
         {memberList}
       </CardContent>
-      <CardFooter className="justify-between gap-2">
-        {leaveBtn}
-        {isHost && (
-          <span className="flex gap-2">
-            <Button onClick={swapWord} variant="outline" disabled={busy}>
-              换个词
-            </Button>
-            <Button onClick={nextDrawer} disabled={busy} className="gap-2">
-              下一位
-            </Button>
-          </span>
-        )}
-      </CardFooter>
+      {!isHost && <CardFooter className="justify-between gap-2">{leaveBtn}</CardFooter>}
     </Card>
   )
 }

@@ -13,7 +13,15 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'logo.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'apple-touch-icon-180x180.png',
+        'logo.svg',
+        'pwa-64x64.png',
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+        'maskable-icon-512x512.png',
+      ],
       manifest: {
         name: '902战神',
         short_name: '902战神',
@@ -33,7 +41,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,ico}'],
         cleanupOutdatedCaches: true,
         navigateFallback: `${base}index.html`,
       },

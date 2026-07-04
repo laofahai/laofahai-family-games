@@ -226,7 +226,7 @@ export function CharadesVideoPanel({
     setError('')
     if (!canPublish) return
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError('这个浏览器不支持摄像头直连')
+      setError('这个浏览器不支持摄像头或麦克风直连')
       return
     }
     try {
@@ -237,9 +237,9 @@ export function CharadesVideoPanel({
       localStreamRef.current = stream
       if (localVideoRef.current) localVideoRef.current.srcObject = stream
       setIsPublishing(true)
-      setStatus('你正在视频表演')
+      setStatus('你正在用摄像头和麦克风表演')
     } catch (e) {
-      setError(mediaPermissionErrorMessage('camera', e))
+      setError(mediaPermissionErrorMessage('cameraOrMicrophone', e))
     }
   }
 
@@ -270,11 +270,11 @@ export function CharadesVideoPanel({
       <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-black/75 via-black/40 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[46vh] bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
 
-      <div className="relative z-10 flex min-h-[100dvh] flex-col gap-3 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="relative z-10 flex h-[100dvh] min-h-0 flex-col gap-3 p-3 sm:p-5">
+        <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
           <div className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black/50 px-3 text-sm font-semibold text-white shadow-lg backdrop-blur">
             <Radio className="h-4 w-4 text-orange-300" />
-            <span>{isPublishing ? '你正在表演' : '视频/语音'}</span>
+            <span>{isPublishing ? '你正在表演' : '表演视频'}</span>
           </div>
           {canPublish && (
             <Button
@@ -283,26 +283,28 @@ export function CharadesVideoPanel({
               variant={isPublishing ? 'outline' : 'default'}
               onClick={isPublishing ? stopPublishing : startPublishing}
               className={cn(
-                'min-h-10 gap-1.5 border-white/40 bg-black/50 text-white shadow-lg backdrop-blur hover:bg-black/60',
+                'min-h-10 gap-1.5 whitespace-normal border-white/40 bg-black/50 text-xs leading-tight text-white shadow-lg backdrop-blur hover:bg-black/60 sm:text-sm',
                 !isPublishing && 'bg-orange-500 text-white hover:bg-orange-600'
               )}
             >
               {isPublishing ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-              {isPublishing ? '关闭视频/语音' : '开启视频/语音'}
+              {isPublishing ? '关闭摄像头/麦克风' : '开启摄像头/麦克风'}
             </Button>
           )}
         </div>
 
         {error && (
-          <p className="max-w-xl rounded-2xl bg-rose-950/80 px-3 py-2 text-sm text-rose-100 shadow-lg backdrop-blur">
+          <p className="max-w-xl shrink-0 rounded-2xl bg-rose-950/80 px-3 py-2 text-sm text-rose-100 shadow-lg backdrop-blur">
             {error}
           </p>
         )}
 
-        {topOverlay && <div className="mx-auto w-full max-w-2xl">{topOverlay}</div>}
+        {topOverlay && <div className="mx-auto w-full max-w-2xl shrink-0">{topOverlay}</div>}
 
-        <div className="flex-1" />
-        <div className="mx-auto w-full max-w-5xl">{children}</div>
+        <div className="min-h-3 flex-1" />
+        <div className="mx-auto min-h-0 max-h-[58dvh] w-full max-w-5xl shrink overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          {children}
+        </div>
       </div>
     </div>
   )

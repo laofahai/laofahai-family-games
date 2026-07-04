@@ -2,7 +2,7 @@
 // 每人在自己手机上私密打字猜答案，房主当裁判勾对错，再公布答案 + 积分。
 // 各端轮询房间快照；猜测用 member_submit（私密），公布时房主 collect_submissions 汇总。
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Brain, Crown, LogOut, Shuffle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,7 @@ import {
 import { contentFor } from '@/platform/content'
 import { ROLE_MAP } from './types'
 import type { KnowQuestion } from './types'
+import { remoteKnowYouPromptKey } from './remoteRules'
 
 function shuffle<T>(items: T[]) {
   const next = [...items]
@@ -59,6 +60,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [guess, setGuess] = useState('')
+  const lastPromptKey = useRef<string | null>(null)
 
   // 房主本地保存：当前题目（含答案，不进公共 payload）+ 累计分 + 轮次
   const [question, setQuestion] = useState<KnowQuestion | null>(null)
@@ -81,6 +83,17 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
   const members = snap?.members ?? []
   const hostSeat = members.find((m) => m.is_host)?.seat ?? -1
   const mySubmission = snap?.you?.submission as { guess?: string } | null | undefined
+
+  useEffect(() => {
+    if (!snap || snap.state !== 'playing' || isHost) return
+    const payload = snap.payload as { text?: string; round?: number }
+    const promptKey = remoteKnowYouPromptKey(payload.round, payload.text)
+    if (lastPromptKey.current !== promptKey) {
+      lastPromptKey.current = promptKey
+      setGuess('')
+      setErr('')
+    }
+  }, [snap, isHost])
 
   const create = async () => {
     setBusy(true)
@@ -210,6 +223,9 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
     setCollected([])
     setCorrectSet(new Set())
     setJoinCode('')
+    setGuess('')
+    setErr('')
+    lastPromptKey.current = null
   }
 
   const submitGuess = async () => {
@@ -455,7 +471,7 @@ export function KnowYouRemote({ onBack }: { onBack: () => void }) {
             <Brain className="h-5 w-5 text-melon-600" />
             第 {p.round ?? 1} 题 · 你知道吗？
           </CardTitle>
-          <CardDescription>各自打字猜，只有你看得到自己写的。房主收齐就判分。</CardDescription>
+          <CardDescription>各自打字猜，只有你看得到自己写的。有人提交后房主就能判分。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <RoomAudioPanel code={code} roomState={snap.state} myName={name} />

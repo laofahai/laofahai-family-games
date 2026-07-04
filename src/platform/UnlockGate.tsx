@@ -43,7 +43,7 @@ export function UnlockGate({ onUnlocked }: { onUnlocked: (info?: UnlockInfo) => 
 
   if (step === 'adminName') {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex min-h-[100dvh] items-center justify-center px-4">
         <Card className="paper-grid w-full max-w-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-2xl">
@@ -86,7 +86,7 @@ export function UnlockGate({ onUnlocked }: { onUnlocked: (info?: UnlockInfo) => 
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-[100dvh] items-center justify-center px-4">
       <Card className="paper-grid w-full max-w-sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">

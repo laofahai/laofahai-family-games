@@ -1,4 +1,4 @@
-type MediaKind = 'microphone' | 'camera'
+type MediaKind = 'microphone' | 'camera' | 'cameraOrMicrophone'
 
 function errorText(error: unknown): string {
   if (error instanceof Error) return `${error.name} ${error.message}`.toLowerCase()
@@ -7,7 +7,7 @@ function errorText(error: unknown): string {
 
 export function mediaPermissionErrorMessage(kind: MediaKind, error: unknown): string {
   const text = errorText(error)
-  const label = kind === 'camera' ? '摄像头' : '麦克风'
+  const label = kind === 'camera' ? '摄像头' : kind === 'microphone' ? '麦克风' : '摄像头或麦克风'
 
   if (text.includes('overlay') || text.includes('bubble')) {
     return `浏览器暂时不能弹出${label}权限。先关闭其他 App 的悬浮窗/气泡/小窗/录屏浮层，再点一次。`
