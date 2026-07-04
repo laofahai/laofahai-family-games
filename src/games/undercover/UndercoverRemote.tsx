@@ -13,6 +13,7 @@ import { contentFor } from '@/platform/content'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomCode } from '@/platform/RoomCode'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
 
 function getMaxSpies(n: number) {
@@ -235,7 +236,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardTitle className="flex items-center justify-between text-2xl">
             <span className="flex items-center gap-2">
               <Users className="h-5 w-5 text-melon-600" />
-              房号 <span className="font-mono tracking-[0.3em] text-orange-600">{code}</span>
+              房号 <RoomCode code={code} />
             </span>
           </CardTitle>
           <CardDescription>把房号告诉大家，等人到齐房主就开始。已经 {members.length} 人。</CardDescription>

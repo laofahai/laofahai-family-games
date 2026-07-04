@@ -13,6 +13,7 @@ import { ResultStage } from './stages/ResultStage'
 
 interface KnowYouGameProps {
   onExit: () => void
+  startRemote?: boolean
 }
 
 interface State {
@@ -122,9 +123,9 @@ function saveUsedTexts(texts: ReadonlySet<string>): void {
 
 const ALL_PLAYERS: Set<RoleId> = new Set<RoleId>(['dad', 'mom', 'bigSis', 'lilSis'])
 
-export function KnowYouGame({ onExit }: KnowYouGameProps) {
+export function KnowYouGame({ onExit, startRemote = false }: KnowYouGameProps) {
   const [introSeen] = useState(readIntroSeen)
-  const [remote, setRemote] = useState(false)
+  const [remote, setRemote] = useState(startRemote)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     players: new Set(ALL_PLAYERS),

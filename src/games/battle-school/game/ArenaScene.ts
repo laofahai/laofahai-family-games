@@ -1007,7 +1007,7 @@ export class ArenaScene extends Phaser.Scene {
   private initBossMoves(def: BossDef): void {
     const rng = makeRng((this.runSeed + this.level * 0x632be59b + 0x9e3779b1) >>> 0)
     const pick = <T,>(arr: T[]): T => rng.pick(arr)
-    let set = movesForBoss({ subject: def.subject, band: this.band, pick }).filter((m) =>
+    const set = movesForBoss({ subject: def.subject, band: this.band, pick }).filter((m) =>
       BOSS_MOVE_IMPL.has(m.effect),
     )
     const want = this.band === 'low' ? 2 : 3

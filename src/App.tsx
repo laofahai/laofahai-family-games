@@ -1,29 +1,22 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { Gamepad2, Ghost, Sparkles, UserRound } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, DoorOpen, Gamepad2, Ghost, Sparkles, UserRound } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { CharadesGame } from '@/games/charades/CharadesGame'
-import { DiceGame } from '@/games/dice/DiceGame'
 import { DrawGame } from '@/games/draw/DrawGame'
 import { KnowYouGame } from '@/games/know-you/KnowYouGame'
-import { MemoryGame } from '@/games/memory/MemoryGame'
 import { PriceGame } from '@/games/price/PriceGame'
-import { SoundGame } from '@/games/sound/SoundGame'
-import { ShiliuTownGame } from '@/games/shiliu-town/ShiliuTownGame'
-import { StoryGame } from '@/games/story/StoryGame'
-import { TruthLieGame } from '@/games/truth-lie/TruthLieGame'
 import { UndercoverGame } from '@/games/undercover/UndercoverGame'
-import { YiyiBureauGame } from '@/games/yiyi-bureau/YiyiBureauGame'
 import { addDeviceLogin, getDeviceLogins, isAdmin, isUnlocked, tryUnlock } from '@/platform/access'
 import { UnlockGate, type UnlockInfo } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
-import { WhoPlaying } from '@/platform/WhoPlaying'
-import { ACTIVE_GAME_IDS, GAMES } from '@/platform/catalog'
+import { ACTIVE_GAME_IDS, GAMES, gameSections, type GameMeta } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
 import { hydrateBadges, recordPlayed, type BadgeDef } from '@/platform/badges'
 import { hydrateProgress } from '@/platform/progression'
+import { roomsAvailable } from '@/platform/rooms'
 import { LevelBadge } from '@/platform/LevelBadge'
 import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { contentReady, refreshContent } from '@/platform/content'
@@ -31,30 +24,13 @@ import { loadRoster } from '@/platform/cloudRoster'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
 
-// Phaser 引擎游戏懒加载：把引擎挡在主包外，进到该游戏时再按需拉取
-const KnowledgeDuelGame = lazy(() =>
-  import('@/games/knowledge-duel/KnowledgeDuelGame').then((m) => ({ default: m.KnowledgeDuelGame }))
-)
-const BattleSchoolGame = lazy(() =>
-  import('@/games/battle-school/BattleSchoolGame').then((m) => ({ default: m.BattleSchoolGame }))
-)
-
 type Screen =
   | 'home'
   | 'undercover'
   | 'charades'
-  | 'story'
   | 'knowYou'
   | 'draw'
   | 'price'
-  | 'truthLie'
-  | 'shiliuTown'
-  | 'yiyiBureau'
-  | 'dice'
-  | 'sound'
-  | 'memory'
-  | 'knowledgeDuel'
-  | 'battleSchool'
 
 const games = GAMES
 const ACTIVE_GAMES = ACTIVE_GAME_IDS
@@ -71,9 +47,12 @@ export default function App() {
   const [unlocked, setUnlocked] = useState(isUnlocked)
   const [showMe, setShowMe] = useState(false)
   const [screen, setScreen] = useState<Screen>('home')
+  const [remoteEntry, setRemoteEntry] = useState<string | null>(null)
+  const [showMoreGames, setShowMoreGames] = useState(false)
   const [bandId, setBandId] = useState<string>(loadBand)
 
   const band = AGE_BANDS.find((b) => b.id === bandId) ?? AGE_BANDS[0]
+  const roomReady = roomsAvailable()
 
   const chooseBand = (id: string) => {
     setBandId(id)
@@ -105,6 +84,7 @@ export default function App() {
       ),
     [band, playerId, isGrownup]
   )
+  const visibleSections = useMemo(() => gameSections(visibleGames), [visibleGames])
 
   const choosePlayer = (id: string) => {
     setPlayerId(id)
@@ -118,7 +98,77 @@ export default function App() {
   const enterGame = (screenKey: Screen, gameId: string) => {
     const fresh = recordPlayed(playerId, gameId)
     if (fresh.length) setNewBadges(fresh)
+    setRemoteEntry(null)
     setScreen(screenKey)
+  }
+
+  const enterRemoteGame = (screenKey: Screen, gameId: string) => {
+    const fresh = recordPlayed(playerId, gameId)
+    if (fresh.length) setNewBadges(fresh)
+    setRemoteEntry(gameId)
+    setScreen(screenKey)
+  }
+
+  const renderGameCard = (game: GameMeta) => {
+    const isActive = ACTIVE_GAMES.has(game.id)
+    return (
+      <div
+        key={game.id}
+        className={cn(
+          'group flex min-h-[150px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md',
+          !isActive && 'opacity-70'
+        )}
+      >
+        <div className="flex w-full flex-1 flex-col items-start justify-between text-left">
+          <div className="flex w-full items-center justify-between">
+            <span className="rounded-2xl bg-ink-100 p-2">
+              <Ghost className="h-5 w-5 text-ink-700" />
+            </span>
+            {game.status === 'hot' ? (
+              <span className="rounded-full bg-melon-100 px-3 py-1 text-xs font-semibold text-melon-700">
+                Hot
+              </span>
+            ) : (
+              <span className="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700">
+                Coming
+              </span>
+            )}
+          </div>
+          <div className="w-full pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-display text-xl text-ink-900">{game.name}</div>
+              <span className="shrink-0 rounded-full bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
+                {game.audience}
+              </span>
+            </div>
+            <div className="text-xs text-ink-500">{game.desc}</div>
+          </div>
+        </div>
+        <div className="mt-3 grid w-full gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (!isActive) return
+              enterGame(game.id as Screen, game.id)
+            }}
+            disabled={!isActive}
+            className="inline-flex min-h-9 items-center justify-center rounded-2xl bg-ink-900 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            开始玩
+          </button>
+          {roomReady && game.supportsRoom && isActive && (
+            <button
+              type="button"
+              onClick={() => enterRemoteGame(game.id as Screen, game.id)}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100"
+            >
+              <DoorOpen className="h-4 w-4" />
+              开房间
+            </button>
+          )}
+        </div>
+      </div>
+    )
   }
 
   // 进场时：① 把云端最新题库拉回来缓存（离线/未配置则沿用缓存或打包副本）
@@ -270,47 +320,24 @@ export default function App() {
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {visibleGames.map((game) => {
-                const isActive = ACTIVE_GAMES.has(game.id)
-                return (
+              {visibleSections.main.map(renderGameCard)}
+              {visibleSections.more.length > 0 && (
+                <div className="col-span-full space-y-3">
                   <button
-                    key={game.id}
                     type="button"
-                    onClick={() => {
-                      if (!isActive) return
-                      enterGame(game.id as Screen, game.id)
-                    }}
-                    className={cn(
-                      'group flex min-h-[150px] flex-col items-start justify-between rounded-3xl border border-ink-100/70 bg-white/80 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md',
-                      !isActive && 'cursor-not-allowed opacity-70'
-                    )}
+                    onClick={() => setShowMoreGames((v) => !v)}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-ink-200 bg-white/65 text-sm font-semibold text-ink-600 transition hover:border-melon-300"
                   >
-                    <div className="flex w-full items-center justify-between">
-                      <span className="rounded-2xl bg-ink-100 p-2">
-                        <Ghost className="h-5 w-5 text-ink-700" />
-                      </span>
-                      {game.status === 'hot' ? (
-                        <span className="rounded-full bg-melon-100 px-3 py-1 text-xs font-semibold text-melon-700">
-                          Hot
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700">
-                          Coming
-                        </span>
-                      )}
-                    </div>
-                    <div className="w-full">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="font-display text-xl text-ink-900">{game.name}</div>
-                        <span className="shrink-0 rounded-full bg-ink-50 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
-                          {game.audience}
-                        </span>
-                      </div>
-                      <div className="text-xs text-ink-500">{game.desc}</div>
-                    </div>
+                    <ChevronDown className={cn('h-4 w-4 transition', showMoreGames && 'rotate-180')} />
+                    {showMoreGames ? '收起轻小游戏' : `更多轻小游戏（${visibleSections.more.length}）`}
                   </button>
-                )
-              })}
+                  {showMoreGames && (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {visibleSections.more.map(renderGameCard)}
+                    </div>
+                  )}
+                </div>
+              )}
               {visibleGames.length === 0 && (
                 <div className="col-span-full rounded-2xl border border-dashed border-ink-200 p-6 text-center text-sm text-ink-500">
                   这个年龄段暂时没有游戏，换一个试试。
@@ -319,9 +346,9 @@ export default function App() {
             </CardContent>
             <CardFooter className="justify-between">
               <div className="text-xs text-ink-500">
-                已上线 {ACTIVE_GAMES.size} 个游戏：聚会同乐 + 学习闯关，全家老小都能玩。
+                常用 {visibleSections.main.length} 个，轻小游戏 {visibleSections.more.length} 个。
               </div>
-              <div className="text-xs text-ink-500">新上线：骰子任务、声音模仿、记忆翻牌 🎉</div>
+              <div className="text-xs text-ink-500">需要多人各自用手机时，点游戏卡片里的「开房」。</div>
             </CardFooter>
           </Card>
         )}
@@ -341,7 +368,7 @@ export default function App() {
                 </p>
               </div>
             </div>
-            <UndercoverGame />
+            <UndercoverGame startRemote={remoteEntry === 'undercover'} />
           </section>
         )}
 
@@ -358,7 +385,7 @@ export default function App() {
                 手机贴额头，家人比划你猜词。前翻="对"，后翻="过"。
               </p>
             </div>
-            <CharadesGame onExit={() => setScreen('home')} />
+            <CharadesGame startRemote={remoteEntry === 'charades'} onExit={() => setScreen('home')} />
           </section>
         )}
 
@@ -375,7 +402,7 @@ export default function App() {
                 每轮一位家人当主角，其他人猜 TA 世界里的事。答对拿 ❤️，没人答对主角拿 🤫。
               </p>
             </div>
-            <KnowYouGame onExit={() => setScreen('home')} />
+            <KnowYouGame startRemote={remoteEntry === 'knowYou'} onExit={() => setScreen('home')} />
           </section>
         )}
 
@@ -392,7 +419,7 @@ export default function App() {
                 画手偷偷看词，在屏幕上画，全家围着猜。只能画，不能说！
               </p>
             </div>
-            <DrawGame onExit={() => setScreen('home')} />
+            <DrawGame startRemote={remoteEntry === 'draw'} onExit={() => setScreen('home')} />
           </section>
         )}
 
@@ -409,160 +436,10 @@ export default function App() {
                 每轮一件真实商品，轮流报价，最接近真实价格的人得分。
               </p>
             </div>
-            <PriceGame onExit={() => setScreen('home')} />
+            <PriceGame startRemote={remoteEntry === 'price'} onExit={() => setScreen('home')} />
           </section>
         )}
 
-        {screen === 'truthLie' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">两真一假</h2>
-              <p className="text-sm text-ink-600">
-                主角说三件自己的事，一件是编的。拆穿得分，骗过全场也得分。
-              </p>
-            </div>
-            <TruthLieGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'shiliuTown' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">闫顺儿小镇</h2>
-              <p className="text-sm text-ink-600">
-                小侦探先找线索，购物小掌柜再算钱。每局短一点，慢慢玩。
-              </p>
-            </div>
-            <WhoPlaying players={players} currentId={playerId} onPick={choosePlayer} />
-            <ShiliuTownGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'yiyiBureau' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">闫一依任务局</h2>
-              <p className="text-sm text-ink-600">
-                当策划人、队长和数据分析员，破解一个个任务。数学打头阵，语文英语科学随机混搭，每局都新。
-              </p>
-            </div>
-            <WhoPlaying players={players} currentId={playerId} onPick={choosePlayer} />
-            <YiyiBureauGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'story' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">编故事</h2>
-              <p className="text-sm text-ink-600">
-                抽几张关键词卡，限时内编一个把它们都用上的故事。家人当裁判。
-              </p>
-            </div>
-            <StoryGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'dice' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">骰子任务</h2>
-              <p className="text-sm text-ink-600">掷一下骰子，抽到什么任务全家轮流做，活跃气氛。</p>
-            </div>
-            <DiceGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'sound' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">声音模仿</h2>
-              <p className="text-sm text-ink-600">抽一张卡，按提示学个声音，其他人来猜或打分，再传给下一位。</p>
-            </div>
-            <SoundGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'memory' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">记忆翻牌</h2>
-              <p className="text-sm text-ink-600">翻开两张找一样的，全配上就赢，考考记性。</p>
-            </div>
-            <MemoryGame onExit={() => setScreen('home')} />
-          </section>
-        )}
-
-        {screen === 'knowledgeDuel' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">我要用知识打败你</h2>
-              <p className="text-sm text-ink-600">回合制答题对战：答对揍对方、连对暴击，血先空的输。两人传手机或对电脑。</p>
-            </div>
-            <Suspense fallback={<div className="py-16 text-center text-sm text-ink-500">游戏加载中…</div>}>
-              <KnowledgeDuelGame onExit={() => setScreen('home')} />
-            </Suspense>
-          </section>
-        )}
-
-        {screen === 'battleSchool' && (
-          <section className="space-y-6">
-            <div>
-              <Button variant="outline" onClick={() => setScreen('home')} className="gap-2">
-                返回首页
-              </Button>
-            </div>
-            <div>
-              <h2 className="font-display text-3xl text-ink-900">课间大乱斗</h2>
-              <p className="text-sm text-ink-600">
-                横版闯关：揍翻拦路同学，答题打败关底老师。可邀同学一起合作打。
-              </p>
-            </div>
-            <Suspense fallback={<div className="py-16 text-center text-sm text-ink-500">游戏加载中…</div>}>
-              <BattleSchoolGame player={playerId} onExit={() => setScreen('home')} />
-            </Suspense>
-          </section>
-        )}
       </div>
     </div>
   )

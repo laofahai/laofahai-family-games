@@ -19,6 +19,7 @@ import { ResultStage } from './stages/ResultStage'
 
 interface CharadesGameProps {
   onExit: () => void
+  startRemote?: boolean
 }
 
 interface State {
@@ -93,9 +94,9 @@ function readIntroSeen(): boolean {
 
 const INITIAL_DIFFICULTIES: Set<Difficulty> = new Set<Difficulty>(['easy', 'medium'])
 
-export function CharadesGame({ onExit }: CharadesGameProps) {
+export function CharadesGame({ onExit, startRemote = false }: CharadesGameProps) {
   const [introSeen] = useState(readIntroSeen)
-  const [remote, setRemote] = useState(false)
+  const [remote, setRemote] = useState(startRemote)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     difficulties: INITIAL_DIFFICULTIES,

@@ -54,8 +54,12 @@ function shuffle<T>(items: T[]) {
   return next
 }
 
-export function UndercoverGame() {
-  const [mode, setMode] = useState<'local' | 'remote'>('local')
+interface UndercoverGameProps {
+  startRemote?: boolean
+}
+
+export function UndercoverGame({ startRemote = false }: UndercoverGameProps) {
+  const [mode, setMode] = useState<'local' | 'remote'>(startRemote ? 'remote' : 'local')
   const [phase, setPhase] = useState<Phase>('setup')
   const [rosterIds, setRosterIds] = useState<string[]>(getRosterIds)
   const [spyCount, setSpyCount] = useState(1)

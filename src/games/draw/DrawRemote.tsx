@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomCode } from '@/platform/RoomCode'
 import { joinDrawChannel, type DrawChannel } from '@/platform/realtime'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from '@/platform/rooms'
 import { RemoteCanvas, type DrawMsg, type RemoteCanvasHandle } from './components/RemoteCanvas'
@@ -231,7 +232,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <Paintbrush className="h-5 w-5 text-melon-600" />
-            房号 <span className="font-mono tracking-[0.3em] text-orange-600">{code}</span>
+            房号 <RoomCode code={code} />
           </CardTitle>
           <CardDescription>把房号告诉大家，人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>

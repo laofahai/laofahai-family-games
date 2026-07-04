@@ -14,27 +14,29 @@ export interface GameMeta {
   audience: string
   /** 内容是否支持难度分级 */
   hasDifficulty?: boolean
+  /** 首页分区：main 是常用入口，more 是轻量/备用游戏 */
+  homeSection?: 'main' | 'more'
+  /** 是否有基于房号的远程模式 */
+  supportsRoom?: boolean
   /** 归属人：只给这些玩家 id（+ 家长/管理员）看的「私人」游戏，如某个孩子的学习闯关。留空=人人可见 */
   owner?: string[]
 }
 
 export const GAMES: GameMeta[] = [
-  { id: 'undercover', name: '谁是卧底', desc: '适合 3 人起玩', status: 'hot', age: { min: 7, max: 99 }, audience: '全家' },
-  { id: 'charades', name: '你来比划', desc: '手机贴额头，限时猜词', status: 'hot', age: { min: 5, max: 99 }, audience: '全家', hasDifficulty: true },
-  { id: 'story', name: '编故事', desc: '抽关键词，限时编故事', status: 'hot', age: { min: 7, max: 99 }, audience: '全家' },
-  { id: 'knowYou', name: '我知道你不知道', desc: '猜猜家人的小世界', status: 'hot', age: { min: 6, max: 99 }, audience: '全家' },
-  { id: 'draw', name: '你画我猜', desc: '触屏作画，全家来猜', status: 'hot', age: { min: 5, max: 99 }, audience: '全家', hasDifficulty: true },
-  { id: 'price', name: '猜价格', desc: '真实物价，最接近的赢', status: 'hot', age: { min: 8, max: 99 }, audience: '全家' },
-  { id: 'shiliuTown', name: '闫顺儿小镇', desc: '读题破案，购物算钱', status: 'hot', age: { min: 6, max: 9 }, audience: '一二年级', owner: ['shuner'] },
-  { id: 'yiyiBureau', name: '闫一依任务局', desc: '当策划队长，破任务闯关', status: 'hot', age: { min: 11, max: 13 }, audience: '小升初', owner: ['yiyi'] },
-  { id: 'truthLie', name: '两真一假', desc: '拆穿家人的小谎话', status: 'hot', age: { min: 8, max: 99 }, audience: '全家' },
-  { id: 'dice', name: '骰子任务', desc: '掷骰子，抽任务全家做', status: 'hot', age: { min: 6, max: 99 }, audience: '全家' },
-  { id: 'sound', name: '声音模仿', desc: '学个声音，大家来猜', status: 'hot', age: { min: 6, max: 99 }, audience: '全家' },
-  { id: 'memory', name: '记忆翻牌', desc: '翻牌配对，考考记性', status: 'hot', age: { min: 5, max: 99 }, audience: '全家' },
-  { id: 'knowledgeDuel', name: '我要用知识打败你', desc: '回合制答题对战，俩人对轰', status: 'hot', age: { min: 6, max: 99 }, audience: '对战' },
-  { id: 'battleSchool', name: '课间大乱斗', desc: '横版闯关：揍翻同学、答题打老师，可邀同学合作', status: 'hot', age: { min: 6, max: 99 }, audience: '闯关·多人' },
+  { id: 'charades', name: '你来比划', desc: '手机贴额头，限时猜词', status: 'hot', age: { min: 5, max: 99 }, audience: '全家', hasDifficulty: true, supportsRoom: true },
+  { id: 'draw', name: '你画我猜', desc: '触屏作画，全家来猜', status: 'hot', age: { min: 5, max: 99 }, audience: '全家', hasDifficulty: true, supportsRoom: true },
+  { id: 'undercover', name: '谁是卧底', desc: '适合 3 人起玩', status: 'hot', age: { min: 7, max: 99 }, audience: '全家', supportsRoom: true },
+  { id: 'knowYou', name: '我知道你不知道', desc: '猜猜家人的小世界', status: 'hot', age: { min: 6, max: 99 }, audience: '全家', supportsRoom: true },
+  { id: 'price', name: '猜价格', desc: '真实物价，最接近的赢', status: 'hot', age: { min: 8, max: 99 }, audience: '全家', supportsRoom: true },
 ]
 
 export const ACTIVE_GAME_IDS = new Set(
   GAMES.filter((g) => g.status === 'hot').map((g) => g.id)
 )
+
+export function gameSections(source: readonly GameMeta[] = GAMES): { main: GameMeta[]; more: GameMeta[] } {
+  return {
+    main: source.filter((game) => game.homeSection !== 'more'),
+    more: source.filter((game) => game.homeSection === 'more'),
+  }
+}

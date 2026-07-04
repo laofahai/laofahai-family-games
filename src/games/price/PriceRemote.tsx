@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { getPlayers } from '@/platform/players'
 import { getCurrentPlayer, pickUnseen } from '@/platform/progress'
 import { RemoteVoiceHint } from '@/platform/RemoteVoiceHint'
+import { RoomCode } from '@/platform/RoomCode'
 import {
   clearSubmissions,
   collectSubmissions,
@@ -296,7 +297,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-2xl">
             <Tag className="h-5 w-5 text-melon-600" />
-            房号 <span className="font-mono tracking-[0.3em] text-orange-600">{code}</span>
+            房号 <RoomCode code={code} />
           </CardTitle>
           <CardDescription>把房号告诉大家，人到齐房主就出第一件商品。已经 {members.length} 人。</CardDescription>
         </CardHeader>

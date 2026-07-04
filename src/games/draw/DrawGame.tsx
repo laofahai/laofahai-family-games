@@ -13,6 +13,7 @@ import { ResultStage } from './stages/ResultStage'
 
 interface DrawGameProps {
   onExit: () => void
+  startRemote?: boolean
 }
 
 interface State {
@@ -91,9 +92,9 @@ function readIntroSeen(): boolean {
   return localStorage.getItem('draw.introSeen') === '1'
 }
 
-export function DrawGame({ onExit }: DrawGameProps) {
+export function DrawGame({ onExit, startRemote = false }: DrawGameProps) {
   const [introSeen] = useState(readIntroSeen)
-  const [remote, setRemote] = useState(false)
+  const [remote, setRemote] = useState(startRemote)
   const [state, dispatch] = useReducer(reducer, {
     stage: introSeen ? 'setup' : 'intro',
     difficulties: new Set<DrawDifficulty>(['easy', 'medium']),
