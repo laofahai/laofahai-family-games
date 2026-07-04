@@ -101,12 +101,14 @@ export async function tryUnlock(code: string): Promise<UnlockResult> {
   const trimmed = code.trim()
   const r = await redeemLogin(trimmed)
   if (!r.valid) return { ok: false }
-  if (r.isAdmin) return { ok: false, needAdminName: true } // 还没解锁，等名字
-  // 个人码 / 普通访问码：直接解锁
-  save({ code: trimmed, isAdmin: false })
   if (r.isPerson && r.name) {
+    // 个人码优先：如果这个个人码同时是管理员码，直接以本人身份进入并保留管理权限。
+    save({ code: trimmed, isAdmin: r.isAdmin, adminName: r.isAdmin ? r.name : undefined })
     return { ok: true, person: { name: r.name, emoji: r.emoji, code: trimmed } }
   }
+  if (r.isAdmin) return { ok: false, needAdminName: true } // 纯管理码：还没解锁，等名字
+  // 普通访问码：直接解锁
+  save({ code: trimmed, isAdmin: false })
   return { ok: true }
 }
 
