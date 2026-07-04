@@ -1,13 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, DoorOpen, Gamepad2, Ghost, Sparkles, UserRound } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { CharadesGame } from '@/games/charades/CharadesGame'
-import { DrawGame } from '@/games/draw/DrawGame'
-import { KnowYouGame } from '@/games/know-you/KnowYouGame'
-import { PriceGame } from '@/games/price/PriceGame'
-import { UndercoverGame } from '@/games/undercover/UndercoverGame'
 import { addDeviceLogin, getDeviceLogins, isAdmin, isUnlocked, tryUnlock } from '@/platform/access'
 import { UnlockGate, type UnlockInfo } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
@@ -19,10 +14,21 @@ import { hydrateProgress } from '@/platform/progression'
 import { roomsAvailable } from '@/platform/rooms'
 import { LevelBadge } from '@/platform/LevelBadge'
 import { BadgeUnlock } from '@/platform/BadgeUnlock'
-import { contentReady, refreshContent } from '@/platform/content'
-import { loadRoster } from '@/platform/cloudRoster'
+import { contentKeysForGame, ensureContent } from '@/platform/content'
 import { AGE_BANDS, ageOverlaps } from '@/platform/taxonomy'
 import { cn } from '@/lib/utils'
+
+const UndercoverGame = lazy(() =>
+  import('@/games/undercover/UndercoverGame').then((m) => ({ default: m.UndercoverGame }))
+)
+const CharadesGame = lazy(() =>
+  import('@/games/charades/CharadesGame').then((m) => ({ default: m.CharadesGame }))
+)
+const KnowYouGame = lazy(() =>
+  import('@/games/know-you/KnowYouGame').then((m) => ({ default: m.KnowYouGame }))
+)
+const DrawGame = lazy(() => import('@/games/draw/DrawGame').then((m) => ({ default: m.DrawGame })))
+const PriceGame = lazy(() => import('@/games/price/PriceGame').then((m) => ({ default: m.PriceGame })))
 
 type Screen =
   | 'home'
@@ -43,6 +49,15 @@ function loadBand(): string {
   }
 }
 
+function GameLoading({ name }: { name: string }) {
+  return (
+    <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 rounded-3xl border border-dashed border-ink-200 bg-white/60 p-8 text-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-melon-200 border-t-melon-500" />
+      <div className="text-sm font-semibold text-ink-600">正在加载{name}…</div>
+    </div>
+  )
+}
+
 export default function App() {
   const [unlocked, setUnlocked] = useState(isUnlocked)
   const [showMe, setShowMe] = useState(false)
@@ -50,6 +65,8 @@ export default function App() {
   const [remoteEntry, setRemoteEntry] = useState<string | null>(null)
   const [showMoreGames, setShowMoreGames] = useState(false)
   const [bandId, setBandId] = useState<string>(loadBand)
+  const [loadingGame, setLoadingGame] = useState<string | null>(null)
+  const [contentError, setContentError] = useState('')
 
   const band = AGE_BANDS.find((b) => b.id === bandId) ?? AGE_BANDS[0]
   const roomReady = roomsAvailable()
@@ -69,8 +86,6 @@ export default function App() {
   // 进度（等级/称号/金币）是 localStorage 同步读的；hydrateProgress 异步合并完云端后
   // 改本地缓存，需要 bump 这个版本号触发顶栏等级牌重读最新数据。
   const [progressVersion, setProgressVersion] = useState(0)
-  // 内容只在数据库：首次进入若本机还没缓存，先拦一道「加载中」门，拉到再放行
-  const [contentLoaded, setContentLoaded] = useState(contentReady)
   const currentPlayer = players.find((p) => p.id === playerId)
 
   // 大人（爸妈/管理员）能看到所有游戏；孩子只看到「自己的」私人游戏（owner），看不到兄弟姐妹的
@@ -95,14 +110,30 @@ export default function App() {
   }
 
   // 进一个游戏：记「这个人玩过它」（探索勋章用），顺手评出新勋章弹庆祝
-  const enterGame = (screenKey: Screen, gameId: string) => {
+  const enterGame = async (screenKey: Screen, gameId: string) => {
+    setLoadingGame(gameId)
+    setContentError('')
+    const ready = await ensureContent(contentKeysForGame(gameId))
+    setLoadingGame(null)
+    if (!ready) {
+      setContentError('题库加载失败，检查网络后再试一次。')
+      return
+    }
     const fresh = recordPlayed(playerId, gameId)
     if (fresh.length) setNewBadges(fresh)
     setRemoteEntry(null)
     setScreen(screenKey)
   }
 
-  const enterRemoteGame = (screenKey: Screen, gameId: string) => {
+  const enterRemoteGame = async (screenKey: Screen, gameId: string) => {
+    setLoadingGame(gameId)
+    setContentError('')
+    const ready = await ensureContent(contentKeysForGame(gameId))
+    setLoadingGame(null)
+    if (!ready) {
+      setContentError('题库加载失败，检查网络后再试一次。')
+      return
+    }
     const fresh = recordPlayed(playerId, gameId)
     if (fresh.length) setNewBadges(fresh)
     setRemoteEntry(gameId)
@@ -149,21 +180,22 @@ export default function App() {
             type="button"
             onClick={() => {
               if (!isActive) return
-              enterGame(game.id as Screen, game.id)
+              void enterGame(game.id as Screen, game.id)
             }}
-            disabled={!isActive}
+            disabled={!isActive || loadingGame === game.id}
             className="inline-flex min-h-9 items-center justify-center rounded-2xl bg-ink-900 px-3 text-sm font-semibold text-white transition hover:bg-ink-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            开始玩
+            {loadingGame === game.id ? '加载中' : '开始玩'}
           </button>
           {roomReady && game.supportsRoom && isActive && (
             <button
               type="button"
-              onClick={() => enterRemoteGame(game.id as Screen, game.id)}
-              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100"
+              onClick={() => void enterRemoteGame(game.id as Screen, game.id)}
+              disabled={loadingGame === game.id}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <DoorOpen className="h-4 w-4" />
-              开房间
+              {loadingGame === game.id ? '加载中' : '开房间'}
             </button>
           )}
         </div>
@@ -171,22 +203,13 @@ export default function App() {
     )
   }
 
-  // 进场时：① 把云端最新题库拉回来缓存（离线/未配置则沿用缓存或打包副本）
-  //        ② 把当前玩家的云端进度拉回来（没连码的人是无操作）
+  // 进场时只同步玩家数据；题库改为点击游戏时按需加载，避免首页拉全量内容。
   useEffect(() => {
-    refreshContent()
-      .then(() => setContentLoaded(contentReady()))
-      .catch(() => {})
-    void loadRoster() // 战斗名册（打老师/课间大乱斗用）：启动拉一次缓存到本机
     void hydratePlayer(playerId)
     void hydrateBadges(playerId)
     void hydrateProgress(playerId).then(() => setProgressVersion((v) => v + 1))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const retryContent = () => {
-    void refreshContent().then(() => setContentLoaded(contentReady()))
-  }
 
   const handleAddPlayer = (name: string) => {
     const p = addPlayer(name)
@@ -231,18 +254,6 @@ export default function App() {
 
   if (!unlocked) {
     return <UnlockGate onUnlocked={handleUnlocked} />
-  }
-
-  if (!contentLoaded) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="animate-pulse text-lg font-semibold text-ink-700">正在加载游戏内容…</div>
-        <p className="text-sm text-ink-500">首次进入需要联网拉取题库，请稍候</p>
-        <Button variant="outline" onClick={retryContent}>
-          重试
-        </Button>
-      </div>
-    )
   }
 
   return (
@@ -319,6 +330,11 @@ export default function App() {
                 ))}
               </div>
             </CardHeader>
+            {contentError && (
+              <div className="mx-6 mb-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                {contentError}
+              </div>
+            )}
             <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visibleSections.main.map(renderGameCard)}
               {visibleSections.more.length > 0 && (
@@ -368,7 +384,9 @@ export default function App() {
                 </p>
               </div>
             </div>
-            <UndercoverGame startRemote={remoteEntry === 'undercover'} />
+            <Suspense fallback={<GameLoading name="谁是卧底" />}>
+              <UndercoverGame startRemote={remoteEntry === 'undercover'} />
+            </Suspense>
           </section>
         )}
 
@@ -385,7 +403,9 @@ export default function App() {
                 手机贴额头，家人比划你猜词。前翻="对"，后翻="过"。
               </p>
             </div>
-            <CharadesGame startRemote={remoteEntry === 'charades'} onExit={() => setScreen('home')} />
+            <Suspense fallback={<GameLoading name="你来比划" />}>
+              <CharadesGame startRemote={remoteEntry === 'charades'} onExit={() => setScreen('home')} />
+            </Suspense>
           </section>
         )}
 
@@ -402,7 +422,9 @@ export default function App() {
                 每轮一位家人当主角，其他人猜 TA 世界里的事。答对拿 ❤️，没人答对主角拿 🤫。
               </p>
             </div>
-            <KnowYouGame startRemote={remoteEntry === 'knowYou'} onExit={() => setScreen('home')} />
+            <Suspense fallback={<GameLoading name="我知道你不知道" />}>
+              <KnowYouGame startRemote={remoteEntry === 'knowYou'} onExit={() => setScreen('home')} />
+            </Suspense>
           </section>
         )}
 
@@ -419,7 +441,9 @@ export default function App() {
                 画手偷偷看词，在屏幕上画，全家围着猜。只能画，不能说！
               </p>
             </div>
-            <DrawGame startRemote={remoteEntry === 'draw'} onExit={() => setScreen('home')} />
+            <Suspense fallback={<GameLoading name="你画我猜" />}>
+              <DrawGame startRemote={remoteEntry === 'draw'} onExit={() => setScreen('home')} />
+            </Suspense>
           </section>
         )}
 
@@ -436,7 +460,9 @@ export default function App() {
                 每轮一件真实商品，轮流报价，最接近真实价格的人得分。
               </p>
             </div>
-            <PriceGame startRemote={remoteEntry === 'price'} onExit={() => setScreen('home')} />
+            <Suspense fallback={<GameLoading name="猜价格" />}>
+              <PriceGame startRemote={remoteEntry === 'price'} onExit={() => setScreen('home')} />
+            </Suspense>
           </section>
         )}
 
