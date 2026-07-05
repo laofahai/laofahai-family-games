@@ -1,13 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   canHandleSignal,
   canPublishCharadesVideo,
   shouldCreateMeshOffer,
+  webRtcPeerId,
   type WebRtcSignal,
 } from './webrtcSignaling'
 
 describe('webrtcSignaling', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', makeStorage())
+    vi.stubGlobal('sessionStorage', makeStorage())
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('ignores signals for another room, from self, or addressed to someone else', () => {
     const base: WebRtcSignal = { room: '1234', from: 'peer-a', t: 'peer', name: 'A' }
     const offer: WebRtcSignal = {
@@ -38,4 +48,25 @@ describe('webrtcSignaling', () => {
     expect(shouldCreateMeshOffer('peer-a', 'peer-b')).toBe(false)
     expect(shouldCreateMeshOffer('peer-a', 'peer-a')).toBe(false)
   })
+
+  it('does not reuse the old localStorage peer id shared by every tab', () => {
+    localStorage.setItem('fg:rtc-peer', 'shared-between-tabs')
+    sessionStorage.removeItem('fg:rtc-peer')
+
+    expect(webRtcPeerId()).not.toBe('shared-between-tabs')
+  })
 })
+
+function makeStorage(): Storage {
+  const values = new Map<string, string>()
+  return {
+    get length() {
+      return values.size
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => Array.from(values.keys())[index] ?? null,
+    removeItem: (key) => values.delete(key),
+    setItem: (key, value) => values.set(key, value),
+  }
+}

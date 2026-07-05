@@ -275,13 +275,17 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
             <div className="mx-auto flex min-h-[190px] max-w-xl flex-col items-center justify-center gap-3 rounded-3xl border border-white/20 bg-black/60 p-6 text-center text-white shadow-2xl backdrop-blur">
               <div className="text-5xl">🙈</div>
               <div className="font-display text-3xl">轮到你猜！</div>
-              <div className="text-sm text-white/70">看表演者视频里的比划，用房间语音/现场大声说答案</div>
+              <div className="text-sm text-white/70">看表演者视频里的比划，加入房间语音或现场大声说答案</div>
             </div>
           ) : (
             <p className="mx-auto max-w-xl rounded-2xl bg-black/50 p-3 text-center text-sm text-white/75 shadow-lg backdrop-blur">
-              可以开启摄像头/麦克风表演；猜的人用房间语音/现场回答。别说出词本身、别用谐音。
+              可以开启摄像头/麦克风表演；猜的人加入房间语音或现场回答。别说出词本身、别用谐音。
             </p>
           )}
+
+          <div className="mx-auto w-full max-w-xl shadow-lg">
+            <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          </div>
 
           <div className="rounded-3xl bg-black/40 p-3 shadow-lg backdrop-blur">
             {memberList}

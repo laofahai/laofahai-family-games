@@ -299,6 +299,12 @@ export function CharadesVideoPanel({
           </p>
         )}
 
+        {isPublishing && (
+          <p className="max-w-xl shrink-0 rounded-2xl bg-black/55 px-3 py-2 text-xs font-medium text-white/80 shadow-lg backdrop-blur">
+            这是本机预览；对面连接成功后就能看到你的摄像头并听到你的麦克风。
+          </p>
+        )}
+
         {topOverlay && <div className="mx-auto w-full max-w-2xl shrink-0">{topOverlay}</div>}
 
         <div className="min-h-3 flex-1" />

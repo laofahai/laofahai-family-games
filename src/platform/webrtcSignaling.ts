@@ -1,4 +1,5 @@
 const PEER_KEY = 'fg:rtc-peer'
+let memoryPeerId: string | null = null
 
 export type WebRtcSignal =
   | { t: 'peer'; room: string; from: string; name: string }
@@ -38,8 +39,10 @@ export function shouldCreateMeshOffer(localPeerId: string, remotePeerId: string)
 }
 
 export function webRtcPeerId(): string {
+  if (memoryPeerId) return memoryPeerId
+
   try {
-    const existing = localStorage.getItem(PEER_KEY)
+    const existing = sessionStorage.getItem(PEER_KEY)
     if (existing) return existing
   } catch {
     /* ignore blocked storage */
@@ -51,9 +54,10 @@ export function webRtcPeerId(): string {
       : `peer_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`
 
   try {
-    localStorage.setItem(PEER_KEY, next)
+    sessionStorage.setItem(PEER_KEY, next)
   } catch {
     /* session-only identity is still enough for one call */
   }
+  memoryPeerId = next
   return next
 }
