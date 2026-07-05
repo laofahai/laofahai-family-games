@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { mediaPermissionErrorMessage } from './mediaError'
+import { roomAudioStatusText } from './roomAudioStatus'
 import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from './webrtcSignalChannel'
 import { shouldCreateMeshOffer, webRtcPeerId, type WebRtcSignal, type WebRtcSignalBody } from './webrtcSignaling'
 
@@ -29,6 +30,9 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
   const [status, setStatus] = useState('语音未开启')
   const [error, setError] = useState('')
   const [remotePeers, setRemotePeers] = useState<RemoteAudioPeer[]>([])
+  const [playbackBlocked, setPlaybackBlocked] = useState(false)
+  const [resumeSignal, setResumeSignal] = useState(0)
+  const handlePlaybackBlocked = useCallback(() => setPlaybackBlocked(true), [])
 
   const channelRef = useRef<WebRtcSignalChannel | null>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
@@ -184,6 +188,7 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
 
   const joinAudio = async () => {
     setError('')
+    setPlaybackBlocked(false)
     if (!navigator.mediaDevices?.getUserMedia) {
       setError('这个浏览器不支持语音直连')
       return
@@ -227,8 +232,7 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
           <div className="min-w-0">
             <div className="font-semibold">房间语音</div>
             <div className="text-xs leading-relaxed text-emerald-700">
-              {roomState === 'lobby' ? '人到齐前可以先连语音。' : status}
-              {joined && remotePeers.length > 0 && ` 已听到 ${remotePeers.length} 人。`}
+              {roomAudioStatusText({ joined, remoteCount: remotePeers.length, roomState, status })}
             </div>
           </div>
         </div>
@@ -239,6 +243,19 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
                 {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 {muted ? '取消静音' : '静音'}
               </Button>
+              {playbackBlocked && remotePeers.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setPlaybackBlocked(false)
+                    setResumeSignal((n) => n + 1)
+                  }}
+                  className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  播放声音
+                </Button>
+              )}
               <Button type="button" size="sm" variant="ghost" onClick={leaveAudio} className="gap-1.5 text-emerald-800">
                 <PhoneOff className="h-4 w-4" />
                 退出语音
@@ -257,18 +274,34 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
         {status}
       </div>
       {remotePeers.map((peer) => (
-        <RemoteAudio key={peer.id} stream={peer.stream} />
+        <RemoteAudio
+          key={peer.id}
+          stream={peer.stream}
+          resumeSignal={resumeSignal}
+          onPlaybackBlocked={handlePlaybackBlocked}
+        />
       ))}
     </div>
   )
 }
 
-function RemoteAudio({ stream }: { stream: MediaStream }) {
+function RemoteAudio({
+  stream,
+  resumeSignal,
+  onPlaybackBlocked,
+}: {
+  stream: MediaStream
+  resumeSignal: number
+  onPlaybackBlocked: () => void
+}) {
   const ref = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream
-  }, [stream])
+    const audio = ref.current
+    if (!audio) return
+    audio.srcObject = stream
+    void audio.play().catch(onPlaybackBlocked)
+  }, [stream, resumeSignal, onPlaybackBlocked])
 
   return (
     <audio ref={ref} autoPlay playsInline>
