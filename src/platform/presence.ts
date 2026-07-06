@@ -13,10 +13,15 @@ function activeUsers(users: PresenceUser[]): PresenceUser[] {
   const now = Date.now()
   return users
     .filter((user) => {
-      const expires = Date.parse(user.expires_at)
+      const expires = dateMs(user.expires_at)
       return Number.isFinite(expires) && expires > now
     })
-    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+    .sort((a, b) => dateMs(b.updated_at) - dateMs(a.updated_at))
+}
+
+function dateMs(value: string): number {
+  const ms = Date.parse(value.replace(' ', 'T'))
+  return Number.isFinite(ms) ? ms : 0
 }
 
 export function usePresence(args: {

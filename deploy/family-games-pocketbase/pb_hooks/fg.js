@@ -231,14 +231,20 @@ function seedContent() {
 }
 
 function cleanupRealtime() {
-  const cutoff = new Date().toISOString()
-  deleteWhere('rt_events', (row) => String(row.get('expires_at') || '') < cutoff)
-  deleteWhere('rt_presence', (row) => String(row.get('expires_at') || '') < cutoff)
+  const now = Date.now()
+  deleteWhere('rt_events', (row) => dateMs(row.get('expires_at')) < now)
+  deleteWhere('rt_presence', (row) => dateMs(row.get('expires_at')) < now)
 }
 
 function activePresenceRows() {
-  const cutoff = new Date().toISOString()
-  return all('rt_presence', 'updated DESC').filter((row) => String(row.get('expires_at') || '') > cutoff)
+  const now = Date.now()
+  return all('rt_presence', 'updated DESC').filter((row) => dateMs(row.get('expires_at')) > now)
+}
+
+function dateMs(value) {
+  const text = String(value || '').replace(' ', 'T')
+  const ms = Date.parse(text)
+  return Number.isFinite(ms) ? ms : 0
 }
 
 function presenceMeta(row) {
