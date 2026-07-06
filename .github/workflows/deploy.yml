@@ -105,10 +105,12 @@ jobs:
         run: |
           set -euo pipefail
           printf 'VITE_POCKETBASE_URL=%s\nPB_ADMIN_EMAIL=%s\nPB_ADMIN_PASSWORD=%s\nLIVEKIT_URL=%s\nLIVEKIT_API_KEY=%s\nLIVEKIT_API_SECRET=%s\n' "$VITE_POCKETBASE_URL" "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" "$LIVEKIT_URL" "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > /tmp/family-games.env
+          printf 'port: 7880\nlog_level: info\nrtc:\n  tcp_port: 7881\n  port_range_start: 50000\n  port_range_end: 60000\n  use_external_ip: true\nredis:\n  address: family-games-redis:6379\nkeys:\n  %s: %s\n' "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > /tmp/livekit.yaml
           ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "mkdir -p '$APP_DIR' /opt/nestory/caddy/sites"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-dist.tgz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-dist.tgz"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-images.tar.gz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-images.tar.gz"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games.env "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games.env"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/livekit.yaml "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:$APP_DIR/livekit.yaml"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" deploy/family-games-web/docker-compose.yml "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:$APP_DIR/docker-compose.yml"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" deploy/family-games-web/game-902.caddy "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/game-902.caddy"
 
@@ -127,22 +129,6 @@ jobs:
             mv /opt/nestory/caddy/site/game-902.new /opt/nestory/caddy/site/game-902
             mv /tmp/family-games.env .env
             chmod 600 .env
-            set -a
-            . ./.env
-            set +a
-            cat > livekit.yaml <<EOF
-port: 7880
-log_level: info
-rtc:
-  tcp_port: 7881
-  port_range_start: 50000
-  port_range_end: 60000
-  use_external_ip: true
-redis:
-  address: family-games-redis:6379
-keys:
-  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
-EOF
             chmod 600 livekit.yaml
             docker load -i /tmp/family-games-images.tar.gz
             docker compose --env-file .env up -d --no-build --remove-orphans
