@@ -13,7 +13,7 @@ function activeUsers(users: PresenceUser[]): PresenceUser[] {
   const now = Date.now()
   return users
     .filter((user) => {
-      const expires = dateMs(user.expires_at)
+      const expires = user.expires_ms || dateMs(user.expires_at)
       return Number.isFinite(expires) && expires > now
     })
     .sort((a, b) => dateMs(b.updated_at) - dateMs(a.updated_at))

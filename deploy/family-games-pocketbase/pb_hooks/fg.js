@@ -238,7 +238,11 @@ function cleanupRealtime() {
 
 function activePresenceRows() {
   const now = Date.now()
-  return all('rt_presence', 'updated DESC').filter((row) => dateMs(row.get('expires_at')) > now)
+  return all('rt_presence', 'updated DESC').filter((row) => {
+    const meta = presenceMeta(row)
+    const expiresMs = Number(meta.expires_ms || 0)
+    return expiresMs > now || dateMs(row.get('expires_at')) > now
+  })
 }
 
 function dateMs(value) {
@@ -262,6 +266,7 @@ function presencePublicRow(row) {
     room_code: String(meta.room_code || ''),
     updated_at: String(row.get('updated')),
     expires_at: String(row.get('expires_at')),
+    expires_ms: Number(meta.expires_ms || dateMs(row.get('expires_at'))),
   }
 }
 
@@ -480,12 +485,14 @@ function presencePing(e) {
   if (!token) return ok(e, { ok: false })
   const peerId = peerIdForToken(token)
   const ttlSeconds = Math.max(20, Math.min(120, Number(data.ttlSeconds || 45)))
-  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
+  const expiresMs = Date.now() + ttlSeconds * 1000
+  const expiresAt = new Date(expiresMs).toISOString()
   const meta = {
     name: String(data.name || '玩家').slice(0, 24),
     emoji: String(data.emoji || '🙂').slice(0, 8),
     player_id: String(data.playerId || '').slice(0, 80),
     room_code: String(data.roomCode || '').replace(/[^0-9]/g, '').slice(0, 12),
+    expires_ms: expiresMs,
   }
   let row = first('rt_presence', 'kind = "user" && room = "global" && peer_id = {:peer_id}', { peer_id: peerId })
   if (!row) {

@@ -253,6 +253,7 @@ export interface PresenceUser {
   room_code: string
   updated_at: string
   expires_at: string
+  expires_ms?: number
 }
 
 export async function presencePingRpc(args: {
