@@ -113,15 +113,6 @@ function profileRow(record) {
   }
 }
 
-function jsonValue(value) {
-  if (isBlankJson(value)) return {}
-  try {
-    return JSON.parse(JSON.stringify(value))
-  } catch {
-    return value || {}
-  }
-}
-
 function peerIdForToken(token) {
   return $security.sha256(String(token || '')).slice(0, 24)
 }
@@ -150,8 +141,43 @@ function publicRoomPayload(record) {
 function isBlankJson(value) {
   if (value == null) return true
   if (String(value) === '<nil>') return true
+  const decoded = decodeJsonBytes(value)
+  if (decoded !== null) return decoded === 'null' || decoded === '{}'
   const text = JSON.stringify(value)
   return text === undefined || text === 'null' || text === '{}'
+}
+
+function decodeJsonBytes(value) {
+  const copy = Array.isArray(value) ? value : null
+  if (!copy || !copy.length || !copy.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) return null
+  return String.fromCharCode.apply(null, copy)
+}
+
+function jsonValue(value) {
+  if (value == null || String(value) === '<nil>') return {}
+  const decoded = decodeJsonBytes(value)
+  if (decoded !== null) {
+    try {
+      return JSON.parse(decoded) || {}
+    } catch {
+      return {}
+    }
+  }
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) || {}
+    } catch {
+      return value ? { value } : {}
+    }
+  }
+  try {
+    const copy = JSON.parse(JSON.stringify(value))
+    const copyDecoded = decodeJsonBytes(copy)
+    if (copyDecoded !== null) return JSON.parse(copyDecoded) || {}
+    return copy || {}
+  } catch {
+    return value || {}
+  }
 }
 
 function isEmptyRoomPayload(value) {
