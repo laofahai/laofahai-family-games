@@ -4,7 +4,7 @@
 // 同步靠轮询房间快照（rooms.ts）；词只回传给本人，旁人/外人都看不到。
 
 import { useEffect, useMemo, useState } from 'react'
-import { Crown, Eye, EyeOff, LogOut, Shuffle, SkipForward, Sparkles } from 'lucide-react'
+import { Crown, Eye, EyeOff, LogOut, Shuffle, SkipForward, Sparkles, Users } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -246,66 +246,61 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
         myName={name}
         topOverlay={
           !iAmGuesser ? (
-            <div className="rounded-3xl border border-white/70 bg-white/90 px-4 py-3 text-center text-ink-900 shadow-2xl backdrop-blur">
+            <div className="rounded-2xl border border-white/70 bg-white/90 px-4 py-2 text-center text-ink-900 shadow-2xl backdrop-blur">
               <div className="text-xs font-semibold text-orange-600">给 {guesserName} 比划</div>
-              <div className="font-display text-4xl leading-tight sm:text-5xl">{word?.text}</div>
+              <div className="font-display text-3xl leading-tight sm:text-4xl">{word?.text}</div>
             </div>
           ) : null
         }
       >
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-end justify-between gap-2">
             <div className="inline-flex items-center gap-2 rounded-full bg-black/50 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur">
               {iAmGuesser ? <EyeOff className="h-4 w-4 text-orange-300" /> : <Eye className="h-4 w-4 text-orange-300" />}
               <span>第 {p.round ?? 1} 轮</span>
               <span className="text-white/60">·</span>
               <span>{guesserName} 来猜</span>
+              <span className="text-white/60">·</span>
+              <Users className="h-3.5 w-3.5 text-white/70" />
+              <span>{members.length}</span>
             </div>
-            <Button
-              variant="ghost"
-              onClick={doLeave}
-              className="min-h-10 gap-1 bg-black/50 px-3 text-white shadow-lg backdrop-blur hover:bg-black/60"
-            >
-              <LogOut className="h-4 w-4" />
-              退出
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {isHost && (
+                <>
+                  <Button
+                    onClick={swapWord}
+                    variant="outline"
+                    disabled={busy || iAmGuesser}
+                    className="min-h-10 border-white/40 bg-white/90 px-3 text-xs text-ink-800"
+                  >
+                    换词
+                  </Button>
+                  <Button onClick={() => startRound(round + 1)} disabled={busy} className="min-h-10 gap-1 bg-orange-500 px-3 text-xs text-white">
+                    <SkipForward className="h-4 w-4" />
+                    下一位
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="ghost"
+                onClick={doLeave}
+                className="min-h-10 gap-1 bg-black/50 px-3 text-xs text-white shadow-lg backdrop-blur hover:bg-black/60"
+              >
+                <LogOut className="h-4 w-4" />
+                退出
+              </Button>
+            </div>
           </div>
 
           {iAmGuesser ? (
-            <div className="mx-auto flex min-h-[190px] max-w-xl flex-col items-center justify-center gap-3 rounded-3xl border border-white/20 bg-black/60 p-6 text-center text-white shadow-2xl backdrop-blur">
-              <div className="text-5xl">🙈</div>
-              <div className="font-display text-3xl">轮到你猜！</div>
-              <div className="text-sm text-white/70">看表演者视频里的比划，加入房间语音或现场大声说答案</div>
+            <div className="mx-auto inline-flex min-h-10 max-w-full items-center gap-2 rounded-full bg-black/55 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur">
+              <span className="text-lg">🙈</span>
+              <span>轮到你猜</span>
             </div>
           ) : (
-            <p className="mx-auto max-w-xl rounded-2xl bg-black/50 p-3 text-center text-sm text-white/75 shadow-lg backdrop-blur">
-              可以开启摄像头/麦克风表演；猜的人加入房间语音或现场回答。别说出词本身、别用谐音。
+            <p className="mx-auto max-w-xl rounded-full bg-black/50 px-3 py-2 text-center text-xs text-white/75 shadow-lg backdrop-blur">
+              开摄像头/麦克风后，对面会看到你并听到声音。
             </p>
-          )}
-
-          <div className="mx-auto w-full max-w-xl shadow-lg">
-            <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
-          </div>
-
-          <div className="rounded-3xl bg-black/40 p-3 shadow-lg backdrop-blur">
-            {memberList}
-          </div>
-
-          {isHost && (
-            <div className="flex justify-end gap-2">
-              <Button
-                onClick={swapWord}
-                variant="outline"
-                disabled={busy}
-                className="min-h-11 gap-1 border-white/40 bg-white/90 text-ink-800"
-              >
-                换个词
-              </Button>
-              <Button onClick={() => startRound(round + 1)} disabled={busy} className="min-h-11 gap-1 bg-orange-500 text-white">
-                <SkipForward className="h-4 w-4" />
-                下一位
-              </Button>
-            </div>
           )}
         </div>
       </CharadesVideoPanel>

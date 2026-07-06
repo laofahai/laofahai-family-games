@@ -4,12 +4,9 @@ import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { mediaPermissionErrorMessage } from './mediaError'
 import { roomAudioStatusText } from './roomAudioStatus'
+import { RTC_CONFIG } from './rtcConfig'
 import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from './webrtcSignalChannel'
 import { shouldCreateMeshOffer, webRtcPeerId, type WebRtcSignal, type WebRtcSignalBody } from './webrtcSignaling'
-
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-}
 
 interface RemoteAudioPeer {
   id: string

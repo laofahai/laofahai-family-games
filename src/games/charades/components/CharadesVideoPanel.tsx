@@ -1,9 +1,10 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { Radio, Video, VideoOff } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Play, Radio, Video, VideoOff } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { mediaPermissionErrorMessage } from '@/platform/mediaError'
+import { RTC_CONFIG } from '@/platform/rtcConfig'
 import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from '@/platform/webrtcSignalChannel'
 import {
   canPublishCharadesVideo,
@@ -11,10 +12,6 @@ import {
   type WebRtcSignalBody,
   type WebRtcSignal,
 } from '@/platform/webrtcSignaling'
-
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-}
 
 interface CharadesVideoPanelProps {
   code: string
@@ -41,6 +38,7 @@ export function CharadesVideoPanel({
   const [presenterName, setPresenterName] = useState('')
   const [status, setStatus] = useState('等待有人开启视频表演')
   const [error, setError] = useState('')
+  const [playbackBlocked, setPlaybackBlocked] = useState(false)
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -52,6 +50,19 @@ export function CharadesVideoPanel({
   const publishingRef = useRef(false)
   const canPublish = canPublishCharadesVideo({ roomState, mySeat, guesserSeat })
   const roomKey = `charades-video:${code}`
+
+  const playRemoteVideo = useCallback(async () => {
+    const video = remoteVideoRef.current
+    const stream = remoteStreamRef.current
+    if (!video || !stream) return
+    if (video.srcObject !== stream) video.srcObject = stream
+    try {
+      await video.play()
+      setPlaybackBlocked(false)
+    } catch {
+      setPlaybackBlocked(true)
+    }
+  }, [])
 
   const send = (msg: WebRtcSignalBody) => {
     channelRef.current?.send({ room: roomKey, from: peerId, ...msg } as WebRtcSignal)
@@ -102,6 +113,7 @@ export function CharadesVideoPanel({
       if (!stream) return
       remoteStreamRef.current = stream
       setRemoteStream(stream)
+      setPlaybackBlocked(false)
       setStatus('视频已连接')
     }
 
@@ -194,8 +206,9 @@ export function CharadesVideoPanel({
 
   useEffect(() => {
     remoteStreamRef.current = remoteStream
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream
-  }, [remoteStream])
+    if (!remoteStream) return
+    void playRemoteVideo()
+  }, [playRemoteVideo, remoteStream])
 
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
@@ -256,7 +269,13 @@ export function CharadesVideoPanel({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-ink-950 text-white">
       {remoteStream ? (
-        <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
+        <video
+          ref={remoteVideoRef}
+          autoPlay
+          playsInline
+          onLoadedMetadata={() => void playRemoteVideo()}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       ) : isPublishing ? (
         <video ref={localVideoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full object-cover" />
       ) : (
@@ -267,10 +286,10 @@ export function CharadesVideoPanel({
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-black/75 via-black/40 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[46vh] bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-black/70 via-black/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/65 to-transparent" />
 
-      <div className="relative z-10 flex h-[100dvh] min-h-0 flex-col gap-3 p-3 sm:p-5">
+      <div className="relative z-10 flex h-[100dvh] min-h-0 flex-col p-3 sm:p-5">
         <div className="flex shrink-0 flex-wrap items-start justify-between gap-3">
           <div className="inline-flex min-h-10 items-center gap-2 rounded-full bg-black/50 px-3 text-sm font-semibold text-white shadow-lg backdrop-blur">
             <Radio className="h-4 w-4 text-orange-300" />
@@ -299,16 +318,23 @@ export function CharadesVideoPanel({
           </p>
         )}
 
-        {isPublishing && (
-          <p className="max-w-xl shrink-0 rounded-2xl bg-black/55 px-3 py-2 text-xs font-medium text-white/80 shadow-lg backdrop-blur">
-            这是本机预览；对面连接成功后就能看到你的摄像头并听到你的麦克风。
-          </p>
+        {playbackBlocked && remoteStream && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 px-6">
+            <Button
+              type="button"
+              onClick={() => void playRemoteVideo()}
+              className="min-h-14 gap-2 rounded-full bg-white px-5 text-base font-semibold text-ink-900 shadow-2xl hover:bg-white/90"
+            >
+              <Play className="h-5 w-5" />
+              播放视频/声音
+            </Button>
+          </div>
         )}
 
-        {topOverlay && <div className="mx-auto w-full max-w-2xl shrink-0">{topOverlay}</div>}
+        {topOverlay && <div className="pointer-events-none mx-auto mt-3 w-full max-w-xl shrink-0">{topOverlay}</div>}
 
-        <div className="min-h-3 flex-1" />
-        <div className="mx-auto min-h-0 max-h-[58dvh] w-full max-w-5xl shrink overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+        <div className="flex-1" />
+        <div className="mx-auto w-full max-w-5xl shrink pb-[calc(env(safe-area-inset-bottom)+0.25rem)]">
           {children}
         </div>
       </div>
