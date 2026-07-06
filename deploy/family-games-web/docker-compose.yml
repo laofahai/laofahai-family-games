@@ -1,0 +1,32 @@
+services:
+  web:
+    build:
+      context: ./source
+    image: family-games-web:latest
+    container_name: family-games-web
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - nestory-net
+
+  pocketbase:
+    build:
+      context: ./source
+      dockerfile: deploy/family-games-pocketbase/Dockerfile
+    image: family-games-pocketbase:latest
+    container_name: family-games-pocketbase
+    restart: unless-stopped
+    environment:
+      PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
+      PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
+    volumes:
+      - ./pb_data:/pb/pb_data
+    expose:
+      - "8080"
+    networks:
+      - nestory-net
+
+networks:
+  nestory-net:
+    external: true

@@ -13,7 +13,7 @@
 // 拿到的是云端最新（拉到了）或本机缓存（上次拉过）；都没有则空，调用方回退硬编码。
 // 不要在模块顶层求值 —— 那会过早（启动拉取还没回来）锁死成空。
 
-import { supabase } from './supabase'
+import { fgPost } from './pocketbase'
 
 export type RosterRole = 'teacher' | 'classmate' | 'player' | 'family'
 
@@ -78,11 +78,11 @@ export function rosterIn(classId: string, role: RosterRole): RosterRow[] {
 
 /** 从云端拉名册并写入缓存。失败（离线/未配置/无表）返回 false，沿用缓存。 */
 export async function loadRoster(): Promise<boolean> {
-  if (!supabase) return false
-  const { data, error } = await supabase.rpc('get_roster')
-  if (error || !Array.isArray(data)) return false
+  const result = await fgPost<{ roster: Record<string, unknown>[] }>('/get-roster', {})
+  const data = result?.roster
+  if (!Array.isArray(data)) return false
   const next: RosterRow[] = []
-  for (const raw of data as Record<string, unknown>[]) {
+  for (const raw of data) {
     if (!raw || typeof raw.id !== 'string' || typeof raw.name !== 'string') continue
     if (typeof raw.class_id !== 'string' || typeof raw.role !== 'string') continue
     const role = raw.role as RosterRole

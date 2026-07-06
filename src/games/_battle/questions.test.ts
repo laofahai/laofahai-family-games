@@ -3,7 +3,7 @@ import type { BattleQuestion, Band } from './core'
 
 // questions.ts 从 @/platform/content 的 contentFor('battle-questions', []) 读题。
 // 把 contentFor 打桩成返回一个固定的小题库（两个 band、多 subject、learn 类与 fun 类都有），
-// 这样既不碰 supabase/localStorage，又能验证抽题逻辑。
+// 这样既不碰云端/localStorage，又能验证抽题逻辑。
 
 // LEARN_KINDS = math/chinese/english/science/sports；FUN_KINDS = life/social/interest/funny
 function makeQuestion(id: string, subject: string, band: Band): BattleQuestion {

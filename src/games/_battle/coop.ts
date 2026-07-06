@@ -11,7 +11,7 @@
 // 再低频（事件触发，非每帧）广播最新共享状态（boss hp / level / 在线玩家 / 最近一次命中特效）。
 // 客户端渲染：共享 Boss 血量 + 自己的玩家血量。单人玩 = 一人房，走完全相同的代码路径（没有 peer 而已）。
 
-import { supabase } from '@/platform/supabase'
+import { joinRecordChannel, pocketBaseAvailable } from '@/platform/pocketbase'
 import type { Band } from './core'
 
 // ── 房号 ────────────────────────────────────────────────────────────
@@ -126,71 +126,59 @@ export interface CoopChannel {
  * @param handlers 各类消息回调
  */
 export function joinCoopChannel(code: string, isHost: boolean, handlers: CoopHandlers): CoopChannel {
-  const sb = supabase
-  // 未配置后端：返回一个「单人房」空操作通道。所有 send 都是 no-op，永远收不到 peer。
-  if (!sb) {
-    return {
-      isHost,
-      code,
-      online: false,
-      hello: () => {},
-      sendHit: () => {},
-      sendHp: () => {},
-      requestSync: () => {},
-      broadcastShared: () => {},
-      leave: () => {},
-    }
-  }
-
-  const ch = sb.channel(`battle:${code}`, { config: { broadcast: { self: false } } })
-
-  ch.on('broadcast', { event: 'm' }, (e: { payload: unknown }) => {
-    const msg = e.payload as CoopMsg
-    if (!msg || typeof msg !== 'object') return
-    switch (msg.t) {
-      case 'state':
-        handlers.onShared?.(msg.shared)
-        break
-      case 'hello':
-        handlers.onHello?.(msg.player)
-        break
-      case 'bye':
-        handlers.onBye?.(msg.id)
-        break
-      case 'hit':
-        handlers.onHit?.({ byId: msg.byId, byName: msg.byName, damage: msg.damage, crit: msg.crit })
-        break
-      case 'hp':
-        handlers.onHp?.({ id: msg.id, heroHp: msg.heroHp, down: msg.down })
-        break
-      case 'sync?':
-        handlers.onSyncRequest?.()
-        break
-      default:
-        break
-    }
-  }).subscribe()
+  const peerId = selfPeerId()
+  const ch = joinRecordChannel({
+    kind: 'battle',
+    room: code,
+    event: 'm',
+    sender: peerId,
+    ttlSeconds: 300,
+    onMessage: (payload) => {
+      const msg = payload as CoopMsg
+      if (!msg || typeof msg !== 'object') return
+      switch (msg.t) {
+        case 'state':
+          handlers.onShared?.(msg.shared)
+          break
+        case 'hello':
+          handlers.onHello?.(msg.player)
+          break
+        case 'bye':
+          handlers.onBye?.(msg.id)
+          break
+        case 'hit':
+          handlers.onHit?.({ byId: msg.byId, byName: msg.byName, damage: msg.damage, crit: msg.crit })
+          break
+        case 'hp':
+          handlers.onHp?.({ id: msg.id, heroHp: msg.heroHp, down: msg.down })
+          break
+        case 'sync?':
+          handlers.onSyncRequest?.()
+          break
+        default:
+          break
+      }
+    },
+  })
 
   const send = (m: CoopMsg) => {
-    void ch.send({ type: 'broadcast', event: 'm', payload: m })
+    ch.send(m)
   }
 
   return {
     isHost,
     code,
-    online: true,
+    online: pocketBaseAvailable(),
     hello: (player) => send({ t: 'hello', player }),
     sendHit: (hit) => send({ t: 'hit', ...hit }),
     sendHp: (hp) => send({ t: 'hp', ...hp }),
     requestSync: () => send({ t: 'sync?' }),
     broadcastShared: (shared) => send({ t: 'state', shared }),
-    leave: () => {
-      void sb.removeChannel(ch)
-    },
+    leave: ch.leave,
   }
 }
 
 /** 云端是否配置（决定是真多人还是单人降级）。 */
 export function coopOnline(): boolean {
-  return supabase != null
+  return pocketBaseAvailable()
 }

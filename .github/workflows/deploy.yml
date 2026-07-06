@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy to nestory
 
 on:
   push:
@@ -7,42 +7,14 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: nestory
   cancel-in-progress: true
 
 jobs:
-  database:
+  verify:
     runs-on: ubuntu-latest
-    env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install PostgreSQL client
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
-      - name: Apply Supabase migrations
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        run: |
-          set -euo pipefail
-          for file in supabase/migrations/*.sql; do
-            echo "Applying $file"
-            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$file"
-          done
-
-      - name: Apply party content expansion
-        if: ${{ env.SUPABASE_DB_URL != '' }}
-        run: psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/seed/party-content-expansion.sql
-
-  build:
-    runs-on: ubuntu-latest
-    needs: database
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -56,30 +28,116 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Generate PocketBase content seed
+        run: node scripts/export-pocketbase-content.mjs
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
       - name: Build
         env:
-          BASE_URL: /${{ github.event.repository.name }}/
-          # 在仓库 Settings → Secrets 添加这两项，线上站点才会启用云端
-          # （设备解锁门 / 邀请码 / 个人进度同步 / 远程协作）。不加则线上为纯本地、零门槛。
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          BASE_URL: /
+          VITE_POCKETBASE_URL: https://pb.902.linch.tech
         run: npm run build
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
   deploy:
-    needs: build
+    needs: verify
     runs-on: ubuntu-latest
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: nestory
+      url: https://game.902.linch.tech
+    env:
+      APP_DIR: /opt/family-games
+      DOMAIN: game.902.linch.tech
+      NESTORY_SSH_HOST: ${{ secrets.NESTORY_SSH_HOST }}
+      NESTORY_SSH_PORT: ${{ secrets.NESTORY_SSH_PORT }}
+      NESTORY_SSH_USER: ${{ secrets.NESTORY_SSH_USER }}
+      NESTORY_SSH_KEY: ${{ secrets.NESTORY_SSH_KEY }}
+      VITE_POCKETBASE_URL: https://pb.902.linch.tech
+      PB_ADMIN_EMAIL: ${{ secrets.PB_ADMIN_EMAIL }}
+      PB_ADMIN_PASSWORD: ${{ secrets.PB_ADMIN_PASSWORD }}
     steps:
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v5
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Check SSH secrets
+        run: |
+          set -euo pipefail
+          test -n "$NESTORY_SSH_HOST"
+          test -n "$NESTORY_SSH_PORT"
+          test -n "$NESTORY_SSH_USER"
+          test -n "$NESTORY_SSH_KEY"
+
+      - name: Prepare SSH
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$NESTORY_SSH_KEY" > ~/.ssh/nestory_deploy
+          chmod 600 ~/.ssh/nestory_deploy
+          ssh-keyscan -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_HOST" >> ~/.ssh/known_hosts
+
+      - name: Package source
+        run: |
+          set -euo pipefail
+          npm ci
+          node scripts/export-pocketbase-content.mjs
+          BASE_URL=/ VITE_POCKETBASE_URL="$VITE_POCKETBASE_URL" npm run build
+          docker build --platform linux/amd64 -t family-games-web:latest -f Dockerfile .
+          docker build --platform linux/amd64 -t family-games-pocketbase:latest -f deploy/family-games-pocketbase/Dockerfile .
+          docker save family-games-web:latest family-games-pocketbase:latest | gzip > /tmp/family-games-images.tar.gz
+          tar \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='.DS_Store' \
+            --exclude='*/.DS_Store' \
+            --exclude='._*' \
+            --exclude='*/._*' \
+            -czf /tmp/family-games-web.tgz .
+
+      - name: Upload deploy files
+        run: |
+          set -euo pipefail
+          printf 'VITE_POCKETBASE_URL=%s\nPB_ADMIN_EMAIL=%s\nPB_ADMIN_PASSWORD=%s\n' "$VITE_POCKETBASE_URL" "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" > /tmp/family-games.env
+          ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "mkdir -p '$APP_DIR' /opt/nestory/caddy/sites"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-web.tgz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-web.tgz"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-images.tar.gz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-images.tar.gz"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games.env "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games.env"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" deploy/family-games-web/docker-compose.yml "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:$APP_DIR/docker-compose.yml"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" deploy/family-games-web/game-902.caddy "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/game-902.caddy"
+
+      - name: Deploy container and Caddy site
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "
+            set -euo pipefail
+            cd '$APP_DIR'
+            rm -rf source.new
+            mkdir -p source.new releases
+            tar -xzf /tmp/family-games-web.tgz -C source.new
+            if [ -d source ]; then
+              mv source releases/source-\$(date +%Y%m%d%H%M%S)
+            fi
+            mv source.new source
+            mv /tmp/family-games.env .env
+            chmod 600 .env
+            docker load -i /tmp/family-games-images.tar.gz
+            docker compose --env-file .env up -d --no-build --remove-orphans
+            rm -f /opt/nestory/caddy/sites/902-family.caddy
+            cp /tmp/game-902.caddy /opt/nestory/caddy/sites/game-902.caddy
+            cd /opt/nestory/caddy
+            docker compose up -d --force-recreate
+            docker image prune -f
+          "
+
+      - name: Verify deployment
+        run: curl -fsS "https://$DOMAIN/health"

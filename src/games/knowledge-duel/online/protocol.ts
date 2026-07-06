@@ -20,7 +20,7 @@
 // host 的唯一权威：开局握手时由 host 定 band/topic/maxHp（'hello' 里带），guest 采纳，
 // 保证规则一致（题集仍各抽各的，互不影响）。
 //
-// 频道：supabase channel `duel:<code>`，broadcast event 'm'，self:false。
+// 频道：PocketBase `rt_events`，kind='duel'、room=<code>、event='m'，自己发送的不回显。
 // presence：track 各端 {uid,name,emoji,role}，用 sync/join/leave 判断对手在场/掉线。
 
 import type { Band } from '@/games/_battle/core'

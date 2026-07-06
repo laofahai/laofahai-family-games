@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-// progression.ts 在顶层 import './cloud' 与 './progress'（它们会拉 supabase / 摸 localStorage）。
+// progression.ts 在顶层 import './cloud' 与 './progress'（它们会拉云端适配层 / 摸 localStorage）。
 // 我们只测其中的纯函数 levelForXp / titleForLevel / levelBounds —— 这些函数本身不碰 cloud/progress，
 // 所以把这两个依赖打桩成空壳，仅为让模块能在 node 下被导入（绝不改 progression 自身逻辑）。
 vi.mock('./cloud', () => ({

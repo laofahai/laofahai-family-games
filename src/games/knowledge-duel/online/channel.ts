@@ -1,11 +1,11 @@
-// 知识对战 · 在线对战频道：镜像 platform/realtime.ts 的 draw:<code> 模式，建一个
-// duel:<code> 的 Supabase Realtime 频道。除了广播出招事件，还用 Realtime Presence
+// 知识对战 · 在线对战频道：用 PocketBase realtime 承载消息和 presence。
+// 除了广播出招事件，还用 rt_presence
 // 追踪「对手是否在场」（join/leave/掉线），从而显示连接状态、优雅处理断线。
 //
 // 设计取舍（见 protocol.ts 顶注）：双方各答自己的题，把每次作答结果广播出去；
 // 谁先把对方血打空谁赢。host 只负责约定 maxHp/band/topic（开局握手），不做逐题权威。
 
-import { supabase } from '@/platform/supabase'
+import { joinRecordChannel, pocketBaseAvailable, pocketBaseClient } from '@/platform/pocketbase'
 import type { DuelMsg } from './protocol'
 
 export interface DuelChannel {
@@ -34,65 +34,89 @@ export interface JoinOpts {
   onPresence: (peers: DuelPresenceMeta[]) => void
 }
 
-type PresenceState = Record<string, Array<Partial<DuelPresenceMeta>>>
-
-function flatten(state: PresenceState): DuelPresenceMeta[] {
-  const out: DuelPresenceMeta[] = []
-  for (const list of Object.values(state)) {
-    for (const m of list) {
-      if (m && typeof m.uid === 'string') {
-        out.push({
-          uid: m.uid,
-          name: m.name ?? '玩家',
-          emoji: m.emoji ?? '🙂',
-          role: m.role === 'host' ? 'host' : 'guest',
-        })
-      }
-    }
-  }
-  return out
-}
-
 /** 加入对战频道。返回发送器；自动用 presence 跟踪在场，未配置后端时安全降级为空操作。 */
 export function joinDuelChannel(opts: JoinOpts): DuelChannel {
-  const sb = supabase
-  if (!sb) return { send: () => {}, leave: () => {}, enabled: false }
+  if (!pocketBaseAvailable()) return { send: () => {}, leave: () => {}, enabled: false }
 
-  const ch = sb.channel(`duel:${opts.code}`, {
-    config: {
-      broadcast: { self: false },
-      // 用 uid 作为 presence key，自己一份，便于对端区分
-      presence: { key: opts.me.uid },
-    },
-  })
-
-  ch.on('broadcast', { event: 'm' }, (e: { payload: unknown }) => {
-    opts.onMessage(e.payload as DuelMsg)
-  })
-  ch.on('presence', { event: 'sync' }, () => {
-    opts.onPresence(flatten(ch.presenceState() as PresenceState))
-  })
-  ch.on('presence', { event: 'join' }, () => {
-    opts.onPresence(flatten(ch.presenceState() as PresenceState))
-  })
-  ch.on('presence', { event: 'leave' }, () => {
-    opts.onPresence(flatten(ch.presenceState() as PresenceState))
+  const messages = joinRecordChannel({
+    kind: 'duel',
+    room: opts.code,
+    event: 'm',
+    sender: opts.me.uid,
+    ttlSeconds: 300,
+    onMessage: (payload) => opts.onMessage(payload as DuelMsg),
   })
 
-  ch.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      void ch.track(opts.me)
+  const pb = pocketBaseClient()
+  const presence = pb?.collection?.('rt_presence') as
+    | {
+        getFullList: (opts?: { filter?: string }) => Promise<Array<Record<string, unknown>>>
+        create: (body: Record<string, unknown>) => Promise<Record<string, unknown>>
+        update: (id: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>
+        delete: (id: string) => Promise<unknown>
+        subscribe: (
+          topic: string,
+          cb: () => void,
+          opts?: { filter?: string }
+        ) => Promise<() => void> | (() => void)
+      }
+    | undefined
+
+  let presenceId = ''
+  let unsubPresence: (() => void) | undefined
+
+  const filter = `kind="duel" && room="${opts.code.replace(/"/g, '\\"')}"`
+  const activeFilter = `${filter} && expires_at>"${new Date().toISOString()}"`
+
+  const refreshPresence = async () => {
+    if (!presence) return
+    const records = await presence.getFullList({ filter: activeFilter })
+    opts.onPresence(
+      records.map((record) => {
+        const meta = (record.meta && typeof record.meta === 'object' ? record.meta : {}) as Partial<DuelPresenceMeta>
+        return {
+          uid: typeof record.peer_id === 'string' ? record.peer_id : meta.uid ?? 'peer',
+          name: meta.name ?? '玩家',
+          emoji: meta.emoji ?? '🙂',
+          role: meta.role === 'host' ? 'host' : 'guest',
+        }
+      })
+    )
+  }
+
+  const heartbeat = async () => {
+    if (!presence) return
+    const body = {
+      kind: 'duel',
+      room: opts.code,
+      peer_id: opts.me.uid,
+      meta: opts.me,
+      expires_at: new Date(Date.now() + 15_000).toISOString(),
     }
-  })
+    if (presenceId) await presence.update(presenceId, body)
+    else {
+      const record = await presence.create(body)
+      presenceId = String(record.id ?? '')
+    }
+    await refreshPresence()
+  }
+
+  void heartbeat()
+  const timer = setInterval(() => void heartbeat(), 5_000)
+  if (presence) {
+    void Promise.resolve(presence.subscribe('*', () => void refreshPresence(), { filter })).then((fn) => {
+      unsubPresence = fn
+    })
+  }
 
   return {
     enabled: true,
-    send: (msg) => {
-      void ch.send({ type: 'broadcast', event: 'm', payload: msg })
-    },
+    send: messages.send,
     leave: () => {
-      void ch.untrack()
-      void sb.removeChannel(ch)
+      clearInterval(timer)
+      messages.leave()
+      unsubPresence?.()
+      if (presence && presenceId) void presence.delete(presenceId)
     },
   }
 }

@@ -1,7 +1,7 @@
-// 云端 API 客户端：全部走 Supabase RPC（凭码读写，公钥不能直读表）。
-// env 未配置时所有调用安全降级（valid:false / 空 / 静默），App 退回纯本地模式。
+// 云端 API 客户端：全部走 PocketBase custom routes。
+// env 未配置时所有调用安全降级，App 退回纯本地模式。
 
-import { supabase } from './supabase'
+import { fgPost, pocketBaseAvailable } from './pocketbase'
 
 export interface CodeRow {
   code: string
@@ -12,15 +12,12 @@ export interface CodeRow {
 }
 
 export function cloudAvailable(): boolean {
-  return supabase !== null
+  return pocketBaseAvailable()
 }
 
-// ── 访问码 / 管理员 ──────────────────────────────────────────────
 export async function redeemCode(code: string): Promise<{ valid: boolean; isAdmin: boolean }> {
-  if (!supabase) return { valid: false, isAdmin: false }
-  const { data, error } = await supabase.rpc('redeem_code', { p_code: code })
-  const row = Array.isArray(data) ? data[0] : data
-  if (error || !row) return { valid: false, isAdmin: false }
+  const row = await fgPost<{ valid: boolean; is_admin: boolean }>('/redeem-code', { code })
+  if (!row) return { valid: false, isAdmin: false }
   return { valid: Boolean(row.valid), isAdmin: Boolean(row.is_admin) }
 }
 
@@ -32,27 +29,25 @@ export interface LoginResult {
   emoji: string | null
 }
 
-/** 统一登录校验：访问/管理码或个人码都走这里。个人码会带回是谁。 */
 export async function redeemLogin(code: string): Promise<LoginResult> {
   const miss: LoginResult = { valid: false, isAdmin: false, isPerson: false, name: null, emoji: null }
-  if (!supabase) return miss
-  const { data, error } = await supabase.rpc('redeem_login', { p_code: code })
-  const row = Array.isArray(data) ? data[0] : data
-  if (error || !row) return miss
+  const row = await fgPost<{ valid: boolean; is_admin: boolean; is_person: boolean; name: string | null; emoji: string | null }>(
+    '/redeem-login',
+    { code }
+  )
+  if (!row) return miss
   return {
     valid: Boolean(row.valid),
     isAdmin: Boolean(row.is_admin),
     isPerson: Boolean(row.is_person),
-    name: (row.name as string) ?? null,
-    emoji: (row.emoji as string) ?? null,
+    name: row.name ?? null,
+    emoji: row.emoji ?? null,
   }
 }
 
-/** 管理员「名字 + 码」二次校验登录（防撞库）：先 redeemLogin 认出是管理码，再调这个验名字。 */
 export async function adminLogin(code: string, name: string): Promise<boolean> {
-  if (!supabase) return false
-  const { data, error } = await supabase.rpc('admin_login', { p_code: code, p_name: name })
-  return !error && data === true
+  const data = await fgPost<{ ok: boolean }>('/admin-login', { code, name })
+  return data?.ok === true
 }
 
 export async function mintCode(
@@ -61,34 +56,25 @@ export async function mintCode(
   label: string,
   isAdmin = false
 ): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase.rpc('mint_code', {
-    p_admin_code: adminCode,
-    p_new_code: newCode,
-    p_label: label,
-    p_is_admin: isAdmin,
+  const data = await fgPost<{ ok: boolean }>('/mint-code', {
+    adminCode,
+    newCode,
+    label,
+    isAdmin,
   })
-  return !error
+  return data?.ok === true
 }
 
 export async function listCodes(adminCode: string): Promise<CodeRow[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase.rpc('list_codes', { p_admin_code: adminCode })
-  if (error || !Array.isArray(data)) return []
-  return data as CodeRow[]
+  const data = await fgPost<{ codes: CodeRow[] }>('/list-codes', { adminCode })
+  return Array.isArray(data?.codes) ? data.codes : []
 }
 
 export async function setCodeRevoked(adminCode: string, code: string, revoked: boolean): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase.rpc('set_code_revoked', {
-    p_admin_code: adminCode,
-    p_code: code,
-    p_revoked: revoked,
-  })
-  return !error
+  const data = await fgPost<{ ok: boolean }>('/set-code-revoked', { adminCode, code, revoked })
+  return data?.ok === true
 }
 
-// ── 管理员：查看/找回家人的「个人码」────────────────────────────────
 export interface ProfileRow {
   id: string
   name: string
@@ -99,92 +85,67 @@ export interface ProfileRow {
 }
 
 export async function adminListProfiles(adminCode: string): Promise<ProfileRow[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase.rpc('admin_list_profiles', { p_admin_code: adminCode })
-  if (error || !Array.isArray(data)) return []
-  return data as ProfileRow[]
+  const data = await fgPost<{ profiles: ProfileRow[] }>('/admin-list-profiles', { adminCode })
+  return Array.isArray(data?.profiles) ? data.profiles : []
 }
 
-/** 把某个档案的个人码重置成新码（忘码/换好记的）。 */
 export async function adminResetProfileCode(
   adminCode: string,
   id: string,
   newCode: string
 ): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase.rpc('admin_reset_profile_code', {
-    p_admin_code: adminCode,
-    p_id: id,
-    p_new_code: newCode,
-  })
-  return !error
+  const data = await fgPost<{ ok: boolean }>('/admin-reset-profile-code', { adminCode, id, newCode })
+  return data?.ok === true
 }
 
-/** 删除某个档案（连同进度/错题本/勋章）。 */
 export async function adminDeleteProfile(adminCode: string, id: string): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase.rpc('admin_delete_profile', { p_admin_code: adminCode, p_id: id })
-  return !error
+  const data = await fgPost<{ ok: boolean }>('/admin-delete-profile', { adminCode, id })
+  return data?.ok === true
 }
 
-// ── 个人同步（进度跨设备）──────────────────────────────────────────
 export async function claimProfile(
   syncCode: string,
   name: string,
   emoji: string,
   kind: string
 ): Promise<string | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.rpc('claim_profile', {
-    p_code: syncCode,
-    p_name: name,
-    p_emoji: emoji,
-    p_kind: kind,
-  })
-  if (error) return null
-  return (data as string) ?? null
+  const data = await fgPost<{ id: string | null }>('/claim-profile', { code: syncCode, name, emoji, kind })
+  return data?.id ?? null
 }
 
 export async function pullSeen(syncCode: string): Promise<Record<string, string[]>> {
-  if (!supabase) return {}
-  const { data, error } = await supabase.rpc('pull_seen', { p_code: syncCode })
-  if (error || !Array.isArray(data)) return {}
+  const data = await fgPost<{ seen: { scope: string; item_ids: string[] }[] }>('/pull-seen', { code: syncCode })
   const out: Record<string, string[]> = {}
-  for (const row of data as { scope: string; item_ids: string[] }[]) {
-    out[row.scope] = Array.isArray(row.item_ids) ? row.item_ids : []
+  for (const row of data?.seen ?? []) {
+    if (typeof row.scope === 'string' && Array.isArray(row.item_ids)) out[row.scope] = row.item_ids
   }
   return out
 }
 
 export async function pushSeen(syncCode: string, scope: string, itemIds: string[]): Promise<void> {
-  if (!supabase) return
-  await supabase.rpc('push_seen', { p_code: syncCode, p_scope: scope, p_item_ids: itemIds })
+  await fgPost('/push-seen', { code: syncCode, scope, itemIds })
 }
 
-// ── 学习数据同步（错题本 + 成长统计跟着孩子换设备）──────────────────────
-/** 拉一个云端码名下所有游戏的学习 blob：{ game: data } */
 export async function pullLearn(code: string): Promise<Record<string, unknown>> {
-  if (!supabase) return {}
-  const { data, error } = await supabase.rpc('pull_learn', { p_code: code })
-  if (error || !Array.isArray(data)) return {}
+  const data = await fgPost<{ learn: { game: string; data: unknown }[] }>('/pull-learn', { code })
   const out: Record<string, unknown> = {}
-  for (const row of data as { game: string; data: unknown }[]) out[row.game] = row.data
+  for (const row of data?.learn ?? []) {
+    if (typeof row.game === 'string') out[row.game] = row.data
+  }
   return out
 }
 
-/** 推某个游戏的整份学习 blob 到云端 */
 export async function pushLearn(code: string, game: string, data: unknown): Promise<void> {
-  if (!supabase) return
-  await supabase.rpc('push_learn', { p_code: code, p_game: game, p_data: data })
+  await fgPost('/push-learn', { code, game, data })
 }
 
-// ── 远程协作房间（各自设备看各自的秘密）─────────────────────────────────
 export interface RoomMemberPublic {
   name: string
   emoji: string
   seat: number
   is_host: boolean
 }
+
 export interface RoomSnapshot {
   state: string
   game: string
@@ -209,28 +170,13 @@ export async function createRoomRpc(
   name: string,
   emoji: string
 ): Promise<boolean> {
-  if (!supabase) return false
-  const { data, error } = await supabase.rpc('create_room', {
-    p_code: code,
-    p_host_token: hostToken,
-    p_game: game,
-    p_name: name,
-    p_emoji: emoji,
-  })
-  return !error && data === true
+  const data = await fgPost<{ ok: boolean }>('/create-room', { code, hostToken, game, name, emoji })
+  return data?.ok === true
 }
 
-/** 返回座位号；-1 房不存在 / -2 已开局谢绝新人 / -3 网络或未配置 */
 export async function joinRoomRpc(code: string, token: string, name: string, emoji: string): Promise<number> {
-  if (!supabase) return -3
-  const { data, error } = await supabase.rpc('join_room', {
-    p_code: code,
-    p_token: token,
-    p_name: name,
-    p_emoji: emoji,
-  })
-  if (error) return -3
-  return typeof data === 'number' ? data : -3
+  const data = await fgPost<{ seat: number }>('/join-room', { code, token, name, emoji })
+  return typeof data?.seat === 'number' ? data.seat : -3
 }
 
 export async function hostSetRpc(
@@ -240,47 +186,29 @@ export async function hostSetRpc(
   payload: Record<string, unknown> | null,
   secrets: Record<string, unknown> | null
 ): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase.rpc('host_set', {
-    p_code: code,
-    p_host_token: hostToken,
-    p_state: state,
-    p_payload: payload,
-    p_secrets: secrets,
-  })
-  return !error
+  const data = await fgPost<{ ok: boolean }>('/host-set', { code, hostToken, state, payload, secrets })
+  return data?.ok === true
 }
 
 export async function roomSnapshotRpc(code: string, token: string): Promise<RoomSnapshot | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase.rpc('room_snapshot', { p_code: code, p_token: token })
-  if (error || !data) return null
-  return data as RoomSnapshot
+  return fgPost<RoomSnapshot>('/room-snapshot', { code, token })
 }
 
 export async function leaveRoomRpc(code: string, token: string): Promise<void> {
-  if (!supabase) return
-  await supabase.rpc('leave_room', { p_code: code, p_token: token })
+  await fgPost('/leave-room', { code, token })
 }
 
-/** 成员写自己的私密提交（猜的价格、投票等）。 */
 export async function memberSubmitRpc(code: string, token: string, data: unknown): Promise<boolean> {
-  if (!supabase) return false
-  const { data: ok, error } = await supabase.rpc('member_submit', { p_code: code, p_token: token, p_data: data })
-  return !error && ok === true
+  const result = await fgPost<{ ok: boolean }>('/member-submit', { code, token, data })
+  return result?.ok === true
 }
 
-/** 房主汇总所有人的提交（公布时算结果用）。 */
 export async function collectSubmissionsRpc(code: string, hostToken: string): Promise<CollectedSubmission[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase.rpc('collect_submissions', { p_code: code, p_host_token: hostToken })
-  if (error || !Array.isArray(data)) return []
-  return data as CollectedSubmission[]
+  const data = await fgPost<{ submissions: CollectedSubmission[] }>('/collect-submissions', { code, hostToken })
+  return Array.isArray(data?.submissions) ? data.submissions : []
 }
 
-/** 房主清空所有人提交（开新一轮前）。 */
 export async function clearSubmissionsRpc(code: string, hostToken: string): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase.rpc('clear_submissions', { p_code: code, p_host_token: hostToken })
-  return !error
+  const data = await fgPost<{ ok: boolean }>('/clear-submissions', { code, hostToken })
+  return data?.ok === true
 }

@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { joinRecordChannel } from './pocketbase'
 import { canHandleSignal, type WebRtcSignal } from './webrtcSignaling'
 
 export interface WebRtcSignalChannel {
@@ -11,21 +11,15 @@ export function joinWebRtcSignalChannel(
   peerId: string,
   onMessage: (msg: WebRtcSignal) => void
 ): WebRtcSignalChannel {
-  const sb = supabase
-  if (!sb) return { send: () => {}, leave: () => {} }
-
-  const ch = sb.channel(`webrtc:${room}`, { config: { broadcast: { self: false } } })
-  ch.on('broadcast', { event: 'signal' }, (e: { payload: unknown }) => {
-    const msg = e.payload as WebRtcSignal
-    if (canHandleSignal(msg, { room, peerId })) onMessage(msg)
-  }).subscribe()
-
-  return {
-    send: (msg) => {
-      void ch.send({ type: 'broadcast', event: 'signal', payload: msg })
+  return joinRecordChannel({
+    kind: 'webrtc',
+    room,
+    event: 'signal',
+    sender: peerId,
+    ttlSeconds: 120,
+    onMessage: (payload) => {
+      const msg = payload as WebRtcSignal
+      if (canHandleSignal(msg, { room, peerId })) onMessage(msg)
     },
-    leave: () => {
-      void sb.removeChannel(ch)
-    },
-  }
+  })
 }

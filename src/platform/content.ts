@@ -6,7 +6,7 @@
 // 由 App 的游戏入口保证进游戏前内容已就绪。
 // 不要在模块顶层求值 contentFor —— 那会过早（启动拉取还没回来）锁死成空。
 
-import { supabase } from './supabase'
+import { fgPost } from './pocketbase'
 
 const CACHE_KEY = 'fg:content'
 
@@ -70,14 +70,12 @@ export async function ensureContent(keys: readonly string[]): Promise<boolean> {
 
 /** 从云端拉内容并写入缓存。传 keys 时按需拉；不传时保留旧的全量拉取能力。 */
 export async function refreshContent(keys?: readonly string[]): Promise<boolean> {
-  if (!supabase) return false
   const uniqueKeys = keys ? Array.from(new Set(keys)) : []
-  const { data, error } = uniqueKeys.length
-    ? await supabase.rpc('get_content', { p_games: uniqueKeys })
-    : await supabase.rpc('get_all_content')
-  if (error || !Array.isArray(data)) return false
+  const result = await fgPost<{ content: { game: string; data: unknown }[] }>('/get-content', { games: uniqueKeys })
+  const data = result?.content
+  if (!Array.isArray(data)) return false
   const next: Record<string, Bank> = uniqueKeys.length ? { ...store } : {}
-  for (const row of data as { game: string; data: unknown }[]) {
+  for (const row of data) {
     if (row && typeof row.game === 'string' && Array.isArray(row.data)) {
       next[row.game] = row.data as Bank
     }

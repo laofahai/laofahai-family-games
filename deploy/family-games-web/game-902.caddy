@@ -1,0 +1,31 @@
+game.902.linch.tech {
+  encode gzip
+
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+
+  respond /health "ok" 200
+  reverse_proxy family-games-web:80
+}
+
+pb.902.linch.tech {
+  encode gzip
+
+  request_body {
+    max_size 20MB
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+
+  reverse_proxy family-games-pocketbase:8080 {
+    transport http {
+      read_timeout 360s
+    }
+  }
+}
