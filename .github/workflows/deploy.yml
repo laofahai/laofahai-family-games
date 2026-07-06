@@ -130,4 +130,7 @@ jobs:
           "
 
       - name: Verify deployment
-        run: curl -fsS "https://$DOMAIN/health"
+        run: |
+          set -euo pipefail
+          test "$(curl -fsS "https://$DOMAIN/health")" = "ok"
+          test "$(curl -fsS "https://pb.902.linch.tech/health")" = '{"ok":true}'

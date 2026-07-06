@@ -122,6 +122,17 @@ function memberRow(record) {
   }
 }
 
+function roomPayload(value) {
+  if (value && typeof value === 'object' && Object.keys(value).length > 0) return value
+  return { __empty: true }
+}
+
+function publicRoomPayload(record) {
+  const value = record.get('payload') || {}
+  if (value && typeof value === 'object' && value.__empty === true && Object.keys(value).length === 1) return {}
+  return value
+}
+
 function getMembers(code) {
   return all('room_members', 'seat ASC').filter((row) => row.getString('code') === String(code))
 }
@@ -422,7 +433,7 @@ function createRoom(e) {
       game: String(data.game || ''),
       host_token: String(data.hostToken || ''),
       state: 'lobby',
-      payload: {},
+      payload: roomPayload({}),
     })
     saveRecord('room_members', {
       code,
@@ -468,7 +479,7 @@ function joinRoom(e) {
     secret: null,
     submission: null,
   })
-  room.set('payload', room.get('payload') || {})
+  room.set('payload', roomPayload(publicRoomPayload(room)))
   $app.save(room)
   return ok(e, { seat: member.getInt('seat') })
 }
@@ -479,7 +490,7 @@ function hostSet(e) {
   const room = byData('rooms', 'code', code)
   if (!room || room.getString('host_token') !== String(data.hostToken || '')) return ok(e, { ok: false })
   if (data.state !== null && data.state !== undefined) room.set('state', String(data.state))
-  if (data.payload !== null && data.payload !== undefined) room.set('payload', data.payload)
+  if (data.payload !== null && data.payload !== undefined) room.set('payload', roomPayload(data.payload))
   $app.save(room)
   const secrets = data.secrets && typeof data.secrets === 'object' ? data.secrets : null
   if (secrets) {
@@ -506,7 +517,7 @@ function roomSnapshot(e) {
   return ok(e, {
     state: room.getString('state'),
     game: room.getString('game'),
-    payload: room.get('payload') || {},
+    payload: publicRoomPayload(room),
     you: me
       ? {
           name: me.getString('name'),
@@ -545,7 +556,7 @@ function memberSubmit(e) {
   if (!member || !room) return ok(e, { ok: false })
   member.set('submission', data.data)
   $app.save(member)
-  room.set('payload', room.get('payload') || {})
+  room.set('payload', roomPayload(publicRoomPayload(room)))
   $app.save(room)
   return ok(e, { ok: true })
 }
@@ -573,7 +584,7 @@ function clearSubmissions(e) {
     member.set('submission', null)
     $app.save(member)
   }
-  room.set('payload', room.get('payload') || {})
+  room.set('payload', roomPayload(publicRoomPayload(room)))
   $app.save(room)
   return ok(e, { ok: true })
 }

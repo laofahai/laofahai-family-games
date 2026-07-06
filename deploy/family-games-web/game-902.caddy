@@ -7,10 +7,15 @@ game.902.linch.tech {
     Referrer-Policy strict-origin-when-cross-origin
   }
 
-  respond /health "ok" 200
-  root * /srv/game-902
-  try_files {path} /index.html
-  file_server
+  handle /health {
+    respond "ok" 200
+  }
+
+  handle {
+    root * /srv/game-902
+    try_files {path} /index.html
+    file_server
+  }
 }
 
 pb.902.linch.tech {
