@@ -360,7 +360,12 @@ function livekitToken(e) {
 
   const purpose = String(data.purpose || 'audio') === 'charades' ? 'charades' : 'audio'
   const game = room.getString('game') || String(data.game || '')
-  if (purpose === 'charades' && game !== 'charades') return ok(e, { ok: false, url: null, token: null, room: null })
+  if (purpose === 'charades') {
+    const selectedGame = publicRoomPayload(room).selectedGame
+    if (game !== 'charades' && !(game === 'party' && selectedGame === 'charades')) {
+      return ok(e, { ok: false, url: null, token: null, room: null })
+    }
+  }
 
   const lkRoom = livekitRoomName(purpose, game, code)
   const seat = member.getInt('seat')

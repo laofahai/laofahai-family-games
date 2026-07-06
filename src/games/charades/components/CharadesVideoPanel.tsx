@@ -1,17 +1,13 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Play, Radio, Video, VideoOff } from 'lucide-react'
+import type { LocalVideoTrack, RemoteParticipant, RemoteTrack, Room } from 'livekit-client'
 
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { liveKitTokenRpc } from '@/platform/cloud'
 import { mediaPermissionErrorMessage } from '@/platform/mediaError'
-import { RTC_CONFIG } from '@/platform/rtcConfig'
-import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from '@/platform/webrtcSignalChannel'
-import {
-  canPublishCharadesVideo,
-  webRtcPeerId,
-  type WebRtcSignalBody,
-  type WebRtcSignal,
-} from '@/platform/webrtcSignaling'
+import { deviceToken } from '@/platform/rooms'
+import { canPublishCharadesVideo } from '@/platform/webrtcSignaling'
 
 interface CharadesVideoPanelProps {
   code: string
@@ -32,9 +28,8 @@ export function CharadesVideoPanel({
   topOverlay,
   children,
 }: CharadesVideoPanelProps) {
-  const peerId = useMemo(() => webRtcPeerId(), [])
   const [isPublishing, setIsPublishing] = useState(false)
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false)
   const [presenterName, setPresenterName] = useState('')
   const [status, setStatus] = useState('等待有人开启视频表演')
   const [error, setError] = useState('')
@@ -42,20 +37,15 @@ export function CharadesVideoPanel({
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(null)
-  const remoteStreamRef = useRef<MediaStream | null>(null)
-  const channelRef = useRef<WebRtcSignalChannel | null>(null)
-  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map())
-  const presenterRef = useRef<string | null>(null)
-  const publishingRef = useRef(false)
+  const roomRef = useRef<Room | null>(null)
+  const localTrackRef = useRef<LocalVideoTrack | null>(null)
+  const remoteTrackRef = useRef<RemoteTrack | null>(null)
+  const remoteParticipantRef = useRef<string | null>(null)
   const canPublish = canPublishCharadesVideo({ roomState, mySeat, guesserSeat })
-  const roomKey = `charades-video:${code}`
 
   const playRemoteVideo = useCallback(async () => {
     const video = remoteVideoRef.current
-    const stream = remoteStreamRef.current
-    if (!video || !stream) return
-    if (video.srcObject !== stream) video.srcObject = stream
+    if (!video) return
     try {
       await video.play()
       setPlaybackBlocked(false)
@@ -64,214 +54,144 @@ export function CharadesVideoPanel({
     }
   }, [])
 
-  const send = (msg: WebRtcSignalBody) => {
-    channelRef.current?.send({ room: roomKey, from: peerId, ...msg } as WebRtcSignal)
-  }
-
-  const closePeer = (id: string) => {
-    peersRef.current.get(id)?.close()
-    peersRef.current.delete(id)
-  }
-
-  const clearRemote = () => {
-    presenterRef.current = null
-    remoteStreamRef.current = null
-    setRemoteStream(null)
+  const detachRemoteVideo = useCallback(() => {
+    const video = remoteVideoRef.current
+    if (remoteTrackRef.current && video) remoteTrackRef.current.detach(video)
+    remoteTrackRef.current = null
+    remoteParticipantRef.current = null
+    setHasRemoteVideo(false)
     setPresenterName('')
     setStatus('等待有人开启视频表演')
-  }
+  }, [])
 
-  const stopLocalTracks = () => {
-    localStreamRef.current?.getTracks().forEach((track) => track.stop())
-    localStreamRef.current = null
-    if (localVideoRef.current) localVideoRef.current.srcObject = null
-  }
-
-  const closeAllPeers = () => {
-    peersRef.current.forEach((pc) => pc.close())
-    peersRef.current.clear()
-  }
-
-  const makePeer = (remotePeer: string) => {
-    closePeer(remotePeer)
-    const pc = new RTCPeerConnection(RTC_CONFIG)
-    peersRef.current.set(remotePeer, pc)
-
-    localStreamRef.current?.getTracks().forEach((track) => {
-      const stream = localStreamRef.current
-      if (stream) pc.addTrack(track, stream)
-    })
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        send({ t: 'candidate', to: remotePeer, candidate: event.candidate.toJSON() })
-      }
+  const attachRemoteVideo = useCallback((track: RemoteTrack, participant: RemoteParticipant) => {
+    if (track.kind !== 'video') return
+    const video = remoteVideoRef.current
+    if (!video) return
+    if (remoteTrackRef.current && remoteTrackRef.current !== track) {
+      remoteTrackRef.current.detach(video)
     }
-
-    pc.ontrack = (event) => {
-      const [stream] = event.streams
-      if (!stream) return
-      remoteStreamRef.current = stream
-      setRemoteStream(stream)
-      setPlaybackBlocked(false)
-      setStatus('视频已连接')
-    }
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        setStatus('视频连接不稳定，可以重新开启一次')
-      }
-    }
-
-    return pc
-  }
-
-  const answerOffer = async (msg: Extract<WebRtcSignal, { t: 'offer' }>) => {
-    presenterRef.current = msg.from
-    const pc = makePeer(msg.from)
-    await pc.setRemoteDescription(msg.sdp)
-    const answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-    send({ t: 'answer', to: msg.from, sdp: answer })
-  }
-
-  const createOffer = async (to: string) => {
-    if (!publishingRef.current) return
-    const pc = makePeer(to)
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-    send({ t: 'offer', to, sdp: offer })
-  }
-
-  const handleSignal = async (msg: WebRtcSignal) => {
-    try {
-      if (msg.t === 'presenter') {
-        if (publishingRef.current) return
-        setPresenterName(msg.name)
-        setStatus('正在连接视频...')
-        if (presenterRef.current !== msg.from || !remoteStreamRef.current) {
-          presenterRef.current = msg.from
-          send({ t: 'watch', to: msg.from, name: myName || '玩家' })
-        }
-        return
-      }
-
-      if (msg.t === 'watch') {
-        await createOffer(msg.from)
-        return
-      }
-
-      if (msg.t === 'offer') {
-        await answerOffer(msg)
-        return
-      }
-
-      if (msg.t === 'answer') {
-        await peersRef.current.get(msg.from)?.setRemoteDescription(msg.sdp)
-        return
-      }
-
-      if (msg.t === 'candidate') {
-        await peersRef.current.get(msg.from)?.addIceCandidate(msg.candidate)
-        return
-      }
-
-      if (msg.t === 'presenter-left' && presenterRef.current === msg.from) {
-        closePeer(msg.from)
-        clearRemote()
-      }
-    } catch {
-      setStatus('视频连接失败，可以重新开启一次')
-    }
-  }
-
-  useEffect(() => {
-    const ch = joinWebRtcSignalChannel(roomKey, peerId, (msg) => {
-      void handleSignal(msg)
-    })
-    channelRef.current = ch
-    return () => {
-      ch.leave()
-      channelRef.current = null
-      stopLocalTracks()
-      closeAllPeers()
-    }
-    // handleSignal intentionally reads live refs/state; reconnect only when room identity changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomKey, peerId])
-
-  useEffect(() => {
-    publishingRef.current = isPublishing
-  }, [isPublishing])
-
-  useEffect(() => {
-    remoteStreamRef.current = remoteStream
-    if (!remoteStream) return
+    remoteTrackRef.current = track
+    remoteParticipantRef.current = participant.identity
+    track.attach(video)
+    setHasRemoteVideo(true)
+    setPresenterName(participant.name || '家人')
+    setStatus('视频已连接')
+    setPlaybackBlocked(false)
     void playRemoteVideo()
-  }, [playRemoteVideo, remoteStream])
+  }, [playRemoteVideo])
+
+  const disconnect = useCallback(() => {
+    if (localTrackRef.current && localVideoRef.current) localTrackRef.current.detach(localVideoRef.current)
+    localTrackRef.current = null
+    detachRemoteVideo()
+    roomRef.current?.disconnect()
+    roomRef.current = null
+    setIsPublishing(false)
+  }, [detachRemoteVideo])
 
   useEffect(() => {
-    if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
-  }, [isPublishing])
-
-  useEffect(() => {
-    if (!isPublishing) return
-    const announce = () => send({ t: 'presenter', name: myName || '玩家' })
-    announce()
-    const timer = window.setInterval(announce, 2500)
-    return () => window.clearInterval(timer)
-    // send is intentionally bound to current channel; announcing tolerates one missed tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPublishing, myName])
+    if (roomState !== 'playing') return
+    let canceled = false
+    const connect = async () => {
+      setError('')
+      setStatus('正在连接视频房...')
+      try {
+        const join = await liveKitTokenRpc(code, deviceToken(), 'charades')
+        if (!join?.ok || !join.url || !join.token) {
+          setStatus('视频服务还没连上')
+          return
+        }
+        const { Room, RoomEvent } = await import('livekit-client')
+        if (canceled) return
+        const room = new Room({ adaptiveStream: true, dynacast: true })
+        roomRef.current = room
+        room
+          .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+            attachRemoteVideo(track, participant)
+          })
+          .on(RoomEvent.TrackUnsubscribed, (track) => {
+            if (remoteTrackRef.current === track) detachRemoteVideo()
+          })
+          .on(RoomEvent.ParticipantDisconnected, (participant) => {
+            if (participant.identity === remoteParticipantRef.current) detachRemoteVideo()
+          })
+          .on(RoomEvent.Disconnected, () => {
+            roomRef.current = null
+            detachRemoteVideo()
+            setIsPublishing(false)
+          })
+        await room.connect(join.url, join.token)
+        try {
+          await room.localParticipant.setName(myName || '玩家')
+        } catch {
+          // Token 里已有名字；没有权限更新时忽略。
+        }
+        setStatus('等待有人开启视频表演')
+      } catch {
+        if (!canceled) setStatus('视频连接失败，可以退出后重进')
+      }
+    }
+    void connect()
+    return () => {
+      canceled = true
+      disconnect()
+    }
+  }, [attachRemoteVideo, code, detachRemoteVideo, disconnect, myName, roomState])
 
   useEffect(() => {
     if (!canPublish && isPublishing) {
-      send({ t: 'presenter-left' })
-      stopLocalTracks()
-      closeAllPeers()
-      setIsPublishing(false)
+      void stopPublishing()
       setStatus('轮到你猜时会自动关闭摄像头')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canPublish, isPublishing])
 
   const startPublishing = async () => {
     setError('')
     if (!canPublish) return
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError('这个浏览器不支持摄像头或麦克风直连')
+      setError('这个浏览器不支持摄像头')
       return
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        audio: true,
-      })
-      localStreamRef.current = stream
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream
+      const room = roomRef.current
+      if (!room) {
+        setError('视频房还没连上，稍后再试')
+        return
+      }
+      const publication = await room.localParticipant.setCameraEnabled(true)
+      const track = publication?.videoTrack
+      if (track && localVideoRef.current) {
+        localTrackRef.current = track
+        track.attach(localVideoRef.current)
+      }
       setIsPublishing(true)
-      setStatus('你正在用摄像头和麦克风表演')
+      setStatus('你正在用摄像头表演')
     } catch (e) {
-      setError(mediaPermissionErrorMessage('cameraOrMicrophone', e))
+      setError(mediaPermissionErrorMessage('camera', e))
     }
   }
 
-  const stopPublishing = () => {
-    send({ t: 'presenter-left' })
-    stopLocalTracks()
-    closeAllPeers()
-    setIsPublishing(false)
-    setStatus('已关闭视频')
+  const stopPublishing = async () => {
+    try {
+      await roomRef.current?.localParticipant.setCameraEnabled(false)
+    } finally {
+      if (localTrackRef.current && localVideoRef.current) localTrackRef.current.detach(localVideoRef.current)
+      localTrackRef.current = null
+      setIsPublishing(false)
+      setStatus('已关闭视频')
+    }
   }
 
   if (roomState !== 'playing') return null
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-ink-950 text-white">
-      {remoteStream ? (
+      {hasRemoteVideo ? (
         <video
           ref={remoteVideoRef}
           autoPlay
+          muted
           playsInline
           onLoadedMetadata={() => void playRemoteVideo()}
           className="absolute inset-0 h-full w-full object-cover"
@@ -300,14 +220,14 @@ export function CharadesVideoPanel({
               type="button"
               size="sm"
               variant={isPublishing ? 'outline' : 'default'}
-              onClick={isPublishing ? stopPublishing : startPublishing}
+              onClick={isPublishing ? () => void stopPublishing() : () => void startPublishing()}
               className={cn(
                 'min-h-10 gap-1.5 whitespace-normal border-white/40 bg-black/50 text-xs leading-tight text-white shadow-lg backdrop-blur hover:bg-black/60 sm:text-sm',
                 !isPublishing && 'bg-orange-500 text-white hover:bg-orange-600'
               )}
             >
               {isPublishing ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-              {isPublishing ? '关闭摄像头/麦克风' : '开启摄像头/麦克风'}
+              {isPublishing ? '关闭摄像头' : '开启摄像头'}
             </Button>
           )}
         </div>
@@ -318,7 +238,7 @@ export function CharadesVideoPanel({
           </p>
         )}
 
-        {playbackBlocked && remoteStream && (
+        {playbackBlocked && hasRemoteVideo && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 px-6">
             <Button
               type="button"
@@ -326,7 +246,7 @@ export function CharadesVideoPanel({
               className="min-h-14 gap-2 rounded-full bg-white px-5 text-base font-semibold text-ink-900 shadow-2xl hover:bg-white/90"
             >
               <Play className="h-5 w-5" />
-              播放视频/声音
+              播放视频
             </Button>
           </div>
         )}
