@@ -89,6 +89,21 @@ export async function adminListProfiles(adminCode: string): Promise<ProfileRow[]
   return Array.isArray(data?.profiles) ? data.profiles : []
 }
 
+export async function adminCreateProfile(
+  adminCode: string,
+  name: string,
+  newCode: string,
+  emoji = '🙂'
+): Promise<ProfileRow | null> {
+  const data = await fgPost<{ ok: boolean; profile: ProfileRow | null }>('/admin-create-profile', {
+    adminCode,
+    name,
+    newCode,
+    emoji,
+  })
+  return data?.ok === true ? data.profile : null
+}
+
 export async function adminResetProfileCode(
   adminCode: string,
   id: string,
@@ -211,4 +226,20 @@ export async function collectSubmissionsRpc(code: string, hostToken: string): Pr
 export async function clearSubmissionsRpc(code: string, hostToken: string): Promise<boolean> {
   const data = await fgPost<{ ok: boolean }>('/clear-submissions', { code, hostToken })
   return data?.ok === true
+}
+
+export interface LiveKitJoinInfo {
+  ok: boolean
+  url: string | null
+  token: string | null
+  room: string | null
+  identity: string | null
+}
+
+export async function liveKitTokenRpc(
+  code: string,
+  token: string,
+  purpose: 'audio' | 'charades' = 'audio'
+): Promise<LiveKitJoinInfo | null> {
+  return fgPost<LiveKitJoinInfo>('/livekit-token', { code, token, purpose })
 }

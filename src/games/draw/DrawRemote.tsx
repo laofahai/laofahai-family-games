@@ -21,12 +21,12 @@ import type { DrawDifficulty } from './types'
 
 const ALL_DIFF: ReadonlySet<DrawDifficulty> = new Set<DrawDifficulty>(['easy', 'medium', 'hard'])
 
-export function DrawRemote({ onBack }: { onBack: () => void }) {
+export function DrawRemote({ onBack, roomCode }: { onBack: () => void; roomCode?: string }) {
   const me = useMemo(() => getPlayers().find((p) => p.id === getCurrentPlayer()), [])
   const [name, setName] = useState(me?.name ?? '')
   const emoji = me?.emoji ?? '🙂'
 
-  const [code, setCode] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(roomCode ?? null)
   const [snap, setSnap] = useState<RoomSnapshot | null>(null)
   const [joinCode, setJoinCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -144,6 +144,10 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
   }
 
   const doLeave = async () => {
+    if (roomCode) {
+      onBack()
+      return
+    }
     if (code) await leaveRoom(code)
     chanRef.current?.leave()
     setCode(null)
@@ -157,6 +161,13 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
 
   // ── 入口 ─────────────────────────────────────────────────────────
   if (!code || !snap) {
+    if (roomCode) {
+      return (
+        <Card className="paper-grid">
+          <CardContent className="p-6 text-sm text-ink-500">正在进入小组游戏...</CardContent>
+        </Card>
+      )
+    }
     return (
       <Card className="paper-grid">
         <CardHeader>
@@ -167,7 +178,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>各自用自己手机，画手画、大家实时看着猜。建个房，把房号告诉大家。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RemoteVoiceHint />
+          {!roomCode && <RemoteVoiceHint />}
           <div className="space-y-2">
             <Label>你的名字</Label>
             <input
@@ -265,8 +276,8 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
-          <RemoteVoiceHint />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
+          {!roomCode && <RemoteVoiceHint />}
           {memberList}
           {isHost ? (
             <Button
@@ -301,7 +312,7 @@ export function DrawRemote({ onBack }: { onBack: () => void }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+        {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
         {iAmDrawer ? (
           <div className="rounded-2xl border border-melon-200 bg-melon-50 p-3 text-center">
             <span className="text-sm text-melon-600">你要画：</span>

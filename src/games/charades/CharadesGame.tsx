@@ -20,6 +20,7 @@ import { ResultStage } from './stages/ResultStage'
 interface CharadesGameProps {
   onExit: () => void
   startRemote?: boolean
+  partyCode?: string
 }
 
 interface State {
@@ -94,7 +95,7 @@ function readIntroSeen(): boolean {
 
 const INITIAL_DIFFICULTIES: Set<Difficulty> = new Set<Difficulty>(['easy', 'medium'])
 
-export function CharadesGame({ onExit, startRemote = false }: CharadesGameProps) {
+export function CharadesGame({ onExit, startRemote = false, partyCode }: CharadesGameProps) {
   const [introSeen] = useState(readIntroSeen)
   const [remote, setRemote] = useState(startRemote)
   const [state, dispatch] = useReducer(reducer, {
@@ -128,7 +129,7 @@ export function CharadesGame({ onExit, startRemote = false }: CharadesGameProps)
   const currentWord = state.pool[state.cursor]
 
   if (remote) {
-    return <CharadesRemote onBack={() => setRemote(false)} />
+    return <CharadesRemote roomCode={partyCode} onBack={() => (partyCode ? onExit() : setRemote(false))} />
   }
 
   if (state.stage === 'intro') {

@@ -14,6 +14,7 @@ import { ResultStage } from './stages/ResultStage'
 interface DrawGameProps {
   onExit: () => void
   startRemote?: boolean
+  partyCode?: string
 }
 
 interface State {
@@ -92,7 +93,7 @@ function readIntroSeen(): boolean {
   return localStorage.getItem('draw.introSeen') === '1'
 }
 
-export function DrawGame({ onExit, startRemote = false }: DrawGameProps) {
+export function DrawGame({ onExit, startRemote = false, partyCode }: DrawGameProps) {
   const [introSeen] = useState(readIntroSeen)
   const [remote, setRemote] = useState(startRemote)
   const [state, dispatch] = useReducer(reducer, {
@@ -111,7 +112,7 @@ export function DrawGame({ onExit, startRemote = false }: DrawGameProps) {
   }
 
   if (remote) {
-    return <DrawRemote onBack={() => setRemote(false)} />
+    return <DrawRemote roomCode={partyCode} onBack={() => (partyCode ? onExit() : setRemote(false))} />
   }
 
   if (state.stage === 'intro') {

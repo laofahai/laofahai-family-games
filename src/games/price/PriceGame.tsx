@@ -20,6 +20,7 @@ import { ResultStage } from './stages/ResultStage'
 interface PriceGameProps {
   onExit: () => void
   startRemote?: boolean
+  partyCode?: string
 }
 
 interface State {
@@ -130,7 +131,7 @@ function tallyScores(history: RoundRecord[]): Partial<Record<PlayerId, number>> 
   return scores
 }
 
-export function PriceGame({ onExit, startRemote = false }: PriceGameProps) {
+export function PriceGame({ onExit, startRemote = false, partyCode }: PriceGameProps) {
   const [introSeen] = useState(readIntroSeen)
   const [remote, setRemote] = useState(startRemote)
   const [state, dispatch] = useReducer(reducer, {
@@ -148,7 +149,7 @@ export function PriceGame({ onExit, startRemote = false }: PriceGameProps) {
   const scores = tallyScores(state.history)
 
   if (remote) {
-    return <PriceRemote onBack={() => setRemote(false)} />
+    return <PriceRemote roomCode={partyCode} onBack={() => (partyCode ? onExit() : setRemote(false))} />
   }
 
   if (state.stage === 'intro') {

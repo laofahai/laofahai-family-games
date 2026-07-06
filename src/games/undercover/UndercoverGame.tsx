@@ -56,9 +56,10 @@ function shuffle<T>(items: T[]) {
 
 interface UndercoverGameProps {
   startRemote?: boolean
+  partyCode?: string
 }
 
-export function UndercoverGame({ startRemote = false }: UndercoverGameProps) {
+export function UndercoverGame({ startRemote = false, partyCode }: UndercoverGameProps) {
   const [mode, setMode] = useState<'local' | 'remote'>(startRemote ? 'remote' : 'local')
   const [phase, setPhase] = useState<Phase>('setup')
   const [rosterIds, setRosterIds] = useState<string[]>(getRosterIds)
@@ -174,7 +175,7 @@ export function UndercoverGame({ startRemote = false }: UndercoverGameProps) {
   if (mode === 'remote') {
     return (
       <div className="space-y-6">
-        <UndercoverRemote onBack={() => setMode('local')} />
+        <UndercoverRemote roomCode={partyCode} onBack={() => setMode('local')} />
       </div>
     )
   }

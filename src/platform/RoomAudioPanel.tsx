@@ -1,225 +1,150 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, PhoneOff, Volume2 } from 'lucide-react'
+import type { Room, RemoteParticipant, RemoteTrack } from 'livekit-client'
 
 import { Button } from '@/components/ui/button'
+import { liveKitTokenRpc } from './cloud'
 import { mediaPermissionErrorMessage } from './mediaError'
 import { roomAudioStatusText } from './roomAudioStatus'
-import { RTC_CONFIG } from './rtcConfig'
-import { joinWebRtcSignalChannel, type WebRtcSignalChannel } from './webrtcSignalChannel'
-import { shouldCreateMeshOffer, webRtcPeerId, type WebRtcSignal, type WebRtcSignalBody } from './webrtcSignaling'
+import { deviceToken } from './rooms'
 
-interface RemoteAudioPeer {
+interface RemoteAudioTrack {
   id: string
   name: string
-  stream: MediaStream
+  track: RemoteTrack
 }
 
 interface RoomAudioPanelProps {
   code: string
   roomState: string
   myName: string
+  autoJoin?: boolean
 }
 
-export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps) {
-  const peerId = useMemo(() => webRtcPeerId(), [])
+export function RoomAudioPanel({ code, roomState, myName, autoJoin = false }: RoomAudioPanelProps) {
   const [joined, setJoined] = useState(false)
   const [muted, setMuted] = useState(false)
   const [status, setStatus] = useState('语音未开启')
   const [error, setError] = useState('')
-  const [remotePeers, setRemotePeers] = useState<RemoteAudioPeer[]>([])
+  const [remoteTracks, setRemoteTracks] = useState<RemoteAudioTrack[]>([])
   const [playbackBlocked, setPlaybackBlocked] = useState(false)
   const [resumeSignal, setResumeSignal] = useState(0)
+
+  const roomRef = useRef<Room | null>(null)
+  const joiningRef = useRef(false)
+  const joinedRef = useRef(false)
   const handlePlaybackBlocked = useCallback(() => setPlaybackBlocked(true), [])
 
-  const channelRef = useRef<WebRtcSignalChannel | null>(null)
-  const localStreamRef = useRef<MediaStream | null>(null)
-  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map())
-  const namesRef = useRef<Map<string, string>>(new Map())
-  const joinedRef = useRef(false)
-  const roomKey = `audio:${code}`
+  const upsertRemoteTrack = useCallback((track: RemoteTrack, participant: RemoteParticipant) => {
+    if (track.kind !== 'audio') return
+    const id = `${participant.identity}:${track.sid ?? track.mediaStreamTrack.id}`
+    setRemoteTracks((prev) => [
+      ...prev.filter((item) => item.id !== id),
+      { id, name: participant.name || '家人', track },
+    ])
+    setStatus('语音已连接')
+  }, [])
 
-  const send = (msg: WebRtcSignalBody) => {
-    channelRef.current?.send({ room: roomKey, from: peerId, ...msg } as WebRtcSignal)
-  }
+  const removeRemoteTrack = useCallback((track: RemoteTrack, participant: RemoteParticipant) => {
+    const prefix = `${participant.identity}:`
+    setRemoteTracks((prev) =>
+      prev.filter((item) => !(item.track === track || item.id.startsWith(prefix) && item.track.sid === track.sid))
+    )
+  }, [])
 
-  const replaceRemotePeer = (id: string, stream: MediaStream) => {
-    setRemotePeers((prev) => {
-      const name = namesRef.current.get(id) ?? '家人'
-      const existing = prev.find((peer) => peer.id === id)
-      if (existing?.stream === stream && existing.name === name) return prev
-      return [...prev.filter((peer) => peer.id !== id), { id, name, stream }]
-    })
-  }
-
-  const removeRemotePeer = (id: string) => {
-    setRemotePeers((prev) => prev.filter((peer) => peer.id !== id))
-  }
-
-  const closePeer = (id: string) => {
-    peersRef.current.get(id)?.close()
-    peersRef.current.delete(id)
-    removeRemotePeer(id)
-  }
-
-  const closeAllPeers = () => {
-    peersRef.current.forEach((pc) => pc.close())
-    peersRef.current.clear()
-    setRemotePeers([])
-  }
-
-  const makePeer = (remotePeer: string) => {
-    const existing = peersRef.current.get(remotePeer)
-    if (existing) return existing
-
-    const pc = new RTCPeerConnection(RTC_CONFIG)
-    peersRef.current.set(remotePeer, pc)
-
-    localStreamRef.current?.getAudioTracks().forEach((track) => {
-      const stream = localStreamRef.current
-      if (stream) pc.addTrack(track, stream)
-    })
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        send({ t: 'candidate', to: remotePeer, candidate: event.candidate.toJSON() })
-      }
-    }
-
-    pc.ontrack = (event) => {
-      const [stream] = event.streams
-      if (stream) replaceRemotePeer(remotePeer, stream)
-    }
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-        setStatus('语音连接不稳定，可退出后重进')
-      }
-      if (pc.connectionState === 'connected') setStatus('语音已连接')
-    }
-
-    return pc
-  }
-
-  const createOffer = async (to: string) => {
-    if (!joinedRef.current) return
-    const pc = makePeer(to)
-    if (pc.signalingState !== 'stable') return
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-    send({ t: 'offer', to, sdp: offer })
-  }
-
-  const answerOffer = async (msg: Extract<WebRtcSignal, { t: 'offer' }>) => {
-    if (!joinedRef.current) return
-    const pc = makePeer(msg.from)
-    await pc.setRemoteDescription(msg.sdp)
-    const answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-    send({ t: 'answer', to: msg.from, sdp: answer })
-  }
-
-  const handleSignal = async (msg: WebRtcSignal) => {
-    try {
-      if (msg.t === 'peer') {
-        namesRef.current.set(msg.from, msg.name)
-        setRemotePeers((prev) =>
-          prev.map((peer) => (peer.id === msg.from ? { ...peer, name: msg.name } : peer))
-        )
-        if (joinedRef.current && shouldCreateMeshOffer(peerId, msg.from)) await createOffer(msg.from)
-        return
-      }
-
-      if (msg.t === 'peer-left') {
-        closePeer(msg.from)
-        namesRef.current.delete(msg.from)
-        return
-      }
-
-      if (msg.t === 'offer') {
-        await answerOffer(msg)
-        return
-      }
-
-      if (msg.t === 'answer') {
-        await peersRef.current.get(msg.from)?.setRemoteDescription(msg.sdp)
-        return
-      }
-
-      if (msg.t === 'candidate') {
-        await peersRef.current.get(msg.from)?.addIceCandidate(msg.candidate)
-      }
-    } catch {
-      setStatus('语音连接失败，可退出后重进')
-    }
-  }
-
-  useEffect(() => {
-    const ch = joinWebRtcSignalChannel(roomKey, peerId, (msg) => {
-      void handleSignal(msg)
-    })
-    channelRef.current = ch
-    return () => {
-      ch.leave()
-      channelRef.current = null
-      localStreamRef.current?.getTracks().forEach((track) => track.stop())
-      localStreamRef.current = null
-      closeAllPeers()
-    }
-    // handleSignal intentionally reads live refs/state; reconnect only when room identity changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomKey, peerId])
-
-  useEffect(() => {
-    joinedRef.current = joined
-  }, [joined])
-
-  useEffect(() => {
-    if (!joined) return
-    const announce = () => send({ t: 'peer', name: myName || '玩家' })
-    announce()
-    const timer = window.setInterval(announce, 2500)
-    return () => window.clearInterval(timer)
-    // send is intentionally bound to current channel; announcing tolerates one missed tick.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [joined, myName])
-
-  const joinAudio = async () => {
-    setError('')
-    setPlaybackBlocked(false)
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('这个浏览器不支持语音直连')
-      return
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      localStreamRef.current = stream
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = !muted
-      })
-      setJoined(true)
-      setStatus('语音已开启，正在连接其他人')
-    } catch (e) {
-      setError(mediaPermissionErrorMessage('microphone', e))
-    }
-  }
-
-  const leaveAudio = () => {
-    send({ t: 'peer-left' })
-    localStreamRef.current?.getTracks().forEach((track) => track.stop())
-    localStreamRef.current = null
-    closeAllPeers()
+  const disconnect = useCallback(() => {
+    roomRef.current?.disconnect()
+    roomRef.current = null
+    joiningRef.current = false
+    joinedRef.current = false
     setJoined(false)
     setMuted(false)
+    setRemoteTracks([])
+  }, [])
+
+  const joinAudio = useCallback(async () => {
+    if (joiningRef.current || joinedRef.current) return
+    joiningRef.current = true
+    setError('')
+    setPlaybackBlocked(false)
+    setStatus('正在加入语音...')
+
+    try {
+      const join = await liveKitTokenRpc(code, deviceToken(), 'audio')
+      if (!join?.ok || !join.url || !join.token) {
+        setError('语音服务还没连上，稍后再试')
+        setStatus('语音加入失败')
+        return
+      }
+
+      const { Room, RoomEvent } = await import('livekit-client')
+      const room = new Room({
+        adaptiveStream: true,
+        dynacast: true,
+      })
+      roomRef.current = room
+
+      room
+        .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          upsertRemoteTrack(track, participant)
+          if (publication.kind === 'audio') setPlaybackBlocked(false)
+        })
+        .on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
+          removeRemoteTrack(track, participant)
+        })
+        .on(RoomEvent.ParticipantDisconnected, (participant) => {
+          setRemoteTracks((prev) => prev.filter((item) => !item.id.startsWith(`${participant.identity}:`)))
+        })
+        .on(RoomEvent.Disconnected, () => {
+          roomRef.current = null
+          joinedRef.current = false
+          setJoined(false)
+          setMuted(false)
+          setRemoteTracks([])
+          setStatus('语音已断开')
+        })
+
+      await room.connect(join.url, join.token)
+      try {
+        await room.localParticipant.setName(myName || '玩家')
+      } catch {
+        // Token 里已经有名字；没有权限更新时忽略。
+      }
+      await room.localParticipant.setMicrophoneEnabled(true)
+      joinedRef.current = true
+      setJoined(true)
+      setStatus('语音已开启')
+    } catch (e) {
+      disconnect()
+      setError(mediaPermissionErrorMessage('microphone', e))
+      setStatus('语音加入失败')
+    } finally {
+      joiningRef.current = false
+    }
+  }, [code, disconnect, myName, removeRemoteTrack, upsertRemoteTrack])
+
+  const leaveAudio = () => {
+    disconnect()
     setStatus('语音已退出')
   }
 
-  const toggleMute = () => {
+  const toggleMute = async () => {
     const next = !muted
     setMuted(next)
-    localStreamRef.current?.getAudioTracks().forEach((track) => {
-      track.enabled = !next
-    })
+    try {
+      await roomRef.current?.localParticipant.setMicrophoneEnabled(!next)
+      setStatus(next ? '已静音' : '语音已开启')
+    } catch {
+      setError('静音切换失败，请重试')
+      setMuted(!next)
+    }
   }
+
+  useEffect(() => {
+    if (autoJoin) void joinAudio()
+  }, [autoJoin, joinAudio])
+
+  useEffect(() => disconnect, [disconnect])
 
   return (
     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
@@ -227,20 +152,20 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
         <div className="flex min-w-0 items-start gap-2">
           <Volume2 className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="min-w-0">
-            <div className="font-semibold">房间语音</div>
+            <div className="font-semibold">小组语音</div>
             <div className="text-xs leading-relaxed text-emerald-700">
-              {roomAudioStatusText({ joined, remoteCount: remotePeers.length, roomState, status })}
+              {roomAudioStatusText({ joined, remoteCount: remoteTracks.length, roomState, status })}
             </div>
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {joined ? (
             <>
-              <Button type="button" size="sm" variant="outline" onClick={toggleMute} className="gap-1.5">
+              <Button type="button" size="sm" variant="outline" onClick={() => void toggleMute()} className="gap-1.5">
                 {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 {muted ? '取消静音' : '静音'}
               </Button>
-              {playbackBlocked && remotePeers.length > 0 && (
+              {playbackBlocked && remoteTracks.length > 0 && (
                 <Button
                   type="button"
                   size="sm"
@@ -259,7 +184,7 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
               </Button>
             </>
           ) : (
-            <Button type="button" size="sm" onClick={joinAudio} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
+            <Button type="button" size="sm" onClick={() => void joinAudio()} className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700">
               <Phone className="h-4 w-4" />
               加入语音
             </Button>
@@ -270,10 +195,10 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
       <div className="sr-only" aria-live="polite">
         {status}
       </div>
-      {remotePeers.map((peer) => (
+      {remoteTracks.map((item) => (
         <RemoteAudio
-          key={peer.id}
-          stream={peer.stream}
+          key={item.id}
+          track={item.track}
           resumeSignal={resumeSignal}
           onPlaybackBlocked={handlePlaybackBlocked}
         />
@@ -283,11 +208,11 @@ export function RoomAudioPanel({ code, roomState, myName }: RoomAudioPanelProps)
 }
 
 function RemoteAudio({
-  stream,
+  track,
   resumeSignal,
   onPlaybackBlocked,
 }: {
-  stream: MediaStream
+  track: RemoteTrack
   resumeSignal: number
   onPlaybackBlocked: () => void
 }) {
@@ -296,9 +221,12 @@ function RemoteAudio({
   useEffect(() => {
     const audio = ref.current
     if (!audio) return
-    audio.srcObject = stream
+    track.attach(audio)
     void audio.play().catch(onPlaybackBlocked)
-  }, [stream, resumeSignal, onPlaybackBlocked])
+    return () => {
+      track.detach(audio)
+    }
+  }, [track, resumeSignal, onPlaybackBlocked])
 
   return (
     <audio ref={ref} autoPlay playsInline>

@@ -246,6 +246,7 @@ function mintCode(e) {
   const data = body(e)
   if (!requireAdmin(data.adminCode)) return ok(e, { ok: false })
   const code = String(data.newCode || '')
+  if (data.isAdmin === true) return ok(e, { ok: false })
   if (!code || byData('access_codes', 'code', code)) return ok(e, { ok: false })
   saveRecord('access_codes', {
     code,
@@ -283,6 +284,27 @@ function adminListProfiles(e) {
   return ok(e, { profiles })
 }
 
+function adminCreateProfile(e) {
+  const data = body(e)
+  if (!requireAdmin(data.adminCode)) return ok(e, { ok: false, profile: null })
+  const name = String(data.name || '').trim()
+  const code = String(data.newCode || '').trim()
+  if (!name || !code) return ok(e, { ok: false, profile: null })
+  if (profileByCode(code) || byData('access_codes', 'code', code)) return ok(e, { ok: false, profile: null })
+  const profile = saveRecord('profiles', {
+    legacy_id: '',
+    name,
+    emoji: String(data.emoji || '🙂'),
+    kind: 'family',
+    sync_code: code,
+    role: 'family',
+    gender: '',
+    class_id: 'family',
+    meta: {},
+  })
+  return ok(e, { ok: true, profile: profileRow(profile) })
+}
+
 function adminResetProfileCode(e) {
   const data = body(e)
   if (!requireAdmin(data.adminCode)) return ok(e, { ok: false })
@@ -314,6 +336,51 @@ function adminDeleteProfile(e) {
   if (oldCode) deleteWhere('learn', (row) => row.getString('code') === oldCode)
   $app.delete(profile)
   return ok(e, { ok: true })
+}
+
+function livekitRoomName(purpose, game, code) {
+  const safeGame = String(game || 'room').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'room'
+  const safeCode = String(code || '').replace(/[^0-9]/g, '').slice(0, 12)
+  if (purpose === 'charades') return `charades:${safeCode}`
+  return `audio:${safeGame}:${safeCode}`
+}
+
+function livekitToken(e) {
+  const data = body(e)
+  const apiKey = $os.getenv('LIVEKIT_API_KEY')
+  const apiSecret = $os.getenv('LIVEKIT_API_SECRET')
+  const livekitUrl = $os.getenv('LIVEKIT_URL') || 'wss://rtc.902.linch.tech'
+  if (!apiKey || !apiSecret) return ok(e, { ok: false, url: null, token: null, room: null })
+
+  const code = String(data.code || '').replace(/[^0-9]/g, '')
+  const memberToken = String(data.token || '')
+  const room = byData('rooms', 'code', code)
+  const member = first('room_members', 'code = {:code} && token = {:token}', { code, token: memberToken })
+  if (!room || !member) return ok(e, { ok: false, url: null, token: null, room: null })
+
+  const purpose = String(data.purpose || 'audio') === 'charades' ? 'charades' : 'audio'
+  const game = room.getString('game') || String(data.game || '')
+  if (purpose === 'charades' && game !== 'charades') return ok(e, { ok: false, url: null, token: null, room: null })
+
+  const lkRoom = livekitRoomName(purpose, game, code)
+  const seat = member.getInt('seat')
+  const identity = `fg-${code}-${seat}-${$security.sha256(memberToken).slice(0, 10)}`
+  const name = member.getString('name') || '玩家'
+  const payload = {
+    iss: apiKey,
+    sub: identity,
+    name,
+    metadata: JSON.stringify({ code, game, purpose, seat }),
+    video: {
+      roomJoin: true,
+      room: lkRoom,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    },
+  }
+  const token = $security.createJWT(payload, apiSecret, 60 * 60 * 4)
+  return ok(e, { ok: true, url: livekitUrl, token, room: lkRoom, identity })
 }
 
 function claimProfile(e) {
@@ -467,7 +534,7 @@ function joinRoom(e) {
   const room = byData('rooms', 'code', code)
   if (!room) return ok(e, { seat: -1 })
   let member = first('room_members', 'code = {:code} && token = {:token}', { code, token })
-  if (room.getString('state') !== 'lobby' && !member) return ok(e, { seat: -2 })
+  if (room.getString('state') !== 'lobby' && room.getString('game') !== 'party' && !member) return ok(e, { seat: -2 })
   if (member) {
     member.set('name', String(data.name || member.getString('name') || '玩家'))
     member.set('emoji', String(data.emoji || member.getString('emoji') || '🙂'))
@@ -496,7 +563,34 @@ function hostSet(e) {
   const room = byData('rooms', 'code', code)
   if (!room || room.getString('host_token') !== String(data.hostToken || '')) return ok(e, { ok: false })
   if (data.state !== null && data.state !== undefined) room.set('state', String(data.state))
-  if (data.payload !== null && data.payload !== undefined) room.set('payload', roomPayload(data.payload))
+  if (data.payload !== null && data.payload !== undefined) {
+    let nextPayload = data.payload
+    const selectingPartyGame = room.getString('game') === 'party' && nextPayload && typeof nextPayload === 'object' && nextPayload.selectedGame
+    if (room.getString('game') === 'party') {
+      const currentPayload = publicRoomPayload(room)
+      if (
+        currentPayload &&
+        currentPayload.selectedGame &&
+        nextPayload &&
+        typeof nextPayload === 'object' &&
+        !nextPayload.selectedGame
+      ) {
+        nextPayload = {
+          selectedGame: currentPayload.selectedGame,
+          selectedAt: currentPayload.selectedAt,
+          ...nextPayload,
+        }
+      }
+    }
+    room.set('payload', roomPayload(nextPayload))
+    if (selectingPartyGame) {
+      for (const member of getMembers(code)) {
+        member.set('secret', null)
+        member.set('submission', null)
+        $app.save(member)
+      }
+    }
+  }
   $app.save(room)
   const secrets = data.secrets && typeof data.secrets === 'object' ? data.secrets : null
   if (secrets) {
@@ -608,8 +702,10 @@ module.exports = {
   listCodes,
   setCodeRevoked,
   adminListProfiles,
+  adminCreateProfile,
   adminResetProfileCode,
   adminDeleteProfile,
+  livekitToken,
   claimProfile,
   pullSeen,
   pushSeen,

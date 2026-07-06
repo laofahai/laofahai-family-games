@@ -7,6 +7,7 @@ import { addDeviceLogin, getDeviceLogins, isAdmin, isUnlocked, tryUnlock } from 
 import { UnlockGate, type UnlockInfo } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
 import { AdminPanel } from '@/platform/AdminPanel'
+import { PartyRoom } from '@/platform/PartyRoom'
 import { ACTIVE_GAME_IDS, GAMES, gameSections, type GameMeta } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
@@ -33,6 +34,7 @@ const PriceGame = lazy(() => import('@/games/price/PriceGame').then((m) => ({ de
 
 type Screen =
   | 'home'
+  | 'party'
   | 'undercover'
   | 'charades'
   | 'knowYou'
@@ -65,6 +67,8 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false)
   const [screen, setScreen] = useState<Screen>('home')
   const [remoteEntry, setRemoteEntry] = useState<string | null>(null)
+  const [partyCode, setPartyCode] = useState<string | null>(null)
+  const [partyGame, setPartyGame] = useState<string | null>(null)
   const [showMoreGames, setShowMoreGames] = useState(false)
   const [bandId, setBandId] = useState<string>(loadBand)
   const [loadingGame, setLoadingGame] = useState<string | null>(null)
@@ -127,7 +131,7 @@ export default function App() {
     setScreen(screenKey)
   }
 
-  const enterRemoteGame = async (screenKey: Screen, gameId: string) => {
+  const enterRemoteGame = async (gameId: string) => {
     setLoadingGame(gameId)
     setContentError('')
     const ready = await ensureContent(contentKeysForGame(gameId))
@@ -139,7 +143,23 @@ export default function App() {
     const fresh = recordPlayed(playerId, gameId)
     if (fresh.length) setNewBadges(fresh)
     setRemoteEntry(gameId)
-    setScreen(screenKey)
+    setPartyCode(null)
+    setPartyGame(null)
+    setScreen('party')
+  }
+
+  const launchPartyGame = async (gameId: string) => {
+    setLoadingGame(gameId)
+    setContentError('')
+    const ready = await ensureContent(contentKeysForGame(gameId))
+    setLoadingGame(null)
+    if (!ready) {
+      setContentError('题库加载失败，检查网络后再试一次。')
+      return
+    }
+    const fresh = recordPlayed(playerId, gameId)
+    if (fresh.length) setNewBadges(fresh)
+    setPartyGame(gameId)
   }
 
   const renderGameCard = (game: GameMeta) => {
@@ -192,7 +212,7 @@ export default function App() {
           {roomReady && game.supportsRoom && isActive && (
             <button
               type="button"
-              onClick={() => void enterRemoteGame(game.id as Screen, game.id)}
+              onClick={() => void enterRemoteGame(game.id)}
               disabled={loadingGame === game.id}
               className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -379,6 +399,54 @@ export default function App() {
               <div className="text-xs text-ink-500">需要多人各自用手机时，点游戏卡片里的「一起玩儿」。</div>
             </CardFooter>
           </Card>
+        )}
+
+        {screen === 'party' && (
+          <section className="space-y-6">
+            <div>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setScreen('home')
+                  setRemoteEntry(null)
+                  setPartyCode(null)
+                  setPartyGame(null)
+                }}
+                className="gap-2"
+              >
+                返回首页
+              </Button>
+            </div>
+            <PartyRoom
+              initialGame={remoteEntry}
+              onReady={setPartyCode}
+              onLeave={() => {
+                setScreen('home')
+                setRemoteEntry(null)
+                setPartyCode(null)
+                setPartyGame(null)
+              }}
+              onLaunch={(gameId) => void launchPartyGame(gameId)}
+            />
+            {contentError && (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                {contentError}
+              </div>
+            )}
+            {partyCode && partyGame && (
+              <Suspense fallback={<GameLoading name="远程游戏" />}>
+                {partyGame === 'undercover' && <UndercoverGame startRemote partyCode={partyCode} />}
+                {partyGame === 'charades' && (
+                  <CharadesGame startRemote partyCode={partyCode} onExit={() => setPartyGame(null)} />
+                )}
+                {partyGame === 'knowYou' && (
+                  <KnowYouGame startRemote partyCode={partyCode} onExit={() => setPartyGame(null)} />
+                )}
+                {partyGame === 'draw' && <DrawGame startRemote partyCode={partyCode} onExit={() => setPartyGame(null)} />}
+                {partyGame === 'price' && <PriceGame startRemote partyCode={partyCode} onExit={() => setPartyGame(null)} />}
+              </Suspense>
+            )}
+          </section>
         )}
 
         {screen === 'undercover' && (

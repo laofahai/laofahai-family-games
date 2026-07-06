@@ -36,3 +36,18 @@ pb.902.linch.tech {
     }
   }
 }
+
+rtc.902.linch.tech {
+  encode gzip
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+
+  reverse_proxy family-games-livekit:7880 {
+    transport http {
+      read_timeout 360s
+    }
+  }
+}

@@ -1,4 +1,4 @@
-// 管理面板（仅管理员设备）：生成 / 列出 / 吊销 数字邀请码。
+// 管理面板（仅管理员设备）：管理访问码和家人个人码。
 
 import { useEffect, useState } from 'react'
 import { Copy, RefreshCw, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
@@ -7,11 +7,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { adminCode } from './access'
 import {
+  adminCreateProfile,
   adminDeleteProfile,
   adminListProfiles,
   adminResetProfileCode,
   listCodes,
-  mintCode,
   setCodeRevoked,
   type CodeRow,
   type ProfileRow,
@@ -27,7 +27,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
   const [profiles, setProfiles] = useState<ProfileRow[]>([])
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [inviteName, setInviteName] = useState('')
+  const [profileName, setProfileName] = useState('')
   const [copied, setCopied] = useState('')
   const [err, setErr] = useState('')
 
@@ -92,7 +92,7 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const mintInvite = async () => {
+  const createProfile = async () => {
     if (busy) return
     if (!admin) {
       setErr('这台设备不是管理员，无法发码。请在解锁页用管理码登录。')
@@ -101,34 +101,12 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setErr('')
     try {
-      const ok = await mintCode(admin, numericCode(), inviteName.trim() || '邀请码', false)
-      if (!ok) {
+      const profile = await adminCreateProfile(admin, profileName.trim(), numericCode())
+      if (!profile) {
         setErr('生成失败，请检查网络后重试')
         return
       }
-      setInviteName('')
-      await refresh()
-    } catch {
-      setErr('生成失败，请重试')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const mintAdmin = async () => {
-    if (busy) return
-    if (!admin) {
-      setErr('这台设备不是管理员，无法发码。请在解锁页用管理码登录。')
-      return
-    }
-    setBusy(true)
-    setErr('')
-    try {
-      const ok = await mintCode(admin, numericCode(), '管理员', true)
-      if (!ok) {
-        setErr('生成失败，请检查网络后重试')
-        return
-      }
+      setProfileName('')
       await refresh()
     } catch {
       setErr('生成失败，请重试')
@@ -155,27 +133,24 @@ export function AdminPanel({ onClose }: { onClose: () => void }) {
             <X className="h-5 w-5" />
           </button>
         </div>
-        <p className="mt-1 text-xs text-ink-500">写上给谁，生成数字邀请码发给 TA，在 TA 自己设备上解锁。可随时停用。</p>
+        <p className="mt-1 text-xs text-ink-500">写上给谁，生成 TA 的个人码。TA 用这个码登录，进度、错题本、勋章都跟着 TA 走。</p>
 
         <div className="mt-4 space-y-2">
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
-              value={inviteName}
-              onChange={(e) => setInviteName(e.target.value)}
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') void mintInvite()
+                if (e.key === 'Enter') void createProfile()
               }}
               placeholder="给谁？比如 小宇外婆"
               maxLength={12}
               className="h-12 flex-1 rounded-2xl border border-ink-200 px-3 text-sm outline-none focus:border-melon-400"
             />
-            <Button onClick={mintInvite} disabled={busy} className="min-h-12 shrink-0 text-base">
-              ＋ 生成邀请码
+            <Button onClick={createProfile} disabled={busy || !profileName.trim()} className="min-h-12 shrink-0 text-base">
+              ＋ 生成个人码
             </Button>
           </div>
-          <Button onClick={mintAdmin} disabled={busy} variant="outline" className="min-h-11 w-full text-sm">
-            生成管理员码
-          </Button>
           {err && <p className="text-xs text-rose-500">{err}</p>}
         </div>
 

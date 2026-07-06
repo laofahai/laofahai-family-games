@@ -40,12 +40,12 @@ interface HostAnswer {
   spySeats: number[]
 }
 
-export function UndercoverRemote({ onBack }: { onBack: () => void }) {
+export function UndercoverRemote({ onBack, roomCode }: { onBack: () => void; roomCode?: string }) {
   const me = useMemo(() => getPlayers().find((p) => p.id === getCurrentPlayer()), [])
   const [name, setName] = useState(me?.name ?? '')
   const emoji = me?.emoji ?? '🙂'
 
-  const [code, setCode] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(roomCode ?? null)
   const [snap, setSnap] = useState<RoomSnapshot | null>(null)
   const [joinCode, setJoinCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -140,6 +140,10 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
   }
 
   const doLeave = async () => {
+    if (roomCode) {
+      onBack()
+      return
+    }
     if (code) await leaveRoom(code)
     setCode(null)
     setSnap(null)
@@ -149,6 +153,13 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
 
   // ── 入口：还没进房 ───────────────────────────────────────────────
   if (!code || !snap) {
+    if (roomCode) {
+      return (
+        <Card className="paper-grid">
+          <CardContent className="p-6 text-sm text-ink-500">正在进入小组游戏...</CardContent>
+        </Card>
+      )
+    }
     return (
       <Card className="paper-grid">
         <CardHeader>
@@ -243,8 +254,8 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，等人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
-          <RemoteVoiceHint />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
+          {!roomCode && <RemoteVoiceHint />}
           {memberList}
           {isHost ? (
             <div className="space-y-3 rounded-2xl border border-ink-100 bg-white/70 p-4">
@@ -300,7 +311,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>只有你能看到。轮流描述，别说出词本身，找出谁不一样。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
           <button
             type="button"
             onClick={() => setShowWord((v) => !v)}
@@ -362,7 +373,7 @@ export function UndercoverRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>谁是卧底？答案揭晓。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-ink-100/70 bg-white/80 p-4">
               <div className="text-xs text-ink-500">词语组合</div>

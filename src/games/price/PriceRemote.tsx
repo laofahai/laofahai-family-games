@@ -52,12 +52,12 @@ interface RevealPayload {
   scores?: Record<string, number>
 }
 
-export function PriceRemote({ onBack }: { onBack: () => void }) {
+export function PriceRemote({ onBack, roomCode }: { onBack: () => void; roomCode?: string }) {
   const me = useMemo(() => getPlayers().find((p) => p.id === getCurrentPlayer()), [])
   const [name, setName] = useState(me?.name ?? '')
   const emoji = me?.emoji ?? '🙂'
 
-  const [code, setCode] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(roomCode ?? null)
   const [snap, setSnap] = useState<RoomSnapshot | null>(null)
   const [joinCode, setJoinCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -180,6 +180,10 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
   }
 
   const doLeave = async () => {
+    if (roomCode) {
+      onBack()
+      return
+    }
     if (code) await leaveRoom(code)
     setCode(null)
     setSnap(null)
@@ -207,6 +211,13 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
 
   // ── 入口 ─────────────────────────────────────────────────────────
   if (!code || !snap) {
+    if (roomCode) {
+      return (
+        <Card className="paper-grid">
+          <CardContent className="p-6 text-sm text-ink-500">正在进入小组游戏...</CardContent>
+        </Card>
+      )
+    }
     return (
       <Card className="paper-grid">
         <CardHeader>
@@ -217,7 +228,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>各自用自己手机出价，房主公布谁最接近。建个房，把房号告诉大家。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RemoteVoiceHint />
+          {!roomCode && <RemoteVoiceHint />}
           <div className="space-y-2">
             <Label>你的名字</Label>
             <input
@@ -324,8 +335,8 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就出第一件商品。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
-          <RemoteVoiceHint />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
+          {!roomCode && <RemoteVoiceHint />}
           {memberList}
           {isHost ? (
             <Button
@@ -363,7 +374,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>各自出价，只有你看得到自己填的。有人提交后房主就能公布。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
           <div className="rounded-3xl border border-ink-100/70 bg-white/85 p-5 text-center">
             <div className="font-display text-2xl text-ink-900">{p.name}</div>
             {p.unit && <div className="mt-1 text-sm text-ink-500">{p.unit}</div>}
@@ -434,7 +445,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>{p.name}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
           {p.note && (
             <div className="rounded-2xl border border-ink-100/70 bg-white/80 p-4 text-sm text-ink-600">{p.note}</div>
           )}
@@ -497,7 +508,7 @@ export function PriceRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>谁是家里的「行价王」？</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
           {scoreboard(p.scores ?? {}) ?? <p className="text-sm text-ink-500">还没有积分。</p>}
         </CardContent>
         <CardFooter className="justify-between">

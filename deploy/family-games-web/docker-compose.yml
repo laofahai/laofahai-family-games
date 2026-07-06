@@ -1,4 +1,31 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: family-games-redis
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    expose:
+      - "6379"
+    networks:
+      - nestory-net
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: family-games-livekit
+    restart: unless-stopped
+    command: --config /livekit/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/livekit/livekit.yaml:ro
+    expose:
+      - "7880"
+    ports:
+      - "7881:7881/tcp"
+      - "50000-60000:50000-60000/udp"
+    depends_on:
+      - redis
+    networks:
+      - nestory-net
+
   pocketbase:
     image: family-games-pocketbase:latest
     container_name: family-games-pocketbase
@@ -6,6 +33,9 @@ services:
     environment:
       PB_ADMIN_EMAIL: ${PB_ADMIN_EMAIL:-}
       PB_ADMIN_PASSWORD: ${PB_ADMIN_PASSWORD:-}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
     volumes:
       - ./pb_data:/pb/pb_data
     expose:

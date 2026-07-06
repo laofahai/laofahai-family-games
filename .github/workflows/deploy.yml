@@ -57,6 +57,9 @@ jobs:
       NESTORY_SSH_USER: ${{ secrets.NESTORY_SSH_USER }}
       NESTORY_SSH_KEY: ${{ secrets.NESTORY_SSH_KEY }}
       VITE_POCKETBASE_URL: https://pb.902.linch.tech
+      LIVEKIT_URL: wss://rtc.902.linch.tech
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
       PB_ADMIN_EMAIL: ${{ secrets.PB_ADMIN_EMAIL }}
       PB_ADMIN_PASSWORD: ${{ secrets.PB_ADMIN_PASSWORD }}
     steps:
@@ -75,6 +78,8 @@ jobs:
           test -n "$NESTORY_SSH_PORT"
           test -n "$NESTORY_SSH_USER"
           test -n "$NESTORY_SSH_KEY"
+          test -n "$LIVEKIT_API_KEY"
+          test -n "$LIVEKIT_API_SECRET"
 
       - name: Prepare SSH
         run: |
@@ -91,13 +96,15 @@ jobs:
           node scripts/export-pocketbase-content.mjs
           BASE_URL=/ VITE_POCKETBASE_URL="$VITE_POCKETBASE_URL" npm run build
           docker build --platform linux/amd64 -t family-games-pocketbase:latest -f deploy/family-games-pocketbase/Dockerfile .
-          docker save family-games-pocketbase:latest | gzip > /tmp/family-games-images.tar.gz
+          docker pull livekit/livekit-server:latest
+          docker pull redis:7-alpine
+          docker save family-games-pocketbase:latest livekit/livekit-server:latest redis:7-alpine | gzip > /tmp/family-games-images.tar.gz
           tar -czf /tmp/family-games-dist.tgz -C dist .
 
       - name: Upload deploy files
         run: |
           set -euo pipefail
-          printf 'VITE_POCKETBASE_URL=%s\nPB_ADMIN_EMAIL=%s\nPB_ADMIN_PASSWORD=%s\n' "$VITE_POCKETBASE_URL" "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" > /tmp/family-games.env
+          printf 'VITE_POCKETBASE_URL=%s\nPB_ADMIN_EMAIL=%s\nPB_ADMIN_PASSWORD=%s\nLIVEKIT_URL=%s\nLIVEKIT_API_KEY=%s\nLIVEKIT_API_SECRET=%s\n' "$VITE_POCKETBASE_URL" "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" "$LIVEKIT_URL" "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > /tmp/family-games.env
           ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "mkdir -p '$APP_DIR' /opt/nestory/caddy/sites"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-dist.tgz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-dist.tgz"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-images.tar.gz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-images.tar.gz"
@@ -120,6 +127,23 @@ jobs:
             mv /opt/nestory/caddy/site/game-902.new /opt/nestory/caddy/site/game-902
             mv /tmp/family-games.env .env
             chmod 600 .env
+            set -a
+            . ./.env
+            set +a
+            cat > livekit.yaml <<EOF
+port: 7880
+log_level: info
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+redis:
+  address: family-games-redis:6379
+keys:
+  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+EOF
+            chmod 600 livekit.yaml
             docker load -i /tmp/family-games-images.tar.gz
             docker compose --env-file .env up -d --no-build --remove-orphans
             rm -f /opt/nestory/caddy/sites/902-family.caddy

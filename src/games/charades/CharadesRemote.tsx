@@ -28,12 +28,12 @@ function shuffle<T>(items: T[]) {
   return next
 }
 
-export function CharadesRemote({ onBack }: { onBack: () => void }) {
+export function CharadesRemote({ onBack, roomCode }: { onBack: () => void; roomCode?: string }) {
   const me = useMemo(() => getPlayers().find((p) => p.id === getCurrentPlayer()), [])
   const [name, setName] = useState(me?.name ?? '')
   const emoji = me?.emoji ?? '🙂'
 
-  const [code, setCode] = useState<string | null>(null)
+  const [code, setCode] = useState<string | null>(roomCode ?? null)
   const [snap, setSnap] = useState<RoomSnapshot | null>(null)
   const [joinCode, setJoinCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -105,6 +105,10 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
   }
 
   const doLeave = async () => {
+    if (roomCode) {
+      onBack()
+      return
+    }
     if (code) await leaveRoom(code)
     setCode(null)
     setSnap(null)
@@ -114,6 +118,13 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
 
   // ── 入口：还没进房 ───────────────────────────────────────────────
   if (!code || !snap) {
+    if (roomCode) {
+      return (
+        <Card className="paper-grid">
+          <CardContent className="p-6 text-sm text-ink-500">正在进入小组游戏...</CardContent>
+        </Card>
+      )
+    }
     return (
       <Card className="paper-grid">
         <CardHeader>
@@ -206,8 +217,8 @@ export function CharadesRemote({ onBack }: { onBack: () => void }) {
           <CardDescription>把房号告诉大家，人到齐房主就开始。已经 {members.length} 人。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <RoomAudioPanel code={code} roomState={snap.state} myName={name} />
-          <RemoteVoiceHint />
+          {!roomCode && <RoomAudioPanel code={code} roomState={snap.state} myName={name} />}
+          {!roomCode && <RemoteVoiceHint />}
           {memberList}
           {isHost ? (
             <Button
