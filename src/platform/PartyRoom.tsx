@@ -9,16 +9,19 @@ import { getCurrentPlayer } from './progress'
 import { getPlayers } from './players'
 import { RoomAudioPanel } from './RoomAudioPanel'
 import { RoomCode } from './RoomCode'
+import { PresenceStrip } from './PresenceStrip'
+import type { PresenceUser } from './presence'
 import { createRoom, hostSet, joinRoom, leaveRoom, subscribeRoom, type RoomSnapshot } from './rooms'
 
 interface PartyRoomProps {
   initialGame?: string | null
+  presenceUsers: PresenceUser[]
   onReady: (code: string) => void
   onLeave: () => void
   onLaunch: (gameId: string) => void
 }
 
-export function PartyRoom({ initialGame, onReady, onLeave, onLaunch }: PartyRoomProps) {
+export function PartyRoom({ initialGame, presenceUsers, onReady, onLeave, onLaunch }: PartyRoomProps) {
   const me = useMemo(() => getPlayers().find((p) => p.id === getCurrentPlayer()), [])
   const [name, setName] = useState(me?.name ?? '')
   const emoji = me?.emoji ?? '🙂'
@@ -172,6 +175,7 @@ export function PartyRoom({ initialGame, onReady, onLeave, onLaunch }: PartyRoom
       </CardHeader>
       <CardContent className="space-y-4">
         <RoomAudioPanel code={code} roomState={snap.state} myName={name} autoJoin />
+        <PresenceStrip users={presenceUsers} currentPlayerId={me?.id} roomCode={code} />
 
         <div className="flex flex-wrap gap-2">
           {members.map((m) => (
@@ -182,6 +186,7 @@ export function PartyRoom({ initialGame, onReady, onLeave, onLaunch }: PartyRoom
               <span className="text-ink-400">{m.seat}.</span>
               <span>{m.emoji}</span>
               <span>{m.name}</span>
+              <span className={m.online ? 'h-1.5 w-1.5 rounded-full bg-emerald-500' : 'h-1.5 w-1.5 rounded-full bg-ink-200'} />
               {m.is_host && <Crown className="h-3.5 w-3.5 text-orange-500" />}
             </span>
           ))}

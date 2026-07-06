@@ -159,6 +159,7 @@ export interface RoomMemberPublic {
   emoji: string
   seat: number
   is_host: boolean
+  online?: boolean
 }
 
 export interface RoomSnapshot {
@@ -242,4 +243,31 @@ export async function liveKitTokenRpc(
   purpose: 'audio' | 'charades' = 'audio'
 ): Promise<LiveKitJoinInfo | null> {
   return fgPost<LiveKitJoinInfo>('/livekit-token', { code, token, purpose })
+}
+
+export interface PresenceUser {
+  peer_id: string
+  name: string
+  emoji: string
+  player_id: string
+  room_code: string
+  updated_at: string
+  expires_at: string
+}
+
+export async function presencePingRpc(args: {
+  token: string
+  name: string
+  emoji: string
+  playerId: string
+  roomCode?: string | null
+  ttlSeconds?: number
+}): Promise<boolean> {
+  const data = await fgPost<{ ok: boolean }>('/presence-ping', args)
+  return data?.ok === true
+}
+
+export async function presenceListRpc(): Promise<PresenceUser[]> {
+  const data = await fgPost<{ users: PresenceUser[] }>('/presence-list', {})
+  return Array.isArray(data?.users) ? data.users : []
 }

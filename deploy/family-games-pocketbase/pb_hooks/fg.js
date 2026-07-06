@@ -113,12 +113,27 @@ function profileRow(record) {
   }
 }
 
-function memberRow(record) {
+function jsonValue(value) {
+  if (isBlankJson(value)) return {}
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch {
+    return value || {}
+  }
+}
+
+function peerIdForToken(token) {
+  return $security.sha256(String(token || '')).slice(0, 24)
+}
+
+function memberRow(record, onlineMap) {
+  const seat = record.getInt('seat')
   return {
     name: record.getString('name'),
     emoji: record.getString('emoji') || '🙂',
-    seat: record.getInt('seat'),
+    seat,
     is_host: record.getBool('is_host'),
+    online: onlineMap ? onlineMap[seat] === true : undefined,
   }
 }
 
@@ -127,7 +142,7 @@ function roomPayload(value) {
 }
 
 function publicRoomPayload(record) {
-  const value = record.get('payload') || {}
+  const value = jsonValue(record.get('payload'))
   if (isEmptyRoomPayload(value)) return {}
   return value
 }
@@ -193,6 +208,45 @@ function cleanupRealtime() {
   const cutoff = new Date().toISOString()
   deleteWhere('rt_events', (row) => String(row.get('expires_at') || '') < cutoff)
   deleteWhere('rt_presence', (row) => String(row.get('expires_at') || '') < cutoff)
+}
+
+function activePresenceRows() {
+  const cutoff = new Date().toISOString()
+  return all('rt_presence', 'updated DESC').filter((row) => String(row.get('expires_at') || '') > cutoff)
+}
+
+function presenceMeta(row) {
+  const meta = jsonValue(row.get('meta'))
+  return meta && typeof meta === 'object' ? meta : {}
+}
+
+function presencePublicRow(row) {
+  const meta = presenceMeta(row)
+  return {
+    peer_id: row.getString('peer_id'),
+    name: String(meta.name || '玩家'),
+    emoji: String(meta.emoji || '🙂'),
+    player_id: String(meta.player_id || ''),
+    room_code: String(meta.room_code || ''),
+    updated_at: String(row.get('updated')),
+    expires_at: String(row.get('expires_at')),
+  }
+}
+
+function activeRoomOnlineMap(code) {
+  const rows = activePresenceRows()
+  const onlinePeers = {}
+  for (const row of rows) {
+    if (row.getString('kind') !== 'user' || row.getString('room') !== 'global') continue
+    const meta = presenceMeta(row)
+    if (String(meta.room_code || '') !== String(code)) continue
+    onlinePeers[row.getString('peer_id')] = true
+  }
+  const out = {}
+  for (const member of getMembers(code)) {
+    if (onlinePeers[peerIdForToken(member.getString('token'))]) out[member.getInt('seat')] = true
+  }
+  return out
 }
 
 function cleanupRooms() {
@@ -386,6 +440,43 @@ function livekitToken(e) {
   }
   const token = $security.createJWT(payload, apiSecret, 60 * 60 * 4)
   return ok(e, { ok: true, url: livekitUrl, token, room: lkRoom, identity })
+}
+
+function presencePing(e) {
+  const data = body(e)
+  const token = String(data.token || '')
+  if (!token) return ok(e, { ok: false })
+  const peerId = peerIdForToken(token)
+  const ttlSeconds = Math.max(20, Math.min(120, Number(data.ttlSeconds || 45)))
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString()
+  const meta = {
+    name: String(data.name || '玩家').slice(0, 24),
+    emoji: String(data.emoji || '🙂').slice(0, 8),
+    player_id: String(data.playerId || '').slice(0, 80),
+    room_code: String(data.roomCode || '').replace(/[^0-9]/g, '').slice(0, 12),
+  }
+  let row = first('rt_presence', 'kind = "user" && room = "global" && peer_id = {:peer_id}', { peer_id: peerId })
+  if (!row) {
+    row = saveRecord('rt_presence', {
+      kind: 'user',
+      room: 'global',
+      peer_id: peerId,
+      meta,
+      expires_at: expiresAt,
+    })
+  } else {
+    row.set('meta', meta)
+    row.set('expires_at', expiresAt)
+    $app.save(row)
+  }
+  return ok(e, { ok: true, presence: presencePublicRow(row) })
+}
+
+function presenceList(e) {
+  const rows = activePresenceRows()
+    .filter((row) => row.getString('kind') === 'user' && row.getString('room') === 'global')
+    .map(presencePublicRow)
+  return ok(e, { users: rows })
 }
 
 function claimProfile(e) {
@@ -619,6 +710,7 @@ function roomSnapshot(e) {
   const members = getMembers(code)
   const me = first('room_members', 'code = {:code} && token = {:token}', { code, token })
   const submittedCount = members.filter((row) => !isBlankJson(row.get('submission'))).length
+  const onlineMap = activeRoomOnlineMap(code)
   return ok(e, {
     state: room.getString('state'),
     game: room.getString('game'),
@@ -633,7 +725,7 @@ function roomSnapshot(e) {
           submission: me.get('submission'),
         }
       : null,
-    members: members.map(memberRow),
+    members: members.map((row) => memberRow(row, onlineMap)),
     submittedCount,
     updated_at: String(room.get('updated')),
   })
@@ -711,6 +803,8 @@ module.exports = {
   adminResetProfileCode,
   adminDeleteProfile,
   livekitToken,
+  presencePing,
+  presenceList,
   claimProfile,
   pullSeen,
   pushSeen,

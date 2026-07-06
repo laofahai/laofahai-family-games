@@ -8,12 +8,14 @@ import { UnlockGate, type UnlockInfo } from '@/platform/UnlockGate'
 import { IdentitySheet } from '@/platform/IdentitySheet'
 import { AdminPanel } from '@/platform/AdminPanel'
 import { PartyRoom } from '@/platform/PartyRoom'
+import { PresenceStrip } from '@/platform/PresenceStrip'
 import { ACTIVE_GAME_IDS, GAMES, gameSections, type GameMeta } from '@/platform/catalog'
 import { addPlayer, getPlayers, removePlayer, type Player } from '@/platform/players'
 import { getCurrentPlayer, hydratePlayer, setCurrentPlayer, setSyncCode } from '@/platform/progress'
 import { hydrateBadges, recordPlayed, type BadgeDef } from '@/platform/badges'
 import { hydrateProgress } from '@/platform/progression'
 import { roomsAvailable } from '@/platform/rooms'
+import { usePresence } from '@/platform/presence'
 import { LevelBadge } from '@/platform/LevelBadge'
 import { BadgeUnlock } from '@/platform/BadgeUnlock'
 import { contentKeysForGame, ensureContent } from '@/platform/content'
@@ -93,6 +95,13 @@ export default function App() {
   // 改本地缓存，需要 bump 这个版本号触发顶栏等级牌重读最新数据。
   const [progressVersion, setProgressVersion] = useState(0)
   const currentPlayer = players.find((p) => p.id === playerId)
+  const presenceUsers = usePresence({
+    enabled: unlocked && roomReady,
+    playerId,
+    name: currentPlayer?.name ?? '玩家',
+    emoji: currentPlayer?.emoji ?? '🙂',
+    roomCode: partyCode,
+  })
 
   // 大人（爸妈/管理员）能看到所有游戏；孩子只看到「自己的」私人游戏（owner），看不到兄弟姐妹的
   const isGrownup = playerId === 'dad' || playerId === 'mom' || isAdmin()
@@ -309,29 +318,32 @@ export default function App() {
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 self-start">
-              {/* 顶栏成长牌：当前玩家在《觉醒者》里的等级 / 中二称号 / 金币 */}
-              <LevelBadge key={`${playerId}:${progressVersion}`} playerId={playerId} compact />
-              {isAdmin() && (
+            <div className="flex flex-col items-start gap-2 self-start md:items-end">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 顶栏成长牌：当前玩家在《觉醒者》里的等级 / 中二称号 / 金币 */}
+                <LevelBadge key={`${playerId}:${progressVersion}`} playerId={playerId} compact />
+                {isAdmin() && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAdmin(true)}
+                    className="flex min-h-11 items-center gap-2 rounded-full border border-melon-200 bg-melon-50 px-4 text-sm font-semibold text-melon-700 shadow-sm transition hover:border-melon-300"
+                  >
+                    管理
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setShowAdmin(true)}
-                  className="flex min-h-11 items-center gap-2 rounded-full border border-melon-200 bg-melon-50 px-4 text-sm font-semibold text-melon-700 shadow-sm transition hover:border-melon-300"
+                  onClick={() => setShowMe(true)}
+                  className="flex min-h-11 items-center gap-2 rounded-full border border-ink-200 bg-white px-4 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
                 >
-                  管理
+                  <UserRound className="h-4 w-4 text-melon-600" />
+                  <span className="text-ink-400">我</span>
+                  <span>{currentPlayer?.emoji ?? '🙂'}</span>
+                  <span>{currentPlayer?.name ?? '选一个'}</span>
+                  <span className="text-ink-400">▾</span>
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowMe(true)}
-                className="flex min-h-11 items-center gap-2 rounded-full border border-ink-200 bg-white px-4 text-sm font-semibold text-ink-700 shadow-sm transition hover:border-melon-300"
-              >
-                <UserRound className="h-4 w-4 text-melon-600" />
-                <span className="text-ink-400">我</span>
-                <span>{currentPlayer?.emoji ?? '🙂'}</span>
-                <span>{currentPlayer?.name ?? '选一个'}</span>
-                <span className="text-ink-400">▾</span>
-              </button>
+              </div>
+              <PresenceStrip users={presenceUsers} currentPlayerId={playerId} className="max-w-full md:max-w-md" />
             </div>
           </header>
         )}
@@ -419,6 +431,7 @@ export default function App() {
             </div>
             <PartyRoom
               initialGame={remoteEntry}
+              presenceUsers={presenceUsers}
               onReady={setPartyCode}
               onLeave={() => {
                 setScreen('home')
