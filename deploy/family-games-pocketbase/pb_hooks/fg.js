@@ -133,7 +133,8 @@ function publicRoomPayload(record) {
 }
 
 function isBlankJson(value) {
-  if (value === null || value === undefined) return true
+  if (value == null) return true
+  if (String(value) === '<nil>') return true
   const text = JSON.stringify(value)
   return text === undefined || text === 'null' || text === '{}'
 }
