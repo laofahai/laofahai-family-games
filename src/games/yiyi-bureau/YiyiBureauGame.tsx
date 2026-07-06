@@ -417,17 +417,16 @@ export function YiyiBureauGame({ onExit }: YiyiBureauGameProps) {
             {question.badge}
           </span>
         </div>
-        <CardTitle className="text-2xl">{question.title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {question.scenario && (
-          <div className="rounded-2xl border border-ink-100 bg-white/90 p-4 text-sm leading-relaxed text-ink-700 whitespace-pre-line">
-            {question.scenario}
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-ink-100 bg-melon-50/60 p-4">
-          <div className="text-lg font-semibold leading-relaxed text-ink-900 whitespace-pre-line">
+      <CardContent className="space-y-4">
+        <div className="rounded-2xl border border-ink-100 bg-white/90 p-4 shadow-sm sm:p-5">
+          <h2 className="font-display text-2xl leading-tight text-ink-900">{question.title}</h2>
+          {question.scenario && (
+            <div className="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-700">
+              {question.scenario}
+            </div>
+          )}
+          <div className="mt-4 border-t border-ink-100 pt-4 text-base font-semibold leading-relaxed text-ink-900 whitespace-pre-line sm:text-lg">
             {question.prompt}
           </div>
         </div>
