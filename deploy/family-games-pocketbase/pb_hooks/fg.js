@@ -6,6 +6,8 @@ function ok(e, data) {
   return e.json(200, data)
 }
 
+const presenceStore = {}
+
 function first(collection, filter, params) {
   try {
     return $app.findFirstRecordByFilter(collection, filter, params || {})
@@ -234,15 +236,17 @@ function cleanupRealtime() {
   const now = Date.now()
   deleteWhere('rt_events', (row) => dateMs(row.get('expires_at')) < now)
   deleteWhere('rt_presence', (row) => dateMs(row.get('expires_at')) < now)
+  for (const peerId in presenceStore) {
+    if (Number(presenceStore[peerId].expires_ms || 0) < now) delete presenceStore[peerId]
+  }
 }
 
 function activePresenceRows() {
   const now = Date.now()
-  return all('rt_presence', 'updated DESC').filter((row) => {
-    const meta = presenceMeta(row)
-    const expiresMs = Number(meta.expires_ms || 0)
-    return expiresMs > now || dateMs(row.get('expires_at')) > now
-  })
+  cleanupRealtime()
+  return Object.values(presenceStore)
+    .filter((row) => Number(row.expires_ms || 0) > now)
+    .sort((a, b) => Number(b.updated_ms || 0) - Number(a.updated_ms || 0))
 }
 
 function dateMs(value) {
@@ -257,6 +261,7 @@ function presenceMeta(row) {
 }
 
 function presencePublicRow(row) {
+  if (row && row.peer_id) return row
   const meta = presenceMeta(row)
   return {
     peer_id: row.getString('peer_id'),
@@ -274,10 +279,8 @@ function activeRoomOnlineMap(code) {
   const rows = activePresenceRows()
   const onlinePeers = {}
   for (const row of rows) {
-    if (row.getString('kind') !== 'user' || row.getString('room') !== 'global') continue
-    const meta = presenceMeta(row)
-    if (String(meta.room_code || '') !== String(code)) continue
-    onlinePeers[row.getString('peer_id')] = true
+    if (String(row.room_code || '') !== String(code)) continue
+    onlinePeers[String(row.peer_id || '')] = true
   }
   const out = {}
   for (const member of getMembers(code)) {
@@ -486,6 +489,7 @@ function presencePing(e) {
   const peerId = peerIdForToken(token)
   const ttlSeconds = Math.max(20, Math.min(120, Number(data.ttlSeconds || 45)))
   const expiresMs = Date.now() + ttlSeconds * 1000
+  const updatedMs = Date.now()
   const expiresAt = new Date(expiresMs).toISOString()
   const meta = {
     name: String(data.name || '玩家').slice(0, 24),
@@ -494,21 +498,19 @@ function presencePing(e) {
     room_code: String(data.roomCode || '').replace(/[^0-9]/g, '').slice(0, 12),
     expires_ms: expiresMs,
   }
-  let row = first('rt_presence', 'kind = "user" && room = "global" && peer_id = {:peer_id}', { peer_id: peerId })
-  if (!row) {
-    row = saveRecord('rt_presence', {
-      kind: 'user',
-      room: 'global',
-      peer_id: peerId,
-      meta,
-      expires_at: expiresAt,
-    })
-  } else {
-    row.set('meta', meta)
-    row.set('expires_at', expiresAt)
-    $app.save(row)
+  const presence = {
+    peer_id: peerId,
+    name: meta.name,
+    emoji: meta.emoji,
+    player_id: meta.player_id,
+    room_code: meta.room_code,
+    updated_at: new Date(updatedMs).toISOString(),
+    expires_at: expiresAt,
+    updated_ms: updatedMs,
+    expires_ms: expiresMs,
   }
-  return ok(e, { ok: true, presence: presencePublicRow(row) })
+  presenceStore[peerId] = presence
+  return ok(e, { ok: true, presence })
 }
 
 function presenceList(e) {

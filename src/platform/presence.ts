@@ -5,6 +5,7 @@ import { presenceListRpc, presencePingRpc, type PresenceUser } from './cloud'
 import { deviceToken } from './rooms'
 
 const HEARTBEAT_MS = 12_000
+const REFRESH_MS = 5_000
 const TTL_SECONDS = 45
 
 export type { PresenceUser }
@@ -76,10 +77,14 @@ export function usePresence(args: {
 
     void subscribe()
     void ping()
+    const refreshTimer = setInterval(() => {
+      void refresh()
+    }, REFRESH_MS)
 
     return () => {
       alive = false
       if (timer) clearTimeout(timer)
+      clearInterval(refreshTimer)
       if (unsubscribe) unsubscribe()
     }
   }, [args.enabled, args.emoji, args.name, args.playerId, args.roomCode])
