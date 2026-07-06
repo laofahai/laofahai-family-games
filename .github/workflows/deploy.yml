@@ -105,7 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           printf 'VITE_POCKETBASE_URL=%s\nPB_ADMIN_EMAIL=%s\nPB_ADMIN_PASSWORD=%s\nLIVEKIT_URL=%s\nLIVEKIT_API_KEY=%s\nLIVEKIT_API_SECRET=%s\n' "$VITE_POCKETBASE_URL" "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" "$LIVEKIT_URL" "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > /tmp/family-games.env
-          printf 'port: 7880\nlog_level: info\nrtc:\n  tcp_port: 7881\n  port_range_start: 50000\n  port_range_end: 60000\n  use_external_ip: true\nredis:\n  address: family-games-redis:6379\nkeys:\n  %s: %s\n' "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > /tmp/livekit.yaml
+          printf 'port: 7880\nlog_level: info\nrtc:\n  tcp_port: 7881\n  port_range_start: 50000\n  port_range_end: 50100\n  use_external_ip: true\nredis:\n  address: family-games-redis:6379\nkeys:\n  %s: %s\n' "$LIVEKIT_API_KEY" "$LIVEKIT_API_SECRET" > /tmp/livekit.yaml
           ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "mkdir -p '$APP_DIR' /opt/nestory/caddy/sites"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-dist.tgz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-dist.tgz"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-images.tar.gz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-images.tar.gz"

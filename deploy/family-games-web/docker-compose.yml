@@ -20,7 +20,7 @@ services:
       - "7880"
     ports:
       - "7881:7881/tcp"
-      - "50000-60000:50000-60000/udp"
+      - "50000-50100:50000-50100/udp"
     depends_on:
       - redis
     networks:
