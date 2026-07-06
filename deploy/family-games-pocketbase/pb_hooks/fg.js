@@ -123,14 +123,24 @@ function memberRow(record) {
 }
 
 function roomPayload(value) {
-  if (value && typeof value === 'object' && Object.keys(value).length > 0) return value
+  if (!isBlankJson(value) && !isEmptyRoomPayload(value)) return value
   return { __empty: true }
 }
 
 function publicRoomPayload(record) {
   const value = record.get('payload') || {}
-  if (value && typeof value === 'object' && value.__empty === true && Object.keys(value).length === 1) return {}
+  if (isEmptyRoomPayload(value)) return {}
   return value
+}
+
+function isBlankJson(value) {
+  if (value === null || value === undefined) return true
+  const text = JSON.stringify(value)
+  return text === undefined || text === 'null' || text === '{}'
+}
+
+function isEmptyRoomPayload(value) {
+  return JSON.stringify(value) === '{"__empty":true}'
 }
 
 function getMembers(code) {
@@ -513,7 +523,7 @@ function roomSnapshot(e) {
   if (!room) return ok(e, null)
   const members = getMembers(code)
   const me = first('room_members', 'code = {:code} && token = {:token}', { code, token })
-  const submittedCount = members.filter((row) => row.get('submission') !== null).length
+  const submittedCount = members.filter((row) => !isBlankJson(row.get('submission'))).length
   return ok(e, {
     state: room.getString('state'),
     game: room.getString('game'),
