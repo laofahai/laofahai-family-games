@@ -88,7 +88,7 @@ migrate((app) => {
         { name: 'game', type: 'text', required: true, max: 80 },
         { name: 'host_token', type: 'text', required: true, max: 120 },
         { name: 'state', type: 'text', required: true, max: 40 },
-        { name: 'payload', type: 'json', required: true },
+        { name: 'payload', type: 'json' },
       ],
       indexes: ['CREATE UNIQUE INDEX idx_rooms_code ON rooms (code)'],
     }),

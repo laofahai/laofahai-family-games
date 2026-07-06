@@ -123,8 +123,7 @@ function memberRow(record) {
 }
 
 function roomPayload(value) {
-  if (!isBlankJson(value) && !isEmptyRoomPayload(value)) return value
-  return { __empty: true }
+  return isBlankJson(value) || isEmptyRoomPayload(value) ? {} : value
 }
 
 function publicRoomPayload(record) {
@@ -452,8 +451,6 @@ function createRoom(e) {
       emoji: String(data.emoji || '🙂'),
       seat: 1,
       is_host: true,
-      secret: null,
-      submission: null,
     })
     return ok(e, { ok: true })
   } catch (err) {
@@ -486,8 +483,6 @@ function joinRoom(e) {
     emoji: String(data.emoji || '🙂'),
     seat,
     is_host: false,
-    secret: null,
-    submission: null,
   })
   room.set('payload', roomPayload(publicRoomPayload(room)))
   $app.save(room)
