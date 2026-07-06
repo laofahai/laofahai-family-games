@@ -90,26 +90,16 @@ jobs:
           npm ci
           node scripts/export-pocketbase-content.mjs
           BASE_URL=/ VITE_POCKETBASE_URL="$VITE_POCKETBASE_URL" npm run build
-          docker build --platform linux/amd64 -t family-games-web:latest -f Dockerfile .
           docker build --platform linux/amd64 -t family-games-pocketbase:latest -f deploy/family-games-pocketbase/Dockerfile .
-          docker save family-games-web:latest family-games-pocketbase:latest | gzip > /tmp/family-games-images.tar.gz
-          tar \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='.env' \
-            --exclude='.env.*' \
-            --exclude='.DS_Store' \
-            --exclude='*/.DS_Store' \
-            --exclude='._*' \
-            --exclude='*/._*' \
-            -czf /tmp/family-games-web.tgz .
+          docker save family-games-pocketbase:latest | gzip > /tmp/family-games-images.tar.gz
+          tar -czf /tmp/family-games-dist.tgz -C dist .
 
       - name: Upload deploy files
         run: |
           set -euo pipefail
           printf 'VITE_POCKETBASE_URL=%s\nPB_ADMIN_EMAIL=%s\nPB_ADMIN_PASSWORD=%s\n' "$VITE_POCKETBASE_URL" "$PB_ADMIN_EMAIL" "$PB_ADMIN_PASSWORD" > /tmp/family-games.env
           ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "mkdir -p '$APP_DIR' /opt/nestory/caddy/sites"
-          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-web.tgz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-web.tgz"
+          scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-dist.tgz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-dist.tgz"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games-images.tar.gz "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games-images.tar.gz"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" /tmp/family-games.env "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:/tmp/family-games.env"
           scp -i ~/.ssh/nestory_deploy -P "$NESTORY_SSH_PORT" deploy/family-games-web/docker-compose.yml "$NESTORY_SSH_USER@$NESTORY_SSH_HOST:$APP_DIR/docker-compose.yml"
@@ -121,13 +111,13 @@ jobs:
           ssh -i ~/.ssh/nestory_deploy -p "$NESTORY_SSH_PORT" "$NESTORY_SSH_USER@$NESTORY_SSH_HOST" "
             set -euo pipefail
             cd '$APP_DIR'
-            rm -rf source.new
-            mkdir -p source.new releases
-            tar -xzf /tmp/family-games-web.tgz -C source.new
-            if [ -d source ]; then
-              mv source releases/source-\$(date +%Y%m%d%H%M%S)
+            rm -rf /opt/nestory/caddy/site/game-902.new
+            mkdir -p releases /opt/nestory/caddy/site/game-902.new
+            tar -xzf /tmp/family-games-dist.tgz -C /opt/nestory/caddy/site/game-902.new
+            if [ -d /opt/nestory/caddy/site/game-902 ]; then
+              mv /opt/nestory/caddy/site/game-902 releases/site-\$(date +%Y%m%d%H%M%S)
             fi
-            mv source.new source
+            mv /opt/nestory/caddy/site/game-902.new /opt/nestory/caddy/site/game-902
             mv /tmp/family-games.env .env
             chmod 600 .env
             docker load -i /tmp/family-games-images.tar.gz

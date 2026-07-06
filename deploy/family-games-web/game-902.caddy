@@ -8,7 +8,9 @@ game.902.linch.tech {
   }
 
   respond /health "ok" 200
-  reverse_proxy family-games-web:80
+  root * /srv/game-902
+  try_files {path} /index.html
+  file_server
 }
 
 pb.902.linch.tech {

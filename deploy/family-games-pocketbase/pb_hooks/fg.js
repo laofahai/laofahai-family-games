@@ -22,8 +22,8 @@ function byData(collection, field, value) {
   }
 }
 
-function all(collection, where, sort) {
-  const found = where ? $app.findAllRecords(collection, where) : $app.findAllRecords(collection)
+function all(collection, sort) {
+  const found = $app.findAllRecords(collection)
   const records = []
   for (const record of found) {
     if (record) records.push(record)
@@ -123,11 +123,11 @@ function memberRow(record) {
 }
 
 function getMembers(code) {
-  return all('room_members', $dbx.hashExp({ code: String(code) }), 'seat ASC')
+  return all('room_members', 'seat ASC').filter((row) => row.getString('code') === String(code))
 }
 
-function deleteWhere(collection, where) {
-  const records = all(collection, where)
+function deleteWhere(collection, predicate) {
+  const records = all(collection).filter(predicate)
   for (const record of records) $app.delete(record)
 }
 
@@ -170,17 +170,13 @@ function seedContent() {
 
 function cleanupRealtime() {
   const cutoff = new Date().toISOString()
-  deleteWhere('rt_events', $dbx.exp('expires_at < {:cutoff}', { cutoff }))
-  deleteWhere('rt_presence', $dbx.exp('expires_at < {:cutoff}', { cutoff }))
+  deleteWhere('rt_events', (row) => String(row.get('expires_at') || '') < cutoff)
+  deleteWhere('rt_presence', (row) => String(row.get('expires_at') || '') < cutoff)
 }
 
 function cleanupRooms() {
-  const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
-  const rooms = all('rooms', $dbx.exp('updated < {:cutoff}', { cutoff }))
-  for (const room of rooms) {
-    deleteWhere('room_members', $dbx.hashExp({ code: room.getString('code') }))
-    $app.delete(room)
-  }
+  // Existing PocketBase room rows don't have a reliable updated timestamp yet.
+  // Collision handling in createRoom already retries another short code.
 }
 
 function redeemCode(e) {
@@ -243,7 +239,7 @@ function mintCode(e) {
 function listCodes(e) {
   const data = body(e)
   if (!requireAdmin(data.adminCode)) return ok(e, { codes: [] })
-  const codes = all('access_codes', null, 'created DESC').map(codeRow)
+  const codes = all('access_codes', 'created DESC').map(codeRow)
   return ok(e, { codes })
 }
 
@@ -260,7 +256,9 @@ function setCodeRevoked(e) {
 function adminListProfiles(e) {
   const data = body(e)
   if (!requireAdmin(data.adminCode)) return ok(e, { profiles: [] })
-  const profiles = all('profiles', $dbx.exp('sync_code != ""'), 'created ASC').map(profileRow)
+  const profiles = all('profiles', 'created ASC')
+    .filter((row) => row.getString('sync_code') !== '')
+    .map(profileRow)
   return ok(e, { profiles })
 }
 
@@ -275,7 +273,7 @@ function adminResetProfileCode(e) {
   if (!newCode || (taken && taken.id !== profile.id)) return ok(e, { ok: false })
   profile.set('sync_code', newCode)
   $app.save(profile)
-  const learn = all('learn', $dbx.hashExp({ code: oldCode }))
+  const learn = all('learn').filter((row) => row.getString('code') === oldCode)
   for (const row of learn) {
     if (!first('learn', 'code = {:code} && game = {:game}', { code: newCode, game: row.getString('game') })) {
       row.set('code', newCode)
@@ -291,8 +289,8 @@ function adminDeleteProfile(e) {
   const profile = first('profiles', 'id = {:id}', { id: String(data.id || '') })
   if (!profile) return ok(e, { ok: false })
   const oldCode = profile.getString('sync_code')
-  deleteWhere('seen', $dbx.hashExp({ profile_id: profile.id }))
-  if (oldCode) deleteWhere('learn', $dbx.hashExp({ code: oldCode }))
+  deleteWhere('seen', (row) => row.getString('profile_id') === profile.id)
+  if (oldCode) deleteWhere('learn', (row) => row.getString('code') === oldCode)
   $app.delete(profile)
   return ok(e, { ok: true })
 }
@@ -326,10 +324,12 @@ function pullSeen(e) {
   const data = body(e)
   const profile = profileByCode(data.code)
   if (!profile) return ok(e, { seen: [] })
-  const seen = all('seen', $dbx.hashExp({ profile_id: profile.id }), 'scope ASC').map((row) => ({
-    scope: row.getString('scope'),
-    item_ids: row.get('item_ids') || [],
-  }))
+  const seen = all('seen', 'scope ASC')
+    .filter((row) => row.getString('profile_id') === profile.id)
+    .map((row) => ({
+      scope: row.getString('scope'),
+      item_ids: row.get('item_ids') || [],
+    }))
   return ok(e, { seen })
 }
 
@@ -349,10 +349,12 @@ function pushSeen(e) {
 
 function pullLearn(e) {
   const data = body(e)
-  const learn = all('learn', $dbx.hashExp({ code: String(data.code || '') }), 'game ASC').map((row) => ({
-    game: row.getString('game'),
-    data: row.get('data'),
-  }))
+  const learn = all('learn', 'game ASC')
+    .filter((row) => row.getString('code') === String(data.code || ''))
+    .map((row) => ({
+      game: row.getString('game'),
+      data: row.get('data'),
+    }))
   return ok(e, { learn })
 }
 
@@ -381,14 +383,14 @@ function getContent(e) {
       if (row) rows.push(row)
     }
   } else {
-    rows = all('game_content', null, 'game ASC')
+    rows = all('game_content', 'game ASC')
   }
   return ok(e, { content: rows.map((row) => ({ game: row.getString('game'), data: row.get('data') || [] })) })
 }
 
 function getRoster(e) {
   try {
-    const records = all('profiles', null, 'class_id ASC, name ASC')
+    const records = all('profiles', 'class_id ASC, name ASC')
     const rows = []
     for (const row of records) {
       if (row.getString('role') === '') continue
@@ -410,28 +412,33 @@ function getRoster(e) {
 }
 
 function createRoom(e) {
-  cleanupRooms()
-  const data = body(e)
-  const code = String(data.code || '')
-  if (!code || byData('rooms', 'code', code)) return ok(e, { ok: false })
-  saveRecord('rooms', {
-    code,
-    game: String(data.game || ''),
-    host_token: String(data.hostToken || ''),
-    state: 'lobby',
-    payload: {},
-  })
-  saveRecord('room_members', {
-    code,
-    token: String(data.hostToken || ''),
-    name: String(data.name || '房主'),
-    emoji: String(data.emoji || '🙂'),
-    seat: 1,
-    is_host: true,
-    secret: null,
-    submission: null,
-  })
-  return ok(e, { ok: true })
+  try {
+    cleanupRooms()
+    const data = body(e)
+    const code = String(data.code || '')
+    if (!code || byData('rooms', 'code', code)) return ok(e, { ok: false })
+    saveRecord('rooms', {
+      code,
+      game: String(data.game || ''),
+      host_token: String(data.hostToken || ''),
+      state: 'lobby',
+      payload: {},
+    })
+    saveRecord('room_members', {
+      code,
+      token: String(data.hostToken || ''),
+      name: String(data.name || '房主'),
+      emoji: String(data.emoji || '🙂'),
+      seat: 1,
+      is_host: true,
+      secret: null,
+      submission: null,
+    })
+    return ok(e, { ok: true })
+  } catch (err) {
+    console.log(`create-room failed: ${err}`)
+    return ok(e, { ok: false })
+  }
 }
 
 function joinRoom(e) {
@@ -524,7 +531,7 @@ function leaveRoom(e) {
   const member = first('room_members', 'code = {:code} && token = {:token}', { code, token })
   if (member) $app.delete(member)
   if (room && room.getString('host_token') === token) {
-    deleteWhere('room_members', $dbx.hashExp({ code }))
+    deleteWhere('room_members', (row) => row.getString('code') === code)
     $app.delete(room)
   }
   return ok(e, { ok: true })
