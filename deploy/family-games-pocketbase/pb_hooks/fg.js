@@ -514,9 +514,7 @@ function presencePing(e) {
 }
 
 function presenceList(e) {
-  const rows = activePresenceRows()
-    .filter((row) => row.getString('kind') === 'user' && row.getString('room') === 'global')
-    .map(presencePublicRow)
+  const rows = activePresenceRows().map(presencePublicRow)
   return ok(e, { users: rows })
 }
 
