@@ -11,6 +11,8 @@ interface FgEvent {
 interface FgModule {
   presencePing: (e: FgEvent) => { data: { ok: boolean } }
   presenceList: (e: FgEvent) => { data: { users: Array<{ peer_id: string; name: string }> } }
+  decodeJsonBytes: (value: unknown) => string | null
+  jsonValue: (value: unknown) => Record<string, unknown>
 }
 
 function loadFg(): FgModule {
@@ -47,5 +49,28 @@ describe('presence hook', () => {
   it('returns empty list when nobody has pinged', () => {
     const list = fg.presenceList(event({}))
     expect(list.data.users).toEqual([])
+  })
+})
+
+describe('decodeJsonBytes UTF-8', () => {
+  let fg: FgModule
+  beforeEach(() => {
+    fg = loadFg()
+  })
+
+  it('decodes multibyte Chinese and emoji from JSON bytes (regression: 姓名乱码)', () => {
+    const json = JSON.stringify({ guesserName: '爸爸', emoji: '🎉' })
+    const bytes = Array.from(new TextEncoder().encode(json))
+
+    expect(fg.decodeJsonBytes(bytes)).toBe(json)
+
+    const parsed = fg.jsonValue(bytes)
+    expect(parsed.guesserName).toBe('爸爸')
+    expect(parsed.emoji).toBe('🎉')
+  })
+
+  it('returns null for non-byte-array input', () => {
+    expect(fg.decodeJsonBytes('not-bytes')).toBe(null)
+    expect(fg.decodeJsonBytes([1, 2, 999])).toBe(null)
   })
 })

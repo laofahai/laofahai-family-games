@@ -187,18 +187,22 @@ export function CharadesVideoPanel({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-ink-950 text-white">
-      {hasRemoteVideo ? (
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          muted
-          playsInline
-          onLoadedMetadata={() => void playRemoteVideo()}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : isPublishing ? (
-        <video ref={localVideoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full object-cover" />
-      ) : (
+      <video
+        ref={remoteVideoRef}
+        autoPlay
+        muted
+        playsInline
+        onLoadedMetadata={() => void playRemoteVideo()}
+        className={cn('absolute inset-0 h-full w-full object-cover', !hasRemoteVideo && 'hidden')}
+      />
+      <video
+        ref={localVideoRef}
+        autoPlay
+        muted
+        playsInline
+        className={cn('absolute inset-0 h-full w-full object-cover', (hasRemoteVideo || !isPublishing) && 'hidden')}
+      />
+      {!hasRemoteVideo && !isPublishing && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink-950 px-8 text-center text-white/75">
           <Video className="h-12 w-12 text-white/60" />
           <div className="text-base font-semibold">{status}</div>

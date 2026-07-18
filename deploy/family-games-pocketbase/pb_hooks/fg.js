@@ -150,9 +150,33 @@ function isBlankJson(value) {
 }
 
 function decodeJsonBytes(value) {
-  const copy = Array.isArray(value) ? value : null
-  if (!copy || !copy.length || !copy.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) return null
-  return String.fromCharCode.apply(null, copy)
+  const bytes = Array.isArray(value) ? value : null
+  if (!bytes || !bytes.length || !bytes.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) return null
+  let out = ''
+  for (let i = 0; i < bytes.length; ) {
+    const b0 = bytes[i]
+    if (b0 < 0x80) {
+      out += String.fromCharCode(b0)
+      i += 1
+    } else if (b0 < 0xe0) {
+      const b1 = bytes[i + 1] & 0x3f
+      out += String.fromCharCode(((b0 & 0x1f) << 6) | b1)
+      i += 2
+    } else if (b0 < 0xf0) {
+      const b1 = bytes[i + 1] & 0x3f
+      const b2 = bytes[i + 2] & 0x3f
+      out += String.fromCharCode(((b0 & 0x0f) << 12) | (b1 << 6) | b2)
+      i += 3
+    } else {
+      const b1 = bytes[i + 1] & 0x3f
+      const b2 = bytes[i + 2] & 0x3f
+      const b3 = bytes[i + 3] & 0x3f
+      const cp = (((b0 & 0x07) << 18) | (b1 << 12) | (b2 << 6) | b3) - 0x10000
+      out += String.fromCharCode(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff))
+      i += 4
+    }
+  }
+  return out
 }
 
 function jsonValue(value) {
@@ -827,6 +851,8 @@ function clearSubmissions(e) {
 
 module.exports = {
   ok,
+  decodeJsonBytes,
+  jsonValue,
   seedDefaults,
   seedContent,
   cleanupRealtime,

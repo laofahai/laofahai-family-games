@@ -157,6 +157,14 @@ export default function App() {
     setScreen('party')
   }
 
+  const enterParty = () => {
+    setContentError('')
+    setRemoteEntry(null)
+    setPartyCode(null)
+    setPartyGame(null)
+    setScreen('party')
+  }
+
   const launchPartyGame = async (gameId: string) => {
     setLoadingGame(gameId)
     setContentError('')
@@ -316,6 +324,14 @@ export default function App() {
               <p className="max-w-xl text-sm text-ink-600">
                 适合一家人围坐的小游戏清单。每局玩的人，进游戏后再选。
               </p>
+              <button
+                type="button"
+                onClick={enterParty}
+                className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-orange-500 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600"
+              >
+                <DoorOpen className="h-4 w-4" />
+                一起玩 · 建小组语音房
+              </button>
             </div>
 
             <div className="flex flex-col items-start gap-2 self-start md:items-end">
@@ -408,7 +424,7 @@ export default function App() {
               <div className="text-xs text-ink-500">
                 常用 {visibleSections.main.length} 个，轻小游戏 {visibleSections.more.length} 个。
               </div>
-              <div className="text-xs text-ink-500">需要多人各自用手机时，点游戏卡片里的「一起玩儿」。</div>
+              <div className="text-xs text-ink-500">多人各自用手机：点顶部「一起玩·建小组语音房」，进去先语音，想玩再选游戏。</div>
             </CardFooter>
           </Card>
         )}
